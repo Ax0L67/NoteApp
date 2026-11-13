@@ -1,4 +1,5 @@
 const bundledFonts = [
+  'Inter',
   'Comfortaa', 'Commissioner', 'Cormorant Garamond', 'Dela Gothic One', 'Exo 2',
   'Fira Sans', 'Geologica', 'Golos Text', 'IBM Plex Mono', 'IBM Plex Sans',
   'Literata', 'Manrope', 'Mulish', 'Noto Serif', 'Onest', 'Pixelify Sans',

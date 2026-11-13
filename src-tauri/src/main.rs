@@ -1,4 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod code_runtime;
+mod png_capture;
 use noteapp_vault as storage;
 use std::sync::Mutex;
 use tauri::Manager;
@@ -64,9 +66,18 @@ async fn request(app: tauri::AppHandle, state: tauri::State<'_, AppState>, op: S
     }
     v.dispatch(&op,args)
 }
+#[tauri::command]
+async fn save_note_png(bytes: Vec<u8>, file_name: String) -> Result<bool,String> {
+ if bytes.len()>256*1024*1024 || !bytes.starts_with(b"\x89PNG\r\n\x1a\n") { return Err("Invalid PNG".into()); }
+ let name=std::path::Path::new(&file_name).file_name().and_then(|n|n.to_str()).filter(|n|n.ends_with(".png")).unwrap_or("note.png");
+ if let Some(path)=rfd::FileDialog::new().set_title("Save note as PNG").add_filter("PNG", &["png"]).set_file_name(name).save_file(){storage::atomic_write(&path,&bytes)?;return Ok(true);}
+ Ok(false)
+}
 fn main() {
     tauri::Builder::default().plugin(tauri_plugin_opener::init()).manage(AppState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![request])
+        .manage(code_runtime::CodeRuns::default())
+        .register_uri_scheme_protocol("note-code", |_context, request| code_runtime::sandbox_response(request.uri().path()))
+        .invoke_handler(tauri::generate_handler![request, save_note_png, png_capture::capture_png_region, code_runtime::code_runtime_status, code_runtime::save_code_file, code_runtime::prepare_code_run, code_runtime::release_code_run])
         .run(tauri::generate_context!()).expect("Не удалось запустить NoteApp");
 }
 

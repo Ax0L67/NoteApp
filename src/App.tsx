@@ -11,6 +11,7 @@ import {chromeStyle,chromeTransparency,customColor,resetActivePalette} from './a
 import {builtins,dateString,expand} from './templates';
 import Editor from './Editor';
 import ProjectGraph from './ProjectGraph';
+import {ALL_PROJECTS,allProjectsRoot,allProjectsGraph} from './allProjectsGraph';
 import ProjectGrid from './ProjectGrid';
 import ReorderTabs from './ReorderTabs';
 import CentralWindows,{type CentralWindowsHandle} from './CentralWindows';
@@ -30,6 +31,7 @@ import FontPicker,{fontStack,validFont} from './FontPicker';
 import TextOptions,{textAppearanceStyle} from './TextOptions';
 import ReferencePicker from './ReferencePicker';
 import {floatNoteText} from './noteTextBlocks';
+import NoteTypography from './NoteTypography';
 import {referenceMarkdown,referenceUrl,remapNoteReference,type ReferenceKind,type ReferenceRange,type ReferenceTarget} from './noteReferences';
 import {defaultProjects,projectRoot,projectOf,vaultFolders,validateFolderName} from './projects';
 import {entriesIn,ExplorerContextMenu,ExplorerTree,FolderContents,itemKey,type ExplorerItem,type ExplorerMenu,type Location} from './Explorer';
@@ -196,7 +198,7 @@ export default function App(){
   const s = dataRef.current;
   const names = s.settings.projects ?? defaultProjects;
   const next = location.kind==='note' ? projectFor(location.path) : location.kind==='home' ? '' : location.project;
-  if(location.kind==='home')return true;
+  if(location.kind==='home'||location.kind==='graph'&&location.project===ALL_PROJECTS)return true;
   if(!names.includes(next)||s.settings.archivedProjects?.includes(next))return false;
   if(location.kind==='note')return s.notes.some(n=>n.path===location.path);
   if(location.kind==='graph')return true;
@@ -257,6 +259,7 @@ export default function App(){
  const openCentralItem=(item:ExplorerItem)=>act(()=>navigateCentral(itemLocation(item)));
  const openGraph = () => navigate({kind:'graph',project});
  function changeConnection(connection:ProjectConnection|null, previous?:ProjectConnection, structural=false,owner=project) {
+  if(owner===ALL_PROJECTS&&previous)structural=structural||allProjectsGraph(projects,dataRef.current.settings,childrenOf).inherited.some(link=>link.from===previous.from&&link.to===previous.to);
   const {projectConnections:saved={},projectMaps:maps={}}=dataRef.current.settings;
   const links = Object.hasOwn(saved,owner) ? saved[owner] : [];
   const map = Object.hasOwn(maps,owner) ? maps[owner] : {};
@@ -642,7 +645,7 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
   const family=validFont(appearance?.fontFamily);
   return {
    ...textAppearanceStyle(appearance),
-   '--editor-size':`${appearance?.fontSize??settings.fontSize??16}px`,
+   '--editor-size':`${settings.fontSize??16}px`,
    ...(family&&{'--body-font':fontStack(family)}),
   } as CSSProperties;
  }
@@ -650,15 +653,10 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
   const view=editor.current?.view;
   if(!read&&note&&view)apply(view);
  }
- function noteTypography(path:string) {
-  const size=settings.noteAppearance?.[path]?.fontSize??settings.fontSize??16;
+ function noteTypography(path:string,getView=()=>read?undefined:editor.current?.view) {
+  
   return <>
-   <select className="font-picker" aria-label="Размер шрифта заметки" title="Размер шрифта заметки" value={size}
-    onChange={event=>editNoteAppearance(path,{fontSize:Number(event.target.value)})}>
-    {Array.from({length:21},(_,index)=>index+12).map(px=><option key={px} value={px}>{px} px</option>)}
-   </select>
-   <FontPicker value={settings.noteAppearance?.[path]?.fontFamily}
-    change={fontFamily=>editNoteAppearance(path,{fontFamily})}/>
+   <NoteTypography getView={getView} size={settings.fontSize??16} font={settings.fontFamily}/>
    <TextOptions value={settings.noteAppearance?.[path]} change={patch=>editNoteAppearance(path,patch)}/>
   </>;
  }
@@ -736,7 +734,7 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
   for(let dir=section;dir&&dir.toLocaleLowerCase()!==projectRoot(project).toLocaleLowerCase();dir=folder(dir)) breadcrumbs.unshift({kind:'folder',project,path:dir,name:dir.split('/').at(-1)!});
   breadcrumbs.unshift({kind:'project',project,path:projectRoot(project),name:project});
  }
- const graphTabs=openGraphs.filter(name=>projects.includes(name));
+ const graphTabs=openGraphs.filter(name=>name===ALL_PROJECTS||projects.includes(name));
  const orderedTabs=mergeTabOrder(tabOrder,[...openFolders.map(folderTabKey),...graphTabs.map(name=>'graph:'+name),...openTabs]);
  visibleTabKeys.current=orderedTabs;
  const folderView=!overview&&!graphOpen&&!note;
@@ -751,7 +749,7 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
  </div>;
  const contrast=Math.max(70,Math.min(140,Number.isFinite(settings.contrast)?settings.contrast!:100));
  const css={...Object.fromEntries(textures.filter(item=>/^#[0-9a-f]{6}$/i.test(settings.textureColors?.[item.id]??'')).map(item=>[`--texture-tint-${item.id}`,settings.textureColors![item.id]])),...gridStyle(pattern,gridOpacity),...chromeStyle(settings.appTransparency),'--palette-color-custom':customColor(settings.customPaletteColor),'--left-width':`${settings.leftWidth||334}px`,'--right-width':`${settings.rightWidth||282}px`,'--ui-font-scale':(settings.uiFontSize??16)/16,'--editor-size':`${settings.fontSize||16}px`,'--text-width':`${settings.textWidth||810}px`,'--body-font':fontStack(font),
-  '--border-strength':`${Math.max(0,Math.min(100,settings.borderBrightness??50))*2}%`,'--border-lighten':`${Math.max(0,(settings.borderBrightness??50)-50)}%`,'--contrast-boost':`${Math.max(0,contrast-100)/2}%`,'--contrast-fade':`${Math.max(0,100-contrast)}%`} as CSSProperties;
+  '--border-visible':(settings.borderBrightness??50)>0?'100%':'0%','--border-strength':`${Math.max(0,Math.min(100,settings.borderBrightness??50))*2}%`,'--border-lighten':`${Math.max(0,(settings.borderBrightness??50)-50)}%`,'--contrast-boost':`${Math.max(0,contrast-100)/2}%`,'--contrast-fade':`${Math.max(0,100-contrast)}%`} as CSSProperties;
  const navigation=<aside className="sidebar glass-panel">
 
  <div className="sidebar-top"><button className="search-button" onClick={()=>{setQuery('');setModal('search')}}><MagnifyingGlass size={20}/><span>Поиск</span><kbd>Ctrl K</kbd></button></div>
@@ -808,13 +806,14 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
    <NoteBackdrop path={null} root={data.root} grid/><div className="project-overview-content"><div className="project-heading"><h1>Все проекты</h1><button className="primary" onClick={()=>{setName('');setModal('project')}}><Plus size={20}/>Новый проект</button></div>
    <ProjectGrid projects={visibleProjectOrder} saveOrder={saveProjectOrder} renderCard={name=><ProjectCard key={name} name={name} sections={entriesIn(name,projectRoot(name),folders,availableNotes,projectFor).filter(item=>item.kind==='folder').map(item=>item.name)} path={projectBackground(name)} root={data.root} palette={paletteId(paletteForProject(name)??generalPalette)} blend={blendForProject(name)} pattern={settings.projectPatterns?.[name]} gridOpacity={settings.projectGridOpacity?.[name]} open={()=>open({kind:'project',project:name,path:projectRoot(name),name})} showMenu={event=>showExplorerMenu(event,{kind:'project',project:name,path:projectRoot(name),name})} archive={()=>{setProjectToArchive(name);setModal('archive-project')}}/>}/></div>
   </section>}
-  renderGraph={(owner,open)=><section className="editor-pane project-graph" aria-label={`Карта связей · ${owner}`}>
-   <ProjectGraph key={JSON.stringify([data.root,owner])} project={{kind:'project',project:owner,path:projectRoot(owner),name:owner}} notes={availableNotes.filter(n=>projectFor(n.path)===owner)} childrenOf={childrenOf} settings={settings} root={data.root} cover={projectBackground(owner)} connections={settings.projectConnections?.[owner]??[]} map={projectMap(owner)} open={open} showMenu={showExplorerMenu}
+  renderGraph={(owner,open)=>{const all=owner===ALL_PROJECTS?allProjectsGraph(visibleProjectOrder,settings,childrenOf):undefined;return <section className="editor-pane project-graph" aria-label={owner===ALL_PROJECTS?'Общая карта связей':`Карта связей · ${owner}`}>
+   <ProjectGraph key={JSON.stringify([data.root,owner])} project={all?allProjectsRoot:{kind:'project',project:owner,path:projectRoot(owner),name:owner}} notes={all?availableNotes:availableNotes.filter(n=>projectFor(n.path)===owner)} childrenOf={item=>all&&item.project===ALL_PROJECTS?all.roots:childrenOf(item)} settings={settings} root={data.root} cover={projectBackground(owner)} connections={all?.connections??settings.projectConnections?.[owner]??[]} map={all?.map??projectMap(owner)} open={item=>item.project===ALL_PROJECTS?act(()=>navigate({kind:'home'})):open(item)} showMenu={(event,item)=>{if(item.project===ALL_PROJECTS){event.preventDefault();return;}showExplorerMenu(event,item)}}
     changeConnection={(next,previous,structural)=>changeConnection(next,previous,structural,owner)} updateCard={(id,patch)=>updateMapCard(id,patch,owner)} changeBlocks={edit=>changeMapBlocks(edit,owner)} changeAppearance={patch=>updateProjectMap(patch,owner)}
     openLink={link=>act(()=>fromLink(link))} references={references} pickReference={(kind,position)=>pickMapReference(kind,position,owner)} attach={(files,position)=>act(()=>attachMapImages(files,position,owner))}
     changeTaskBoard={changeTaskBoard} createTaskBoard={()=>{const board=newTaskBoard(owner);changeTaskBoard(board);return board.id;}} openTasks={()=>setTaskManagerProject(owner)}/>
-  </section>}/>;
- if(detachedCentralId)return <div className={`app detached-app liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} style={{...css,height:'100vh'}}>{centralWindowSurface}</div>;
+  </section>}}/>;
+ const taskManager=taskManagerProject!==null?<TaskBoardManager boards={settings.taskBoards??[]} notes={availableNotes} project={taskManagerProject} change={taskBoards=>updateSettings({taskBoards})} close={()=>setTaskManagerProject(null)} openNote={path=>act(()=>fromLink(path))}/>:null;
+ if(detachedCentralId)return <div className={`app detached-app liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} style={{...css,height:'100vh'}}>{centralWindowSurface}{taskManager}</div>;
  return <div className={`app liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} style={css} data-palette-blend={settings.paletteBlend??''} data-transparent={chromeTransparency(settings.appTransparency)>0||undefined}>
  <header className="titlebar glass-panel" data-tauri-drag-region>
   <div className="brand"><span className="brand-name">NoteApp</span></div>
@@ -917,7 +916,7 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
  </label>
 </>} storage={<><p className="vault-path">{data.root}</p><div className="settings-grid"><button onClick={()=>act(chooseVault)}><Folder/>Выбрать хранилище</button><button onClick={()=>act(()=>transfer('import'))}><Upload/>Импорт папки</button><button onClick={()=>act(()=>transfer('export'))}><Download/>Экспорт с вложениями</button><button onClick={()=>act(()=>transfer('backup'))}><Copy/>Резервная копия</button><button onClick={()=>act(chooseVault)}><ArrowCounterClockwise/>Открыть резервную копию</button><button onClick={()=>{setTemplateName('');setTemplateBody('');setModal('templates')}}><FileText/>Редактор шаблонов</button></div><p className="subtle">Копия — отдельная папка со всеми файлами, вложениями и настройками. Её можно открыть как хранилище или импортировать без перезаписи существующих заметок.</p></>}/>}
  </div></div>}
- {taskManagerProject&&<TaskBoardManager boards={settings.taskBoards??[]} notes={availableNotes} project={taskManagerProject} change={taskBoards=>updateSettings({taskBoards})} close={()=>setTaskManagerProject(null)} openNote={path=>act(()=>fromLink(path))}/>}
+ {taskManager}
  {printPath&&data.notes.find(note=>note.path===printPath)&&<PrintNote note={data.notes.find(note=>note.path===printPath)!} notes={data.notes} references={references} done={()=>setPrintPath('')} taskBoards={settings.taskBoards??[]} changeTaskBoard={changeTaskBoard} openNote={path=>act(()=>fromLink(path))}/>}
  {conflict&&<div className="modal-overlay"><div className="modal conflict-modal" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title"><Warning/>Файл изменился вне NoteApp</h2><p>«{title(conflict.path)}». Ваш черновик сохранён отдельно. Выберите, какую версию оставить.</p><div className="conflict-columns"><div><h3>Ваши изменения</h3><pre>{drafts.current[conflict.path]?.content}</pre></div><div><h3>Версия на диске</h3><pre>{conflict.disk.content??'Файл удалён'}</pre></div></div><div className="modal-foot"><button onClick={()=>act(()=>resolveConflict('disk'))}>Использовать версию с диска</button><button onClick={()=>act(()=>resolveConflict('mine'))}>Перезаписать моей версией</button><button className="primary" onClick={()=>act(()=>resolveConflict('copy'))}>Сохранить обе версии</button></div></div></div>}
  </div>

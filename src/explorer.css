@@ -3,7 +3,7 @@
   --reference-menu-fill: var(--input);
   --reference-menu-text: var(--text);
   --glass-fill: color-mix(in srgb, var(--panel) 76%, transparent);
-  --glass-line: color-mix(in srgb, var(--edge) calc(48% * var(--chrome-line-solid)), transparent);
+  --glass-line: var(--edge);
   --glass-highlight: color-mix(in srgb, var(--text) 8%, transparent);
   --glass-control: color-mix(in srgb, var(--input) 74%, transparent);
   --glass-hover: color-mix(in srgb, var(--selection) 72%, transparent);
@@ -40,9 +40,9 @@
 .liquid-shell .folder-contents { --glass-fill: var(--attached-tab-fill); }
 .liquid-shell :is(.glass-panel, .modal) {
   background: var(--glass-fill);
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--panel-radius);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  box-shadow: none;
   backdrop-filter: blur(20px) saturate(1.25);
 }
 .liquid-shell .titlebar {
@@ -76,11 +76,11 @@
   padding: 0 12px;
   background: var(--tint);
   border: 0;
-  border-bottom: 1px solid var(--glass-line);
+  border-bottom: 1px solid var(--edge);
   border-radius: 0;
 }
 .liquid-shell :is(.project-workspace, .project-card, .note-tab:not(.selected-note-tab)) {
-  --glass-line: color-mix(in srgb, var(--edge) calc(48% * var(--chrome-line-solid)), transparent);
+  --glass-line: var(--edge);
   --glass-control: color-mix(in srgb, var(--input) 74%, transparent);
   --glass-hover: color-mix(in srgb, var(--selection) 72%, transparent);
 }
@@ -132,7 +132,7 @@
 .note-tab:not(.selected-note-tab) { z-index: 0; }
 .note-tab:is(.selected-note-tab, .folder-tab) {
   background: var(--attached-tab-fill, var(--editor));
-  border-color: var(--glass-line);
+  border-color: var(--edge);
 }
 .liquid-shell .note-tab {
   transition: background-color 180ms var(--ease-ui),
@@ -166,9 +166,9 @@
 .liquid-shell :is(.vault-switch, .editor-toolbar .segmented button, .toolbar-actions > .icon-button:last-of-type) {
   border-radius: 9px;
   clip-path: none;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   background: var(--glass-control);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  box-shadow: none;
 }
 .liquid-shell .editor-toolbar .segmented button.on {
   background: color-mix(in srgb, var(--accent) 12%, var(--selection));
@@ -188,13 +188,13 @@
 .liquid-shell .search-button { margin: 0; height: 38px; border-radius: 8px; }
 .liquid-shell .editor-pane {
   background: var(--editor);
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--panel-radius);
 }
-.liquid-shell .markdown-toolbar { background: var(--editor); border-bottom: 1px solid var(--glass-line); }
+.liquid-shell .markdown-toolbar { background: var(--editor); border-bottom: 1px solid var(--edge); }
 .liquid-shell .markdown-toolbar button {
   background: var(--input);
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--control-radius);
 }
 .markdown-toolset { flex-shrink: 0; min-width: 0; }
@@ -238,8 +238,8 @@
   font-size: calc(var(--ui-font-scale, 1) * 14px);
 }
 .markdown-ribbon-tabs button[aria-pressed="true"] {
-  border-color: var(--glass-line);
-  border-bottom-color: var(--editor);
+  border-color: var(--edge);
+  border-bottom-color: var(--edge);
   color: var(--text);
   background: var(--editor);
 }
@@ -252,7 +252,7 @@
   display: grid;
   min-width: 150px;
   padding: 4px;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--control-radius);
   background: var(--popup);
   box-shadow: 0 8px 24px #0005;
@@ -269,7 +269,7 @@
   max-height: min(48vh, 440px);
   overflow: auto;
   padding: 8px;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--control-radius);
   background: var(--editor);
 }
@@ -282,7 +282,7 @@
   .reference-picker { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .reference-picker-selection { padding: 6px 2px; }
 }
-.liquid-shell .statusbar { height: 40px; padding-inline: 16px; font-size: calc(var(--ui-font-scale, 1) * 14px); background: var(--tint); border-top: 1px solid var(--glass-line); }
+.liquid-shell .statusbar { height: 40px; padding-inline: 16px; font-size: calc(var(--ui-font-scale, 1) * 14px); background: var(--tint); border-top: 1px solid var(--edge); }
 .liquid-shell .status-right { padding-left: 16px; border-left-width: 1px; font-size: inherit; }
 .liquid-shell .status-dot { width: 10px; height: 10px; border-radius: 50%; }
 .liquid-shell .inspector { width: var(--inspector-width); padding: 16px; }
@@ -308,7 +308,7 @@
 }
 .main-note-editor { position: relative; }
 .main-note-editor .markdown-ribbon-tabs { padding-right: 94px; }
-.note-corner-actions .icon-button { background: var(--glass-control); border: 1px solid var(--glass-line); }
+.note-corner-actions .icon-button { background: var(--glass-control); border: 1px solid var(--edge); }
 .note-corner-actions .icon-button:hover { background: var(--selection); }
 .liquid-shell .main-note-editor > .dropdown { top: 42px; right: 5px; z-index: 20; }
 .note-mode-menu { display: none; }
@@ -320,15 +320,15 @@
 .project-heading { justify-content: space-between; margin-bottom: 24px; }
 .project-heading > .primary { margin-inline-start: auto; }
 .liquid-shell :is(.project-overview,.folder-contents) {
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--panel-radius);
   box-shadow: none;
 }
 .liquid-shell .project-card {
   background: var(--editor);
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: 13px;
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  box-shadow: none;
 }
 .liquid-shell .project-open { min-height: 195px; }
 .liquid-shell .project-open:hover { background: transparent; }
@@ -361,7 +361,7 @@
   margin-inline-start: auto;
   padding: 0 11px 0 4px;
   gap: 7px;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   background: color-mix(in srgb, var(--accent) 5%, var(--glass-fill));
   color: var(--text);
   font-size: calc(var(--ui-font-scale, 1) * 14px);
@@ -370,7 +370,7 @@
 }
 .explorer-address > .graph-tab:is(:hover, [aria-pressed="true"]) {
   background: color-mix(in srgb, var(--accent) 10%, var(--glass-fill));
-  border-color: var(--glass-line);
+  border-color: var(--edge);
 }
 .explorer-address > .graph-tab[aria-pressed="true"] {
   background: color-mix(in srgb, var(--accent) 13%, var(--glass-fill));
@@ -402,7 +402,7 @@
   gap: 8px;
   padding: 6px 12px;
   background: var(--editor);
-  border-bottom: 1px solid var(--glass-line);
+  border-bottom: 1px solid var(--edge);
   font-size: calc(var(--ui-font-scale, 1) * 13px);
 }
 .graph-instruction { flex: 1 1 220px; color: var(--muted); overflow-wrap: anywhere; }
@@ -421,9 +421,9 @@
 .graph-scroll[data-panning] { cursor: grabbing; }
 .graph-scroll[data-selecting] { cursor: crosshair; }
 .graph-canvas { position: absolute; inset: 0; pointer-events: none; transform-origin: 0 0; }
-.graph-selection-box { position:absolute; z-index:20; pointer-events:none; border:1px solid var(--accent); border-radius:5px; background:color-mix(in srgb,var(--accent) 13%,transparent); }
+.graph-selection-box { position:absolute; z-index:20; pointer-events:none; border:1px solid var(--edge); border-radius:5px; background:color-mix(in srgb,var(--accent) 13%,transparent); }
 .graph-selection-actions { display:flex; align-items:center; gap:6px; padding:0 5px; color:var(--muted); white-space:nowrap; font-size:12px; }
-.graph-selection-actions button { min-height:28px; padding:0 7px; border:1px solid var(--glass-line); border-radius:var(--control-radius); background:var(--glass-control); font-size:12px; }
+.graph-selection-actions button { min-height:28px; padding:0 7px; border:1px solid var(--edge); border-radius:var(--control-radius); background:var(--glass-control); font-size:12px; }
 .graph-selection-actions .danger-text { color:var(--danger,#df8490); }
 .graph-edges { position: absolute; display: block; pointer-events: none; }
 .graph-canvas[data-rebuilding] :is(.graph-card,.graph-annotation) { transition:left 700ms cubic-bezier(.16,1,.3,1),top 700ms cubic-bezier(.16,1,.3,1),border-radius 260ms cubic-bezier(.2,.8,.2,1),border-color 260ms ease; transition-delay:var(--rebuild-delay,0ms); animation:graph-node-rebuild 500ms cubic-bezier(.2,.75,.25,1) var(--rebuild-delay,0ms) both; }
@@ -435,9 +435,9 @@
 @keyframes graph-route-build { to { stroke-dashoffset:0; } }
 .graph-arrow { cursor: pointer; pointer-events: stroke; }
 .graph-arrow:hover path:last-child { stroke-width: 3; }
-.graph-zoom { display: flex; align-items: center; border: 1px solid var(--glass-line); border-radius: var(--control-radius); }
+.graph-zoom { display: flex; align-items: center; border: 1px solid var(--edge); border-radius: var(--control-radius); }
 .graph-zoom > button:nth-child(2) { min-width: 54px; min-height: 32px; font-variant-numeric: tabular-nums; }
-.graph-notes-toggle { min-height: 34px; padding: 0 9px; border: 1px solid var(--glass-line); }
+.graph-notes-toggle { min-height: 34px; padding: 0 9px; border: 1px solid var(--edge); }
 .graph-notes-toggle[aria-expanded="true"] { background: var(--selection); }
 .graph-scroll[data-placing] { cursor: crosshair; }
 .graph-annotation {
@@ -450,7 +450,7 @@
   color: var(--text);
 }
 .liquid-shell :is(.graph-card,.graph-annotation) { border-radius:18px; }
-.graph-annotation[data-active], .graph-annotation[data-moving] { z-index: 3; border-color: var(--glass-line); }
+.graph-annotation[data-active], .graph-annotation[data-moving] { z-index: 3; border-color: var(--edge); }
 .graph-resize { position:absolute; z-index:6; min-width:0; min-height:0; padding:0; border:0; border-radius:4px; background:transparent; color:var(--muted); touch-action:none; }
 .graph-resize-n,.graph-resize-s { left:14px; right:14px; height:9px; cursor:ns-resize; }
 .graph-resize-n { top:-4px; }.graph-resize-s { bottom:-4px; }
@@ -470,7 +470,7 @@
   align-items: center;
   gap: 4px;
   padding: 3px 5px;
-  border-bottom: 1px solid var(--glass-line);
+  border-bottom: 1px solid var(--edge);
   border-radius: 17px 17px 0 0;
   background: color-mix(in srgb, var(--graph-note-fill) 82%, var(--ink));
 }
@@ -552,7 +552,7 @@
   width: 28px;
   height: 28px;
   background: var(--glass-control);
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
 }
 .liquid-shell .graph-link-port, .liquid-shell .graph-annotation > header .graph-link-port {
   width: 34px;
@@ -592,7 +592,7 @@
   cursor: pointer;
   list-style: none;
   padding: 6px 9px;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--control-radius);
 }
 .graph-links summary span { padding-left: 4px; color: var(--muted); }
@@ -607,7 +607,7 @@
   margin: 4px 0 0;
   padding: 6px;
   list-style: none;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: var(--panel-radius);
   background: var(--popup);
 }
@@ -631,11 +631,9 @@
   background: linear-gradient(135deg, color-mix(in srgb, var(--ink) 6%, transparent), transparent 48%), var(--glass-fill);
   -webkit-backdrop-filter: blur(28px) saturate(1.4);
   backdrop-filter: blur(28px) saturate(1.4);
-  border: 1px solid color-mix(in srgb, var(--edge) 65%, transparent);
+  border: 1px solid var(--edge);
   border-radius: var(--panel-radius);
-  box-shadow: 0 16px 40px color-mix(in srgb, #000 24%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--ink) 16%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--edge) 18%, transparent);
+  box-shadow: none;
 }
 .liquid-shell .modal { padding: 24px; border-radius: 16px; }
 .liquid-shell .modal > header { padding-bottom: 16px; margin-bottom: 16px; border-bottom-width: 1px; }
@@ -649,9 +647,9 @@
 .liquid-shell .dropdown { top: 48px; }
 .liquid-shell .primary {
   background: var(--glass-hover);
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: 9px;
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  box-shadow: none;
 }
 
 .explorer-sidebar-heading {
@@ -660,7 +658,7 @@
   justify-content: space-between;
   margin: 3px 0 6px;
   padding: 4px 4px 0;
-  border-top: 1px solid var(--glass-line);
+  border-top: 1px solid var(--edge);
   font-size: calc(var(--ui-font-scale, 1) * 17px);
 }
 .explorer-tree { min-height: 0; flex: 1; overflow: auto; margin: 0 -4px 8px; padding: 0 4px; }
@@ -722,7 +720,7 @@
 .address-path button { min-height: 30px; padding: 0 7px; }
 .address-path svg { color: var(--muted); }
 .address-note strong { padding-inline: 5px; font-weight: 400; color: var(--muted); }
-.folder-actions { display: flex; gap: 8px; padding-bottom: 16px; margin-bottom: 16px; align-items: center; border-bottom: 1px solid var(--glass-line); }
+.folder-actions { display: flex; gap: 8px; padding-bottom: 16px; margin-bottom: 16px; align-items: center; border-bottom: 1px solid var(--edge); }
 .folder-actions button { min-height: 34px; padding: 5px 9px; }
 .folder-actions .icon-button { width: 36px; padding: 0; margin-left: auto; }
 .folder-contents { position: relative; isolation: isolate; flex: 1; min-width: 0; overflow: auto; padding: 16px; }
@@ -734,7 +732,7 @@
 .file-columns {
   margin-right: 31px;
   padding: 8px 10px;
-  border-bottom: 1px solid var(--glass-line);
+  border-bottom: 1px solid var(--edge);
   font-size: calc(var(--ui-font-scale, 1) * 14px);
   color: var(--muted);
 }
@@ -755,7 +753,7 @@
   animation: ui-enter 140ms var(--ease-ui) both;
 }
 .explorer-context button { width: 100%; justify-content: flex-start; padding: 8px 9px; text-align: left; font-size: calc(var(--ui-font-scale, 1) * 15px); }
-.explorer-context .context-remove { border-top: 1px solid var(--glass-line); }
+.explorer-context .context-remove { border-top: 1px solid var(--edge); }
 
 @media (max-width: 1050px) {
   .liquid-shell { --inspector-width: clamp(190px, var(--right-width), 24vw); }

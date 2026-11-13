@@ -1,16 +1,31 @@
+import {widgetOutline} from './widgetOutline';
 import {elementGridStep,elementScale,snapGridBounded} from './gridGeometry';
 import {nextNoteLayer} from './noteLayers';
 import {noteInsertMenu} from './noteInsertMenu';
 import {paletteDragType,readPaletteDrop} from './appearance';
 import {applyTextureClass,textureById} from './textures';
+import {fitWidgetContent,refreshWidgetFit} from './widgetFit';
 import type {EditorView} from '@codemirror/view';
 
-export type NoteWidgetPosition={x:number;y:number;width:number;height:number;z:number;color?:string;fill?:string;texture?:string};
-const joinedWidgets='.floating-note-text, .note-feature-host.note-feature-widget, .visual-table-host.note-feature-widget, .note-image-box.floating-image, .graph-annotation';
+export type NoteWidgetPosition={x:number;y:number;width:number;height:number;z:number;color?:string;fill?:string;texture?:string;scale?:number;borderWidth?:number};
+export const widgetBorderWidth=(value?:number)=>Number.isFinite(value)?Math.max(0,Math.min(8,value!)):1.5;
+export function widgetBorderControls(actions:HTMLElement,get:()=>number|undefined,save:(width:number)=>void) {
+  const label=document.createElement('label');label.className='note-widget-scale';label.append('Толщина обводки');
+  const output=document.createElement('output'),input=document.createElement('input');
+  input.type='range';input.min='0';input.max='8';input.step='.5';input.value=String(widgetBorderWidth(get()));
+  output.textContent=input.value+' px';input.oninput=()=>{output.textContent=input.value+' px';};input.onchange=()=>save(Number(input.value));
+  label.append(output,input);actions.append(label);
+}
+export const widgetSizeLimits={min:64,width:1600,height:1200};
+export function widgetSizeControls(actions:HTMLElement,get:()=>{width:number;height:number},save:(size:{width:number;height:number})=>void) {
+ for(const key of ['width','height'] as const){const label=document.createElement('label');label.className='note-widget-color';label.append(key==='width'?'Ширина, px':'Высота, px');const input=document.createElement('input');input.type='number';input.min='64';input.max=String(widgetSizeLimits[key]);input.step='1';input.value=String(Math.round(get()[key]));input.setAttribute('aria-label',key==='width'?'Ширина виджета':'Высота виджета');input.onchange=()=>{const value=Number(input.value);if(!Number.isFinite(value)||!input.value)return;save({...get(),[key]:Math.max(64,Math.min(widgetSizeLimits[key],value))});input.value=String(Math.round(get()[key]));};label.append(input);actions.append(label);}
+}
+
+const joinedWidgets='.floating-note-text, .reading-floating-text, .note-feature-host.note-feature-widget, .visual-table-host.note-feature-widget, .note-image-box.floating-image, .graph-annotation';
 const joinFrames=new WeakSet<HTMLElement>();
 
 export function snapNoteWidgetPosition(element:HTMLElement,next:NoteWidgetPosition,root:HTMLElement,step:number):NoteWidgetPosition {
-  const scale=elementScale(root),bounds=root.getBoundingClientRect(),tolerance=step*.65;
+  const scale=elementScale(root),bounds=root.getBoundingClientRect(),tolerance=Math.min(6,step*.18);
   let x=next.x,y=next.y,dx=tolerance+1,dy=tolerance+1;
   for(const peer of root.querySelectorAll<HTMLElement>(joinedWidgets)){
     if(peer===element||!peer.getClientRects().length)continue;
@@ -24,13 +39,19 @@ export function snapNoteWidgetPosition(element:HTMLElement,next:NoteWidgetPositi
       if(above<dy){y=py+ph;dy=above;}if(below<dy){y=py-next.height;dy=below;}
     }
   }
-  return {...next,x,y};
+  return constrainNoteWidgetPosition({...next,x,y},root,step);
+}
+
+export function constrainNoteWidgetPosition(next:NoteWidgetPosition,root:HTMLElement,step=elementGridStep(root)):NoteWidgetPosition {
+  const available=root.clientWidth||next.width,minWidth=Math.min(64,available),width=Math.max(minWidth,Math.min(next.width,available,1600));
+  return {...next,width,height:Math.max(64,Math.min(next.height,1200)),x:Math.max(0,Math.min(next.x,available-width)),y:Math.max(0,Math.min(next.y,100000))};
 }
 
 export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
   if(joinFrames.has(root))return;joinFrames.add(root);
   requestAnimationFrame(()=>{
     joinFrames.delete(root);if(!root.isConnected)return;
+    root.querySelectorAll('.note-widget-group-outline').forEach(outline=>outline.remove());
     const scale=elementScale(root),items=[...root.querySelectorAll<HTMLElement>(joinedWidgets)].filter(item=>item.getClientRects().length);
     type Side='left'|'right'|'top'|'bottom';
     const mark=(item:HTMLElement,side:Side)=>item.setAttribute(`data-note-join-${side}`,'');
@@ -38,10 +59,11 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
       const element=document.createElement('span');element.className='note-widget-join-mask';element.dataset.edge=side;element.setAttribute('aria-hidden','true');item.append(element);
       const color=getComputedStyle(item).backgroundColor;
       element.style.backgroundColor=color==='rgba(0, 0, 0, 0)'?'var(--editor)':color;
-      if(side==='left'||side==='right'){element.style.top=`${start}px`;element.style.height=`${length}px`;element.style.width='3px';element.style.left=side==='left'?'0':'auto';element.style.right=side==='right'?'0':'auto';}
-      else {element.style.left=`${start}px`;element.style.width=`${length}px`;element.style.height='3px';element.style.top=side==='top'?'0':'auto';element.style.bottom=side==='bottom'?'0':'auto';}
+      if(side==='left'||side==='right'){element.style.top=`${start}px`;element.style.height=`${length}px`;element.style.width='2px';element.style.left=side==='left'?'-1px':'auto';element.style.right=side==='right'?'-1px':'auto';}
+      else {element.style.left=`${start}px`;element.style.width=`${length}px`;element.style.height='2px';element.style.top=side==='top'?'-1px':'auto';element.style.bottom=side==='bottom'?'-1px':'auto';}
     };
     for(const item of items){
+      item.removeAttribute('data-note-joined');
       for(const side of ['left','right','top','bottom'] as const)item.removeAttribute(`data-note-join-${side}`);
       for(const corner of ['tl','tr','bl','br'])item.removeAttribute(`data-note-square-${corner}`);
       for(const element of item.querySelectorAll<HTMLElement>(':scope > .note-widget-join-mask'))element.remove();
@@ -56,10 +78,11 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
       return other.left<=own.left&&other.right>=own.right&&other.top<edge&&other.bottom>edge;
     };
     for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){
-      const a=items[i].getBoundingClientRect(),b=items[j].getBoundingClientRect(),tolerance=Math.max(2,step*scale*.12);
+      const a=items[i].getBoundingClientRect(),b=items[j].getBoundingClientRect(),tolerance=Math.max(1,2*scale);
       const overlapX=Math.min(a.right,b.right)-Math.max(a.left,b.left),overlapY=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top);
       const contains=(outer:DOMRect,inner:DOMRect)=>outer.left<=inner.left&&outer.top<=inner.top&&outer.right>=inner.right&&outer.bottom>=inner.bottom;
       if(overlapX>tolerance&&overlapY>tolerance){
+        items[i].setAttribute('data-note-joined','');items[j].setAttribute('data-note-joined','');
         const containsA=contains(a,b),containsB=contains(b,a);
         if(containsA||containsB){const inner=containsA&&!containsB?items[j]:items[i];for(const side of ['left','right','top','bottom'] as const)mark(inner,side);continue;}
         const horizontal=overlapX<=overlapY,ac=horizontal?(a.left+a.right)/2:(a.top+a.bottom)/2,bc=horizontal?(b.left+b.right)/2:(b.top+b.bottom)/2;
@@ -74,6 +97,7 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
         const vertical=overlapY>Math.min(step*scale*.25,.1*Math.min(a.height,b.height)),horizontal=overlapX>Math.min(step*scale*.25,.1*Math.min(a.width,b.width));
         const alignedY=Math.abs(a.top-b.top)<=tolerance&&Math.abs(a.bottom-b.bottom)<=tolerance,alignedX=Math.abs(a.left-b.left)<=tolerance&&Math.abs(a.right-b.right)<=tolerance;
         const join=(first:HTMLElement,firstRect:DOMRect,sideA:Side,second:HTMLElement,secondRect:DOMRect,sideB:Side,from:number,to:number,axis:'x'|'y',full:boolean)=>{
+          first.setAttribute('data-note-joined','');second.setAttribute('data-note-joined','');
           if(full){mark(first,sideA);mark(second,sideB);return;}
           const square=(item:HTMLElement,rect:DOMRect,side:Side)=>{
             const begin=axis==='y'?rect.top:rect.left,end=axis==='y'?rect.bottom:rect.right;
@@ -87,7 +111,7 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
             const otherBegin=axis==='y'?other.top:other.left,otherEnd=axis==='y'?other.bottom:other.right;
             const add=(start:boolean)=>{
               const available=(start?from-otherBegin:otherEnd-to)/scale;
-              const radius=Math.min(12,available,(to-from)/scale/2);
+              const radius=Math.min(16,available,(to-from)/scale/2);
               if(radius<2)return;
               const curve=document.createElement('span');curve.className='note-widget-join-corner';curve.setAttribute('aria-hidden','true');
               curve.style.width=curve.style.height=`${radius}px`;
@@ -100,7 +124,7 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
                 center=`${start?'0%':'100%'} ${side==='top'?'100%':'0%'}`;
               }
               const style=getComputedStyle(item),fill=style.backgroundColor==='rgba(0, 0, 0, 0)'?'var(--editor)':style.backgroundColor;
-              curve.style.background=`radial-gradient(circle at ${center}, transparent ${radius-1}px, ${style.borderTopColor} ${radius-1}px, ${style.borderTopColor} ${radius}px, ${fill} ${radius}px)`;
+              curve.style.background=`radial-gradient(circle at ${center}, transparent ${radius-.5}px, ${fill} ${radius+.5}px)`;
               item.append(curve);
             };
             if(Math.abs(from-begin)<=tolerance&&from>otherBegin+tolerance)add(true);
@@ -116,6 +140,14 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
         else if(horizontal&&Math.abs(b.bottom-a.top)<=tolerance)join(items[j],b,'bottom',items[i],a,'top',Math.max(a.left,b.left),Math.min(a.right,b.right),'x',alignedX);
       }
     }
+    const joined=items.filter(item=>item.hasAttribute('data-note-joined'));
+    if(joined.length){const bounds=root.getBoundingClientRect(),rects=joined.map(item=>{const r=item.getBoundingClientRect();return {x:(r.left-bounds.left)/scale,y:(r.top-bounds.top)/scale,width:r.width/scale,height:r.height/scale};});
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.classList.add('note-widget-group-outline');svg.setAttribute('aria-hidden','true');svg.style.cssText='position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:1000000001;width:100%;height:100%;';
+      const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',widgetOutline(rects));path.setAttribute('fill','none');path.setAttribute('stroke','none');path.setAttribute('stroke-width','1.5');path.setAttribute('stroke-linejoin','round');svg.append(path);
+      joined.forEach((item,index)=>{const color=item.style.borderColor,width=getComputedStyle(item).borderTopWidth||'1.5px';const r=rects[index],id='widget-outline-'+crypto.randomUUID(),clip=document.createElementNS(svg.namespaceURI,'clipPath'),rect=document.createElementNS(svg.namespaceURI,'rect');clip.setAttribute('id',id);rect.setAttribute('x',String(r.x-16));rect.setAttribute('y',String(r.y-16));rect.setAttribute('width',String(r.width+32));rect.setAttribute('height',String(r.height+32));clip.append(rect);svg.append(clip);const colored=path.cloneNode() as SVGPathElement;colored.setAttribute('stroke',color.startsWith('#')||color.startsWith('rgb')?color:'var(--edge)');colored.setAttribute('stroke-width',String(parseFloat(width)));colored.setAttribute('clip-path','url(#'+id+')');svg.append(colored);});
+      const owner=joined.reduce((a,b)=>Number(getComputedStyle(a).zIndex||0)>Number(getComputedStyle(b).zIndex||0)?a:b),ownerRect=owner.getBoundingClientRect();svg.style.left=`${-(ownerRect.left-bounds.left)/scale-owner.clientLeft}px`;svg.style.top=`${-(ownerRect.top-bounds.top)/scale-owner.clientTop}px`;owner.append(svg);
+    }
+
   });
 }
 
@@ -124,19 +156,33 @@ export function defaultNoteWidgetPosition(width=420,height=260):NoteWidgetPositi
 
 export function initialNoteWidget(view:EditorView,at:number,width=420,height=260):NoteWidgetPosition {
   const content=view.contentDOM,bounds=content.getBoundingClientRect(),coords=view.coordsAtPos(at),scale=elementScale(content),step=elementGridStep(content);
-  return {x:snapGridBounded(coords?(coords.left-bounds.left)/scale:step/2,Math.max(0,content.clientWidth-width),step),y:snapGridBounded(coords?(coords.top-bounds.top)/scale:0,100000,step),width,height,z:nextNoteLayer(view.state.doc.toString())};
+  return constrainNoteWidgetPosition({x:coords?(coords.left-bounds.left)/scale:step/2,y:coords?(coords.top-bounds.top)/scale:0,width:Math.min(width,content.clientWidth||width),height,z:nextNoteLayer(view.state.doc.toString())},content,step);
 }
 
-export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWidgetPosition,label:string,save:(position:NoteWidgetPosition)=>void,removeWidget:()=>void,editable=true) {
-  let position={...initial};
-  const body=document.createElement('div');body.className='note-widget-body';
+export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWidgetPosition,label:string,save:(position:NoteWidgetPosition)=>void,removeWidget:()=>void,editable=true,baseWidth=initial.width-52) {
+  let position=constrainNoteWidgetPosition({...initial},view.contentDOM,elementGridStep(view.contentDOM));
+  const viewport=document.createElement('div');viewport.className='note-widget-body widget-fit-viewport';
+  const body=document.createElement('div');body.className='widget-fit-content';viewport.append(body);
   const {menu,actions,move,remove}=noteInsertMenu(`Действия: ${label}`,false);move.hidden=true;
-  host.classList.add('floating-note-text','note-feature-widget');host.contentEditable='false';host.append(body,menu);
+  host.classList.add('floating-note-text','note-feature-widget');host.contentEditable='false';host.append(viewport,menu);
+  const dispose=fitWidgetContent(viewport,body,baseWidth,()=>position.scale??1);
+  widgetSizeControls(actions,()=>position,size=>savePosition({...position,...size}));
+  widgetBorderControls(actions,()=>position.borderWidth,borderWidth=>savePosition({...position,borderWidth}));
+  const scaleLabel=document.createElement('label');scaleLabel.className='note-widget-scale';scaleLabel.append('Масштаб содержимого');
+  const scaleOutput=document.createElement('output');
+  const scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='50';scaleInput.max='150';scaleInput.step='10';scaleInput.value=String(Math.round((position.scale??1)*100));
+  scaleOutput.textContent=scaleInput.value+'%';scaleLabel.append(scaleOutput,scaleInput);actions.append(scaleLabel);
+  scaleInput.oninput=()=>{position={...position,scale:Number(scaleInput.value)/100};scaleOutput.textContent=scaleInput.value+'%';refreshWidgetFit(viewport);};
+  scaleInput.onchange=()=>savePosition(position);
   const colorAction=(labelText:string,key:'color'|'fill',fallback:string)=>{
     const label=document.createElement('label');label.className='note-widget-color';label.append(labelText);
     const input=document.createElement('input');input.type='color';input.value=position[key]??fallback;input.setAttribute('aria-label',labelText);label.append(input);actions.append(label);
     input.oninput=()=>{position={...position,[key]:input.value};place(position);};
     input.onchange=()=>savePosition(position);
+    if(key==='color'){
+      const reset=document.createElement('button');reset.type='button';reset.textContent='Вернуть обычный цвет рамки';
+      reset.onclick=()=>{position={...position,color:undefined};input.value='#cba6ed';place(position);savePosition(position);};actions.append(reset);
+    }
   };
   colorAction('Цвет окантовки','color','#cba6ed');colorAction('Цвет фона','fill','#39343f');
   remove.onclick=()=>{if(confirm('Удалить этот виджет?'))removeWidget();};
@@ -144,22 +190,23 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
     const handle=document.createElement('div');handle.className=`floating-note-resize floating-note-resize-${edge}`;handle.setAttribute('role','separator');handle.setAttribute('aria-label',edge.length===2?'Изменить размер виджета':edge==='e'||edge==='w'?'Изменить ширину виджета':'Изменить высоту виджета');handle.tabIndex=editable?0:-1;handle.hidden=!editable;host.append(handle);return {edge,handle};
   });
   function place(next:NoteWidgetPosition) {
-    host.style.left=`min(${next.x}px, max(0px, 100% - ${next.width}px))`;host.style.top=next.y+'px';host.style.width=next.width+'px';host.style.height=next.height+'px';host.style.setProperty('--note-layer',String(next.z));host.style.borderColor=next.color??'var(--edge)';host.style.background=next.fill??'var(--editor)';
+    const bounded=constrainNoteWidgetPosition(next,view.contentDOM,elementGridStep(view.contentDOM));
+    host.style.setProperty('--note-widget-border-width',widgetBorderWidth(bounded.borderWidth)+'px');host.style.left=bounded.x+'px';host.style.top=bounded.y+'px';host.style.width=bounded.width+'px';host.style.height=bounded.height+'px';host.style.setProperty('--note-layer',String(bounded.z));host.style.borderColor=bounded.color??'var(--edge)';host.style.background=bounded.fill??'var(--editor)';
     applyTextureClass(host,next.texture);
     if(next.fill)host.style.setProperty('--accent',next.fill);else host.style.removeProperty('--accent');
     queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));
   }
-  function savePosition(next:NoteWidgetPosition,joining=false){position=joining?snapNoteWidgetPosition(host,next,view.contentDOM,elementGridStep(view.contentDOM)):{...next};place(position);save(position);queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));}
+  function savePosition(next:NoteWidgetPosition,joining=false){position=joining?snapNoteWidgetPosition(host,next,view.contentDOM,elementGridStep(view.contentDOM)):constrainNoteWidgetPosition(next,view.contentDOM,elementGridStep(view.contentDOM));place(position);save(position);queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));}
   place(position);
   queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));
   for(const {edge,handle} of handles){
     const resized=(dx:number,dy:number)=>{
-      const step=elementGridStep(view.contentDOM),minWidth=step*4,minHeight=step*3,width=position.width,height=position.height,next={...position};
-      if(edge.includes('e'))next.width=Math.max(minWidth,Math.min(Math.min(1600,view.contentDOM.clientWidth),Math.round((width+dx)/step)*step));
+      const step=elementGridStep(view.contentDOM),available=view.contentDOM.clientWidth||position.width,minWidth=Math.min(64,available),minHeight=64,width=position.width,height=position.height,next={...position};
+      if(edge.includes('e'))next.width=Math.max(minWidth,Math.min(Math.min(1600,available),Math.round((width+dx)/step)*step));
       if(edge.includes('s'))next.height=Math.max(minHeight,Math.min(1200,Math.round((height+dy)/step)*step));
       if(edge.includes('w')){next.x=snapGridBounded(position.x+dx,Math.max(0,position.x+width-minWidth),step);next.width=position.x+width-next.x;}
       if(edge.includes('n')){next.y=snapGridBounded(position.y+dy,Math.max(0,position.y+height-minHeight),step);next.height=position.y+height-next.y;}
-      return next;
+      return constrainNoteWidgetPosition(next,view.contentDOM,step);
     };
     handle.onpointerdown=event=>{
       if(event.button!==0||!editable)return;event.preventDefault();event.stopPropagation();const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM);let next=position;handle.setPointerCapture(event.pointerId);
@@ -170,13 +217,14 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
     handle.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();event.stopPropagation();const step=elementGridStep(view.contentDOM),dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;savePosition(resized(dx,dy));};
   }
   host.onpointerdown=event=>{
-    if(event.button!==0||!editable||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.floating-note-resize,.visual-table-column-resize,button,input,select,textarea,a,[draggable="true"],.task-card')))return;
-    const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM),step=elementGridStep(view.contentDOM),bounds=view.contentDOM.getBoundingClientRect(),rect=host.getBoundingClientRect();let x=(rect.left-bounds.left)/scale,y=(rect.top-bounds.top)/scale,dragged=false;host.setPointerCapture(event.pointerId);
-    host.onpointermove=pointer=>{if(pointer.pointerId!==event.pointerId)return;const dx=pointer.clientX-start.x,dy=pointer.clientY-start.y;if(!dragged&&Math.abs(dx)+Math.abs(dy)<4)return;dragged=true;host.dataset.dragging='';pointer.preventDefault();x=snapGridBounded((rect.left-bounds.left+dx)/scale,Math.max(0,view.contentDOM.clientWidth-position.width),step);y=snapGridBounded((rect.top-bounds.top+dy)/scale,100000,step);const next=snapNoteWidgetPosition(host,{...position,x,y},view.contentDOM,step);x=next.x;y=next.y;place(next);};
+    if(event.button!==0||!editable||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.floating-note-resize,.visual-table-column-resize,.plot-widget,button,input,select,textarea,a,[draggable="true"],.task-card')))return;
+    event.preventDefault();
+    const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM),step=elementGridStep(view.contentDOM),origin=constrainNoteWidgetPosition(position,view.contentDOM,step);let x=origin.x,y=origin.y,dragged=false;host.setPointerCapture(event.pointerId);
+    host.onpointermove=pointer=>{if(pointer.pointerId!==event.pointerId)return;const dx=pointer.clientX-start.x,dy=pointer.clientY-start.y;if(!dragged&&Math.abs(dx)+Math.abs(dy)<4)return;dragged=true;host.dataset.dragging='';pointer.preventDefault();x=snapGridBounded(origin.x+dx/scale,Math.max(0,view.contentDOM.clientWidth-origin.width),step);y=snapGridBounded(origin.y+dy/scale,100000,step);const next=snapNoteWidgetPosition(host,{...origin,x,y},view.contentDOM,step);x=next.x;y=next.y;place(next);};
     host.onpointerup=pointer=>{if(pointer.pointerId!==event.pointerId)return;host.onpointermove=null;host.onpointerup=null;host.onpointercancel=null;delete host.dataset.dragging;if(dragged)savePosition({...position,x,y,z:nextNoteLayer(view.state.doc.toString())},true);};
     host.onpointercancel=()=>{host.onpointermove=null;host.onpointerup=null;host.onpointercancel=null;delete host.dataset.dragging;place(position);};
   };
   host.ondragover=event=>{if(event.dataTransfer?.types.includes(paletteDragType)){event.preventDefault();event.dataTransfer.dropEffect='copy';}};
   host.ondrop=event=>{const transfer=event.dataTransfer;if(!transfer)return;const value=readPaletteDrop(transfer.getData(paletteDragType));if(!value)return;event.preventDefault();event.stopPropagation();if(textureById(value.palette)){savePosition({...position,texture:value.palette});return;}const color=getComputedStyle(host).getPropertyValue(`--palette-color-${value.palette}`).trim();if(color&&CSS.supports('color',color))savePosition({...position,fill:color,texture:undefined});};
-  return {body,actions,getPosition:()=>({...position}),place};
+  return {body,actions,getPosition:()=>({...position}),place,dispose};
 }

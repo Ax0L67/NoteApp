@@ -7,14 +7,16 @@ import {loadNoteImage} from './noteImages';
 import {parseReference} from './noteReferences';
 import {paletteDragType,readPaletteDrop} from './appearance';
 import {applyTextureClass,textureById} from './textures';
-import {queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
+import {widgetBorderControls,widgetBorderWidth,widgetSizeControls,constrainNoteWidgetPosition,queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
+import {fitWidgetContent,refreshWidgetFit} from './widgetFit';
+const fitDisposers=new WeakMap<HTMLElement,()=>void>();
 import type {ReferenceActions} from './ReferenceChip';
 
 type WidgetKind='text'|'image'|'link';
-type WidgetPosition={x:number;y:number;z:number;width?:number;height?:number;color?:string;fill?:string;kind?:WidgetKind;texture?:string};
+type WidgetPosition={x:number;y:number;z:number;width?:number;height?:number;color?:string;fill?:string;kind?:WidgetKind;texture?:string;scale?:number;borderWidth?:number};
 type WidgetActions={attach?:(files:File[],position:number)=>void;references?:ReferenceActions;editable:boolean};
-const textMarker=/^noteapp-(?:text|widget)-(\d{1,6})-(\d{1,6})(?:-w(\d{1,4})-h(\d{1,4}))?(?:-z(\d{1,9}))?(?:-c([0-9a-fA-F]{6}))?(?:-b([0-9a-fA-F]{6}))?(?:-t([til]))?(?:-p([a-z0-9]+))?$/;
-const blocks=/^(`{3,})(noteapp-(?:text|widget)-\d{1,6}-\d{1,6}(?:-w\d{1,4}-h\d{1,4})?(?:-z\d{1,9})?(?:-c[0-9a-fA-F]{6})?(?:-b[0-9a-fA-F]{6})?(?:-t[til])?(?:-p[a-z0-9]+)?)[ \t]*\n([\s\S]*?)\n\1[ \t]*$/gm;
+const textMarker=/^noteapp-(?:text|widget)-(\d{1,6})-(\d{1,6})(?:-w(\d{1,4})-h(\d{1,4}))?(?:-z(\d{1,9}))?(?:-c([0-9a-fA-F]{6}))?(?:-b([0-9a-fA-F]{6}))?(?:-t([til]))?(?:-p([a-z0-9]+))?(?:-s(\d{2,3}))?(?:-o(\d{1,2}))?$/;
+const blocks=/^(`{3,})(noteapp-(?:text|widget)-\d{1,6}-\d{1,6}(?:-w\d{1,4}-h\d{1,4})?(?:-z\d{1,9})?(?:-c[0-9a-fA-F]{6})?(?:-b[0-9a-fA-F]{6})?(?:-t[til])?(?:-p[a-z0-9]+)?(?:-s\d{2,3})?(?:-o\d{1,2})?)[ \t]*\n([\s\S]*?)\n\1[ \t]*$/gm;
 const embedPattern=/!?\[[^\]]*\]\([^)\n]+\)/g;
 const limit=(value:number,max=100000)=>Math.max(0,Math.min(max,Math.round(value)));
 
@@ -28,12 +30,14 @@ export function noteTextPosition(marker:string):WidgetPosition|null {
   if(match[7])position.fill='#'+match[7];
   if(match[8])position.kind=match[8]==='i'?'image':match[8]==='l'?'link':'text';
   if(match[9])position.texture=textureById(`texture-${match[9]}`)?.id;
+  if(match[10])position.scale=Math.max(.5,Math.min(2,Number(match[10])/100));
+  if(match[11])position.borderWidth=widgetBorderWidth(Number(match[11])/2);
   return position;
 }
 
 function widgetMarker(position:WidgetPosition) {
   const kind=position.kind??'text';
-  return `noteapp-widget-${limit(position.x)}-${limit(position.y)}-w${limit(position.width??320,1600)}-h${limit(position.height??160,1200)}-z${limit(position.z,100000)}${position.color?'-c'+position.color.replace('#',''):''}${position.fill?'-b'+position.fill.replace('#',''):''}-t${kind==='image'?'i':kind==='link'?'l':'t'}${textureById(position.texture)?'-p'+position.texture!.slice(8):''}`;
+  return `noteapp-widget-${limit(position.x)}-${limit(position.y)}-w${limit(position.width??320,1600)}-h${limit(position.height??160,1200)}-z${limit(position.z,100000)}${position.color?'-c'+position.color.replace('#',''):''}${position.fill?'-b'+position.fill.replace('#',''):''}-t${kind==='image'?'i':kind==='link'?'l':'t'}${textureById(position.texture)?'-p'+position.texture!.slice(8):''}${position.scale&&position.scale!==1?'-s'+Math.round(position.scale*100):''}${position.borderWidth!==undefined?'-o'+Math.round(widgetBorderWidth(position.borderWidth)*2):''}`;
 }
 
 function blockFence(text:string,minimum=3) {
@@ -55,9 +59,10 @@ export function floatNoteText(view:EditorView,kind:WidgetKind='text') {
   const text=view.state.sliceDoc(from,to);
   const fence=blockFence(text),content=view.contentDOM.getBoundingClientRect(),line=view.coordsAtPos(from);
   const step=elementGridStep(view.contentDOM),scale=elementScale(view.contentDOM);
-  const x=snapGridBounded(line?(line.left-content.left)/scale:0,Math.max(0,view.contentDOM.clientWidth-320),step);
+  const desiredWidth=Math.max(step*4,Math.round(320/step)*step),width=Math.min(desiredWidth,view.contentDOM.clientWidth||desiredWidth);
+  const x=snapGridBounded(line?(line.left-content.left)/scale:0,Math.max(0,view.contentDOM.clientWidth-width),step);
   const y=snapGridBounded(line?(line.top-content.top)/scale:0,100000,step);
-  const width=Math.max(step*4,Math.round(320/step)*step),height=Math.max(step*3,Math.round(160/step)*step);
+  const height=Math.max(step*3,Math.round(160/step)*step);
   const marker=widgetMarker({x,y,width,height,z:nextNoteLayer(view.state.doc.toString()),kind});
   const before=from&&view.state.sliceDoc(from-1,from)!=='\n'?'\n\n':'';
   const after=to<view.state.doc.length&&view.state.sliceDoc(to,to+1)!=='\n'?'\n\n':'';
@@ -71,7 +76,7 @@ class FloatingText extends WidgetType {
   eq(other:FloatingText) { return this.from===other.from&&this.source===other.source; }
   ignoreEvent() { return true; }
   toDOM(view:EditorView) {
-    const position=noteTextPosition(this.marker)!;
+    let position=noteTextPosition(this.marker)!;
     const frame=document.createElement('div');
     frame.className='floating-note-anchor';
     frame.contentEditable='false';
@@ -104,7 +109,7 @@ class FloatingText extends WidgetType {
     const embeds=[...this.text.matchAll(embedPattern)].map(match=>match[0]);
     const plain=this.text.replace(embedPattern,'').replace(/\n{3,}/g,'\n\n').trim();
     body.textContent=plain;
-    card.style.borderColor=position.color??'var(--edge)';
+    card.style.setProperty('--note-widget-border-width',widgetBorderWidth(position.borderWidth)+'px');card.style.borderColor=position.color??'var(--edge)';
     card.style.background=position.fill??'var(--editor)';
 
     for(const match of imageMatches){
@@ -126,34 +131,39 @@ class FloatingText extends WidgetType {
     }
     if(imageMatches.length&&!plain&&!media.querySelector('a'))card.dataset.imageOnly='';
     media.hidden=!media.childNodes.length;
-    card.append(body,media,menu,...resizeHandles.map(({handle})=>handle));
-    frame.append(card);
+    const viewport=document.createElement('div');viewport.className='widget-fit-viewport note-text-fit-viewport';
+    const inner=document.createElement('div');inner.className='widget-fit-content note-text-fit-content';inner.append(body,media);viewport.append(inner);
+    card.append(viewport,menu,...resizeHandles.map(({handle})=>handle));
+    frame.append(card);fitDisposers.set(frame,fitWidgetContent(viewport,inner,268,()=>position.scale??1));
 
     function place(next:WidgetPosition) {
-      card.style.left='min('+next.x+'px, max(0px, 100% - '+(next.width??320)+'px))';
-      card.style.top=next.y+'px';
-      card.style.width=(next.width??320)+'px';
-      card.style.height=(next.height??160)+'px';
-      card.style.setProperty('--widget-height',(next.height??160)+'px');
-      card.style.setProperty('--note-layer',String(next.z));
-      card.style.borderColor=next.color??'var(--edge)';
-      card.style.background=next.fill??'var(--editor)';
-      applyTextureClass(card,next.texture);
-      if(next.fill)card.style.setProperty('--accent',next.fill);else card.style.removeProperty('--accent');
+      const bounded=constrainNoteWidgetPosition({...next,width:next.width??320,height:next.height??160},view.contentDOM,elementGridStep(view.contentDOM));
+      card.style.left=bounded.x+'px';
+      card.style.top=bounded.y+'px';
+      card.style.width=bounded.width+'px';
+      card.style.height=bounded.height+'px';
+      card.style.setProperty('--widget-height',bounded.height+'px');
+      card.style.setProperty('--note-layer',String(bounded.z));
+      card.style.setProperty('--note-widget-border-width',widgetBorderWidth(bounded.borderWidth)+'px');card.style.borderColor=bounded.color??'var(--edge)';
+      card.style.background=bounded.fill??'var(--editor)';
+      applyTextureClass(card,bounded.texture);
+      if(bounded.fill)card.style.setProperty('--accent',bounded.fill);else card.style.removeProperty('--accent');
       queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));
     }
     place(position);
     queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));
 
     const saveWidget=(next:WidgetPosition,plainText=body.textContent??'',extraEmbeds=embeds,moving=false)=>{
-      if(moving)next=snapNoteWidgetPosition(card,{...next,width:next.width??320,height:next.height??160},view.contentDOM,elementGridStep(view.contentDOM));
+      let bounded=constrainNoteWidgetPosition({...next,width:next.width??320,height:next.height??160},view.contentDOM,elementGridStep(view.contentDOM));
+      if(moving)bounded=snapNoteWidgetPosition(card,bounded,view.contentDOM,elementGridStep(view.contentDOM));
       const end=this.from+this.source.length;
       if(view.state.sliceDoc(this.from,end)!==this.source)return this.bodyAt+this.text.length;
       const content=[plainText.trimEnd(),...extraEmbeds].filter(Boolean).join('\n\n');
       const fence=blockFence(content,this.source.match(/^`+/)?.[0].length??3);
-      const marker=widgetMarker({...next,z:moving?nextNoteLayer(view.state.doc.toString()):next.z});
+      const marker=widgetMarker({...bounded,z:moving?nextNoteLayer(view.state.doc.toString()):bounded.z});
       const insert=fence+marker+'\n'+content+'\n'+fence;
       const bodyPosition=this.from+fence.length+marker.length+1+content.length;
+      position=bounded;
       if(insert!==this.source)view.dispatch({changes:{from:this.from,to:end,insert},userEvent:moving?'input.move-widget':'input.widget'});
       queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));
       return bodyPosition;
@@ -161,11 +171,11 @@ class FloatingText extends WidgetType {
 
     for(const {edge,handle} of resizeHandles){
       const resized=(dx:number,dy:number)=>{
-        const step=elementGridStep(view.contentDOM),minWidth=step*4,minHeight=step*3;
+        const step=elementGridStep(view.contentDOM),available=view.contentDOM.clientWidth||position.width||320,minWidth=Math.min(64,available),minHeight=64;
         const width=position.width??320,height=position.height??160;
         const next:WidgetPosition={...position};
-        if(edge.includes('e'))next.width=Math.max(minWidth,Math.min(step*48,Math.round((width+dx)/step)*step));
-        if(edge.includes('s'))next.height=Math.max(minHeight,Math.min(step*32,Math.round((height+dy)/step)*step));
+        if(edge.includes('e'))next.width=Math.max(minWidth,Math.min(available,Math.round((width+dx)/step)*step));
+        if(edge.includes('s'))next.height=Math.max(minHeight,Math.min(1200,Math.round((height+dy)/step)*step));
         if(edge.includes('w')){
           next.x=snapGridBounded(position.x+dx,Math.max(0,position.x+width-minWidth),step);
           next.width=position.x+width-next.x;
@@ -174,7 +184,7 @@ class FloatingText extends WidgetType {
           next.y=snapGridBounded(position.y+dy,Math.max(0,position.y+height-minHeight),step);
           next.height=position.y+height-next.y;
         }
-        return next;
+        return constrainNoteWidgetPosition({...next,width:next.width??width,height:next.height??height},view.contentDOM,step);
       };
       handle.onpointerdown=event=>{
         event.stopPropagation();
@@ -213,18 +223,17 @@ class FloatingText extends WidgetType {
     body.onblur=event=>{if(!card.contains(event.relatedTarget as Node|null))saveWidget(position);};
     card.onpointerdown=event=>{
       if(event.button!==0||!this.getActions().editable||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.floating-note-resize,a,button,input')) )return;
-      const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM),step=elementGridStep(view.contentDOM);
-      const bounds=view.contentDOM.getBoundingClientRect(),rect=card.getBoundingClientRect();
-      let x=(rect.left-bounds.left)/scale,y=(rect.top-bounds.top)/scale,dragged=false;
+      const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM),step=elementGridStep(view.contentDOM),origin=constrainNoteWidgetPosition({...position,width:position.width??320,height:position.height??160},view.contentDOM,step);
+      let x=origin.x,y=origin.y,dragged=false;
       card.setPointerCapture(event.pointerId);
       card.onpointermove=pointer=>{
         if(pointer.pointerId!==event.pointerId)return;
         const dx=pointer.clientX-start.x,dy=pointer.clientY-start.y;
         if(!dragged&&Math.abs(dx)+Math.abs(dy)<4)return;
         dragged=true;card.dataset.dragging='';pointer.preventDefault();
-        x=snapGridBounded((rect.left-bounds.left+dx)/scale,Math.max(0,view.contentDOM.clientWidth-(position.width??320)),step);
-        y=snapGridBounded((rect.top-bounds.top+dy)/scale,100000,step);
-        const next=snapNoteWidgetPosition(card,{...position,x,y,width:position.width??320,height:position.height??160},view.contentDOM,step);
+        x=snapGridBounded(origin.x+dx/scale,Math.max(0,view.contentDOM.clientWidth-origin.width),step);
+        y=snapGridBounded(origin.y+dy/scale,100000,step);
+        const next=snapNoteWidgetPosition(card,{...origin,x,y},view.contentDOM,step);
         x=next.x;y=next.y;place(next);
       };
       card.onpointerup=pointer=>{
@@ -273,8 +282,17 @@ class FloatingText extends WidgetType {
     const colorInput=document.createElement('input');colorInput.type='color';colorInput.value=position.color??'#cba6ed';colorInput.setAttribute('aria-label','Цвет окантовки виджета');colorLabel.append(colorInput);
     colorInput.oninput=()=>{card.style.borderColor=colorInput.value;};
     colorInput.onchange=()=>saveWidget({...position,color:colorInput.value});
+    const resetColor=document.createElement('button');resetColor.type='button';resetColor.textContent='Вернуть обычный цвет рамки';
+    resetColor.onclick=()=>{position={...position,color:undefined};colorInput.value='#cba6ed';saveWidget(position);};
+    actions.append(resetColor);
 
     actions.append(addImage,fileInput,addLink,linkForm,colorLabel);
+    widgetBorderControls(actions,()=>position.borderWidth,borderWidth=>saveWidget({...position,borderWidth}));
+    widgetSizeControls(actions,()=>({width:position.width??320,height:position.height??160}),size=>saveWidget({...position,...size}));
+    const scaleLabel=document.createElement('label');scaleLabel.className='note-widget-scale';scaleLabel.append('Масштаб содержимого');
+    const scaleOutput=document.createElement('output'),scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='50';scaleInput.max='150';scaleInput.step='10';scaleInput.value=String(Math.round((position.scale??1)*100));scaleOutput.textContent=scaleInput.value+'%';scaleLabel.append(scaleOutput,scaleInput);actions.append(scaleLabel);
+    scaleInput.oninput=()=>{position={...position,scale:Number(scaleInput.value)/100};scaleOutput.textContent=scaleInput.value+'%';refreshWidgetFit(viewport);};
+    scaleInput.onchange=()=>saveWidget(position);
     card.ondragover=event=>{
       const transfer=event.dataTransfer;
       if(!transfer?.types.includes(paletteDragType))return;
@@ -296,13 +314,14 @@ class FloatingText extends WidgetType {
     if(position.kind==='link'){menu.open=true;requestAnimationFrame(()=>linkUrl.focus());}
     return frame;
   }
+  destroy(frame:HTMLElement){fitDisposers.get(frame)?.();fitDisposers.delete(frame);}
 }
 
 export function noteTextBlocks(notePath:string,getActions:()=>WidgetActions) {
   return StateField.define({
     create:state=>decorate(state,notePath,getActions),
     update:(value,transaction)=>transaction.docChanged||transaction.selection ? decorate(transaction.state,notePath,getActions) : value,
-    provide:field=>EditorView.decorations.from(field),
+    provide:field=>[EditorView.decorations.from(field),EditorView.atomicRanges.of(view=>view.state.field(field))],
   });
 }
 
@@ -311,7 +330,6 @@ function decorate(state:EditorView['state'],notePath:string,getActions:()=>Widge
   for(const match of state.doc.toString().matchAll(blocks)){
     const [source,fence,marker,text]=match;
     const from=match.index!,to=from+source.length;
-    if(state.selection.ranges.some(range=>range.from<to&&range.to>from))continue;
     const at=from+fence.length;
     const widget=new FloatingText(from,source,marker,at,text,from+source.indexOf('\n')+1,notePath,getActions);
     widgets.push(Decoration.replace({block:true,widget}).range(from,to));

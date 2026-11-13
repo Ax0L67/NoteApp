@@ -7,5 +7,6 @@ target-rebuild/
 .playwright-mcp/
 .impeccable/
 texture-downloads/
+runtime-downloads/
 *.log
 .DS_Store

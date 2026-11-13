@@ -1,4 +1,7 @@
+import {ALL_PROJECTS} from './allProjectsGraph';
+import {saveNotePng,saveGraphPng} from './notePng';
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState,type ReactNode,type RefObject} from 'react';
+import {createPortal} from 'react-dom';
 import {ArrowsIn,ArrowsOut,DotsThree,DotsSixVertical,FileText,Folder,Graph,House,Minus,Plus,Stack,X,Copy,Download,PencilSimple,Trash,ArrowsOutCardinal,CaretDown,ArrowUp} from '@phosphor-icons/react';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import type {EditorView} from '@codemirror/view';
@@ -35,7 +38,7 @@ interface Props {
   newNote:(folder:string)=>void;newFolder:(item:ExplorerItem)=>void;move:(item:ExplorerItem)=>void;
   rename:(path:string)=>void;remove:(item:ExplorerItem)=>void;pdf:(path:string)=>void;
   toggleRead:()=>void;toggleFocus:()=>void;chooseVault:()=>void;
-  typography:(path:string)=>ReactNode;
+  typography:(path:string,getView?:()=>EditorView|undefined)=>ReactNode;
   pickReference:(view:EditorView,kind?:ReferenceKind)=>void;
   attach:(files:File[],position:number|undefined,path:string,editor:RefObject<ReactCodeMirrorRef|null>)=>void;
   changeTaskBoard:(board:TaskBoard)=>void;openTaskManager:(project:string)=>void;insertBoard:(view:EditorView,project:string,id?:string)=>void;
@@ -161,6 +164,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const selected=windows.find(win=>win.id===activeId)??windows[0];
   const selectedLocation=tabLocation(selected.active)??{kind:'home' as const};
   const selectedOwner=selectedLocation.kind==='home'?'':selectedLocation.kind==='note'?projectFor(selectedLocation.path):selectedLocation.project;
+  const selectedLabel=selectedOwner===ALL_PROJECTS?'Все проекты':selectedOwner;
   const selectedPath=selectedLocation.kind==='note'?selectedLocation.path.replace(/\.md$/,''):selectedLocation.kind==='folder'?selectedLocation.path:'';
   const parentPath=selectedLocation.kind==='note'?folder(selectedLocation.path):selectedLocation.kind==='folder'?folder(selectedLocation.path):projectRoot(selectedOwner);
   const hasTiles=visibleWindows.some(win=>win.mode==='tiled');
@@ -168,9 +172,9 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   return <div className="central-desktop" data-detached={props.detachedId||undefined} data-storage-covered={covered||undefined} data-moving={moving||undefined}>
     {!props.detachedId&&<nav className={`storage-strip project-workspace palette-${props.generalPalette}`} aria-label="Хранилище">
       <button className="vault-switch" title={data.root} onClick={props.chooseVault}><Stack size={19}/><strong>Хранилище</strong><CaretDown size={15}/></button>
-      <button className="storage-up" title="На уровень выше" aria-label="На уровень выше" disabled={!selectedOwner} onClick={()=>void open({kind:'folder',project:selectedOwner,path:parentPath},false,true,selected.id)}><ArrowUp size={19}/></button>
-      <span className="storage-path" title={selectedPath||selectedOwner||'Все проекты'}>{selectedOwner||'Все проекты'}{selectedPath&&selectedPath!==projectRoot(selectedOwner)&&<> <span aria-hidden="true">›</span> {selectedPath.startsWith(projectRoot(selectedOwner))?selectedPath.slice(projectRoot(selectedOwner).length).replace(/^\//,'').replaceAll('/',' › '):selectedPath}</>}</span>
-      {selectedOwner&&<button className="storage-graph" onClick={()=>void open({kind:'graph',project:selectedOwner},false,true,selected.id)}><Graph size={18}/>Карта связей</button>}
+      <button className="storage-up" title="На уровень выше" aria-label="На уровень выше" disabled={!selectedOwner} onClick={()=>void open(selectedOwner===ALL_PROJECTS?{kind:'home'}:{kind:'folder',project:selectedOwner,path:parentPath},false,true,selected.id)}><ArrowUp size={19}/></button>
+      <span className="storage-path" title={selectedPath||selectedLabel||'Все проекты'}>{selectedLabel||'Все проекты'}{selectedPath&&selectedPath!==projectRoot(selectedOwner)&&<> <span aria-hidden="true">›</span> {selectedPath.startsWith(projectRoot(selectedOwner))?selectedPath.slice(projectRoot(selectedOwner).length).replace(/^\//,'').replaceAll('/',' › '):selectedPath}</>}</span>
+      <button className="storage-graph" onClick={()=>void open({kind:'graph',project:selectedOwner||ALL_PROJECTS},false,true,selected.id)}><Graph size={18}/>{selectedOwner?'Карта связей':'Общая карта связей'}</button>
     </nav>}
     <div ref={stage} className="central-stage" data-tiled={hasTiles||undefined} style={hasTiles?{marginTop:tileOffset}:undefined}>
       {hasTiles&&<div className="tile-stage-resize" role="separator" tabIndex={0} aria-label="Переместить верхнюю границу центральной области" aria-orientation="horizontal"
@@ -205,13 +209,15 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
             {!win.detached&&windows.length>1&&<button onClick={()=>{setMenuId(null);void closeWindow(win.id);}}><X/>Закрыть окно</button>}
             {note&&<><button onClick={()=>{props.rename(note.path);setMenuId(null);}}><PencilSimple/>Переименовать</button>
               <button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>
+              <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void (async()=>{try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await saveNotePng(win,title(note.path));}catch(error){alert(String(error));}})();}}><Download/>Сохранить заметку в PNG…</button>
               <button onClick={()=>{props.pdf(note.path);setMenuId(null);}}><Download/>Печать / сохранить PDF…</button>
               <button onClick={props.toggleRead}><FileText/>{props.read?'Редактировать':'Режим чтения'}</button></>}
+            {location.kind==='graph'&&<button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void saveGraphPng(win,owner===ALL_PROJECTS?'Общая карта связей':'Карта — '+owner).catch(error=>alert(String(error)));}}><Download/>Сохранить карту в PNG…</button>}
             {location.kind==='folder'&&<button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>}
-            {location.kind!=='home'&&<button onClick={()=>{props.remove(item);setMenuId(null);}}><Trash/>В корзину</button>}
+            {location.kind!=='home'&&owner!==ALL_PROJECTS&&<button onClick={()=>{props.remove(item);setMenuId(null);}}><Trash/>В корзину</button>}
           </div>}
           <div className={`note-tab-strip${location.kind==='note'?'':' folder-workspace'}`} onPointerDown={event=>{if(win.mode!=='tiled'&&!(event.target as Element).closest('button'))start(event,win.id,'move');}} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}><ReorderTabs windowId={win.id} transfer={transfer} active={win.active} order={win.tabs} change={tabs=>commit(current.current.map(entry=>entry.id===win.id?{...entry,tabs}:entry))}
-            items={win.tabs.map(key=>{const tab=tabLocation(key);const tabOwner=tab?.kind==='note'?projectFor(tab.path):tab&&tab.kind!=='home'?tab.project:'';const tabPalette=paletteId(tabOwner?data.settings.projectPalettes?.[tabOwner]??props.generalPalette:props.generalPalette);const Icon=tab?.kind==='home'?House:tab?.kind==='graph'?Graph:tab?.kind==='folder'?Folder:FileText;const label=tab?.kind==='home'?'Все проекты':tab?.kind==='graph'?`Карта · ${tab.project}`:tab?.kind==='folder'?tab.path.split('/').at(-1)||tab.project:title(key);return <div key={key} data-closing={closing.includes(JSON.stringify([win.id,key]))||undefined} className={`note-tab palette-${tabPalette}${tabOwner&&tabOwner===owner&&key!==win.active?' same-project-note-tab':''}${key===win.active?' selected-note-tab':''}`}>
+            items={win.tabs.map(key=>{const tab=tabLocation(key);const tabOwner=tab?.kind==='note'?projectFor(tab.path):tab&&tab.kind!=='home'?tab.project:'';const tabPalette=paletteId(tabOwner?data.settings.projectPalettes?.[tabOwner]??props.generalPalette:props.generalPalette);const Icon=tab?.kind==='home'?House:tab?.kind==='graph'?Graph:tab?.kind==='folder'?Folder:FileText;const label=tab?.kind==='home'?'Все проекты':tab?.kind==='graph'?(tab.project===ALL_PROJECTS?'Общая карта':`Карта · ${tab.project}`):tab?.kind==='folder'?tab.path.split('/').at(-1)||tab.project:title(key);return <div key={key} data-closing={closing.includes(JSON.stringify([win.id,key]))||undefined} className={`note-tab palette-${tabPalette}${tabOwner&&tabOwner===owner&&key!==win.active?' same-project-note-tab':''}${key===win.active?' selected-note-tab':''}`}>
               <button className="note-tab-label" title={label} aria-pressed={key===win.active} onClick={()=>{if(tab)void open(tab,false,true,win.id);}}><Icon size={17}/><strong>{label}</strong></button>
               <button className="icon-button" aria-label={`Закрыть вкладку «${label}»`} onClick={()=>void closeTab(win.id,key)}><X size={14}/></button></div>;})}/>
             <div className="central-window-actions">
@@ -222,7 +228,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
               {!win.detached&&windows.length>1&&<button title="Закрыть окно" aria-label="Закрыть окно" onClick={()=>void closeWindow(win.id)}><X size={16}/></button>}
             </div></div>
           <div className="editor-layout"><div className="tabbed-workspace">
-            {location.kind==='home'?props.renderHome(openItem):location.kind==='graph'&&projects.includes(owner)?props.renderGraph(owner,openItem):location.kind==='folder'?<FolderContents root={data.root} background={data.settings.projectBackgrounds?.[owner]??null} name={item.name} entries={entriesIn(owner,item.path,vaultFolders(data),data.notes,projectFor)} open={openItem} showMenu={props.showMenu}
+            {location.kind==='home'?props.renderHome(openItem):location.kind==='graph'&&(owner===ALL_PROJECTS||projects.includes(owner))?props.renderGraph(owner,openItem):location.kind==='folder'?<FolderContents root={data.root} background={data.settings.projectBackgrounds?.[owner]??null} name={item.name} entries={entriesIn(owner,item.path,vaultFolders(data),data.notes,projectFor)} open={openItem} showMenu={props.showMenu}
               actions={<div className="folder-actions"><button className="primary" onClick={()=>props.newNote(item.path)}><Plus size={18}/>Новая заметка</button><button onClick={()=>props.newFolder(item)}><Folder size={18}/>Новая папка</button></div>}/>:note?<NoteWindow key={note.path} {...props} path={note.path} onView={view=>noteViews.current.set(win.id,view)}/>:<div className="editor-pane editor-empty"><p>Этот объект больше недоступен.</p><button onClick={()=>void open({kind:'home'},false,true,win.id)}>Все проекты</button></div>}
           </div></div>
           {!maximized&&win.mode!=='tiled'&&['n','e','s','w','ne','se','sw','nw'].map(mode=><div key={mode} className={`central-resize central-resize-${mode}`} role="separator" tabIndex={0} aria-label="Изменить размер окна" onPointerDown={event=>start(event,win.id,mode)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onKeyDown={event=>{
@@ -235,22 +241,26 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
 });
 function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
   const editor=useRef<ReactCodeMirrorRef>(null);
+  const main=useRef<HTMLElement>(null);
   const [zoom,setZoom]=useState(1);
+  const [zoomTarget,setZoomTarget]=useState<HTMLElement|null>(null);
   const note=props.data.notes.find(note=>note.path===props.path)!;
   const appearance=props.data.settings.noteAppearance?.[note.path];
   const owner=projectOf(note.path,props.data.settings.projects??defaultProjects);
-  const style={...textAppearanceStyle(appearance),'--editor-size':`${appearance?.fontSize??props.data.settings.fontSize??16}px`,'--body-font':fontStack(validFont(appearance?.fontFamily??props.data.settings.fontFamily))} as React.CSSProperties;
+  const style={...textAppearanceStyle(appearance),'--editor-size':`${props.data.settings.fontSize??16}px`,'--body-font':fontStack(validFont(props.data.settings.fontFamily))} as React.CSSProperties;
   const format=(apply:(view:EditorView)=>void)=>{if(!props.read&&editor.current?.view)apply(editor.current.view);};
-  return <main className="editor-pane main-note-editor">
-    <div className="note-ribbon" inert={props.read}><MarkdownToolbar runEdit={format} disabled={props.read} typography={props.typography(note.path)}
+  useEffect(()=>{setZoomTarget(main.current?.closest('.central-window')?.querySelector<HTMLElement>('.central-window-actions')??null);},[props.path]);
+  const zoomControls=<div className="note-zoom-controls note-zoom-controls-titlebar" role="group" aria-label="Масштаб редактора">
+    <button type="button" aria-label="Уменьшить масштаб" disabled={zoom<=.5} onClick={()=>setZoom(value=>Math.max(.5,Math.round((value-.1)*10)/10))}><Minus size={15}/></button>
+    <button type="button" aria-label={`Масштаб редактора ${Math.round(zoom*100)}%. Сбросить`} onClick={()=>setZoom(1)}>{Math.round(zoom*100)}%</button>
+    <button type="button" aria-label="Увеличить масштаб" disabled={zoom>=2} onClick={()=>setZoom(value=>Math.min(2,Math.round((value+.1)*10)/10))}><Plus size={15}/></button>
+  </div>;
+  return <>
+  <main ref={main} className="editor-pane main-note-editor">
+    <div className="note-ribbon" inert={props.read}><MarkdownToolbar runEdit={format} disabled={props.read} typography={props.typography(note.path,()=>props.read?undefined:editor.current?.view)}
       insertReference={kind=>format(view=>props.pickReference(view,kind))}
       createWidget={kind=>format(view=>floatNoteText(view,kind))} taskBoards={props.data.settings.taskBoards??[]}
       openTasks={()=>props.openTaskManager(owner)} insertBoard={(view,id)=>props.insertBoard(view,owner,id)}/></div>
-    <div className="note-zoom-controls" role="group" aria-label="Масштаб заметки">
-      <button type="button" aria-label="Отдалить заметку" disabled={zoom<=.5} onClick={()=>setZoom(value=>Math.max(.5,Math.round((value-.1)*10)/10))}><Minus size={15}/></button>
-      <button type="button" aria-label={`Масштаб заметки ${Math.round(zoom*100)}%. Сбросить`} onClick={()=>setZoom(1)}>{Math.round(zoom*100)}%</button>
-      <button type="button" aria-label="Приблизить заметку" disabled={zoom>=2} onClick={()=>setZoom(value=>Math.min(2,Math.round((value+.1)*10)/10))}><Plus size={15}/></button>
-    </div>
     <div className="editor-area note-editor-area"><NoteBackdrop root={props.data.root} path={props.data.settings.projectBackgrounds?.[owner]??null} grid/>
       <div className="editor-scroll" onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();}}
         onDrop={event=>{const files=Array.from(event.dataTransfer.files);if(!files.length||props.read)return;event.preventDefault();props.attach(files,editor.current?.view?.posAtCoords({x:event.clientX,y:event.clientY},false)??undefined,note.path,editor);}}
@@ -259,6 +269,8 @@ function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
       </div>
     </div>
     <footer className="statusbar"><span>Markdown</span><span>{note.content.trim().split(/\s+/).filter(Boolean).length} слов</span></footer>
-  </main>;
+  </main>
+  {zoomTarget&&createPortal(zoomControls,zoomTarget)}
+  </>;
 }
 export default CentralWindows;

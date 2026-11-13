@@ -3,7 +3,7 @@ import {createPortal} from 'react-dom';
 import {createRoot,type Root} from 'react-dom/client';
 import {StateField} from '@codemirror/state';
 import {Decoration,EditorView,WidgetType,type DecorationSet} from '@codemirror/view';
-import {defaultNoteWidgetPosition,noteWidgetChrome,type NoteWidgetPosition} from './noteWidgetChrome';
+import {widgetBorderWidth,defaultNoteWidgetPosition,noteWidgetChrome,type NoteWidgetPosition} from './noteWidgetChrome';
 import {paletteDragType,palettes,readPaletteDrop} from './appearance';
 import {textureById} from './textures';
 
@@ -13,13 +13,13 @@ const tableComment=(line:string)=>/^<!-- noteapp-table(?:\s+[a-z]+=[^\s>]*)+\s+-
 function markerValues(comment:string){return Object.fromEntries([...comment.matchAll(/([a-z]+)=([^\s>]+)/g)].map(match=>[match[1],match[2]]));}
 function parseWidget(comment:string):NoteWidgetPosition|undefined {
   const values=markerValues(comment);if(!['x','y','w','h','z'].every(key=>Number.isFinite(Number(values[key]))))return;
-  return {x:Number(values.x),y:Number(values.y),width:Number(values.w),height:Number(values.h),z:Number(values.z),color:values.c?`#${values.c}`:undefined,fill:values.b?`#${values.b}`:undefined,texture:textureById(values.tx)?.id};
+  return {borderWidth:values.bw===undefined?undefined:widgetBorderWidth(Number(values.bw)),x:Number(values.x),y:Number(values.y),width:Number(values.w),height:Number(values.h),z:Number(values.z),color:values.c?`#${values.c}`:undefined,fill:values.b?`#${values.b}`:undefined,texture:textureById(values.tx)?.id,scale:values.s?Math.max(.5,Math.min(2,Number(values.s)/100)):1};
 }
 const roots=new WeakMap<HTMLElement,Root>();
-type TableWidgetContext={range:TableRange;position:NoteWidgetPosition;draft:TableData;content:string;root?:Root;actions?:HTMLElement;view:EditorView;render:(range:TableRange)=>void};
+type TableWidgetContext={range:TableRange;position:NoteWidgetPosition;draft:TableData;content:string;root?:Root;actions?:HTMLElement;dispose?:()=>void;view:EditorView;render:(range:TableRange)=>void};
 const tableContexts=new WeakMap<HTMLElement,TableWidgetContext>();
 const splitRow=(line:string)=>line.trim().replace(/^\|/,'').replace(/\|$/,'').split(/(?<!\\)\|/).map(cell=>cell.trim().replace(/\\\|/g,'|'));
-const pipeLine=(line:string)=>line.includes('|')&&splitRow(line).length>1;
+const pipeLine=(line:string)=>line.includes('|')&&(splitRow(line).length>1||/^\s*\|.*\|\s*$/.test(line));
 const alignment=(cell:string):'left'|'center'|'right'=>cell.startsWith(':')&&cell.endsWith(':')?'center':cell.endsWith(':')?'right':'left';
 const tableContent=(range:TableRange)=>[range.header,range.separator,...range.body].join('\n');
 function parse(range:TableRange):TableData {
@@ -34,7 +34,7 @@ function serialize(table:TableData,widget:NoteWidgetPosition) {
   const header=`| ${table.rows[0].map(safeCell).join(' | ')} |`;
   const separator=`| ${Array.from({length:columns},(_,i)=>table.align[i]==='center'?':---:':table.align[i]==='right'?'---:':':---').join(' | ')} |`;
   const body=table.rows.slice(1).map(row=>`| ${Array.from({length:columns},(_,i)=>safeCell(row[i]??'')).join(' | ')} |`);
-  const comment=`<!-- noteapp-table widths=${table.widths.join(',')} palettes=${(table.palettes??[]).map(value=>value??'').join(',')} x=${widget.x} y=${widget.y} w=${widget.width} h=${widget.height} z=${widget.z}${widget.color?` c=${widget.color.replace('#','')}`:''}${widget.fill?` b=${widget.fill.replace('#','')}`:''}${textureById(widget.texture)?` tx=${widget.texture}`:''} -->\n`;
+  const comment=`<!-- noteapp-table widths=${table.widths.join(',')} palettes=${(table.palettes??[]).map(value=>value??'').join(',')} x=${widget.x} y=${widget.y} w=${widget.width} h=${widget.height} z=${widget.z}${widget.color?` c=${widget.color.replace('#','')}`:''}${widget.fill?` b=${widget.fill.replace('#','')}`:''}${textureById(widget.texture)?` tx=${widget.texture}`:''} s=${Math.round((widget.scale??1)*100)}${widget.borderWidth!==undefined?` bw=${widgetBorderWidth(widget.borderWidth)}`:''} -->\n`;
   return `${comment}${[header,separator,...body].join('\n')}`;
 }
 
@@ -94,6 +94,23 @@ export function standaloneMapTable(source:string) {
   return parse({from:0,to:source.length,source,header:lines[0],separator:lines[1],body:lines.slice(2),comment});
 }
 
+export function readingWidgetTables(source:string) {
+  const lines=source.split('\n'),result:string[]=[];
+  let fence='';
+  for(let i=0;i<lines.length;i++){
+    const token=/^ {0,3}(`{3,}|~{3,})/.exec(lines[i])?.[1];
+    if(token){if(!fence)fence=token;else if(token[0]===fence[0]&&token.length>=fence.length)fence='';result.push(lines[i]);continue;}
+    const widget=!fence&&tableComment(lines[i])?parseWidget(lines[i]):undefined;
+    if(!widget||i+2>=lines.length||!pipeLine(lines[i+1])||!pipeLine(lines[i+2])||!splitRow(lines[i+2]).every(cell=>/^:?-+:?$/.test(cell))){result.push(lines[i]);continue;}
+    const body=[lines[++i],lines[++i]];while(i+1<lines.length&&pipeLine(lines[i+1]))body.push(lines[++i]);
+    const ticks='`'.repeat(Math.max(3,...[...body.join('\n').matchAll(/`+/g)].map(match=>match[0].length+1)));
+    const n=(value:number)=>Math.max(0,Math.round(value));
+    const marker=`noteapp-widget-${n(widget.x)}-${n(widget.y)}-w${n(widget.width)}-h${n(widget.height)}-z${n(widget.z)}${widget.color?'-c'+widget.color.slice(1):''}${widget.fill?'-b'+widget.fill.slice(1):''}-tt${textureById(widget.texture)?'-p'+widget.texture!.slice(8):''}${widget.scale&&widget.scale!==1?'-s'+Math.round(widget.scale*100):''}${widget.borderWidth!==undefined?'-o'+Math.round(widgetBorderWidth(widget.borderWidth)*2):''}`;
+    result.push(`${ticks}${marker}`, ...body,ticks);
+  }
+  return result.join('\n');
+}
+
 export function MapTable({source,save,markdown}:{source:string;save:(source:string)=>void;markdown:()=>void}) {
   const [actions,setActions]=useState<HTMLDivElement|null>(null);
   const table=standaloneMapTable(source);
@@ -113,8 +130,9 @@ class TableWidget extends WidgetType {
   toDOM(view:EditorView){
     const host=document.createElement('div');host.className='visual-table-host';
     const context:TableWidgetContext={range:this.range,position:this.range.widget??defaultNoteWidgetPosition(720,320),draft:parse(this.range),content:tableContent(this.range),view,render:()=>{}};
-    const write=()=>{const range=context.range;if(view.state.sliceDoc(range.from,range.to)!==range.source)return;view.dispatch({changes:{from:range.from,to:range.to,insert:serialize(context.draft,context.position)},userEvent:'input.markdown-table'});};
-    const chrome=noteWidgetChrome(host,view,context.position,'Таблица',next=>{context.position=next;write();},()=>{const range=context.range;if(view.state.sliceDoc(range.from,range.to)===range.source)view.dispatch({changes:{from:range.from,to:range.to},userEvent:'delete.markdown-table'});});
+    const write=()=>{const range=context.range;if(view.state.sliceDoc(range.from,range.to)!==range.source)return;const insert=serialize(context.draft,context.position);view.dispatch({changes:{from:range.from,to:range.to,insert},selection:{anchor:range.from+insert.length},userEvent:'input.markdown-table'});};
+    const chrome=noteWidgetChrome(host,view,context.position,'Таблица',next=>{context.position=next;write();},()=>{const range=context.range;if(view.state.sliceDoc(range.from,range.to)===range.source)view.dispatch({changes:{from:range.from,to:range.to},userEvent:'delete.markdown-table'});},true,668);
+    context.dispose=chrome.dispose;
     const root=createRoot(chrome.body);roots.set(host,root);context.root=root;context.actions=chrome.actions;
     const update=(table:TableData)=>{context.draft=table;write();};
     const markdown=()=>{const range=context.range;if(view.state.sliceDoc(range.from,range.to)!==range.source)return;const insert=serialize(context.draft,context.position),header=range.from+insert.indexOf('\n')+1;view.dispatch({changes:{from:range.from,to:range.to,insert},selection:{anchor:header+1},scrollIntoView:true,userEvent:'select.markdown-table'});view.focus();};
@@ -126,7 +144,7 @@ class TableWidget extends WidgetType {
     };
     tableContexts.set(host,context);context.render(this.range);return host;
   }
-  destroy(dom:HTMLElement){roots.get(dom)?.unmount();roots.delete(dom);tableContexts.delete(dom);}
+  destroy(dom:HTMLElement){tableContexts.get(dom)?.dispose?.();roots.get(dom)?.unmount();roots.delete(dom);tableContexts.delete(dom);}
 }
 
 export function markdownTables(){

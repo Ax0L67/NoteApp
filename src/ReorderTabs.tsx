@@ -1,6 +1,7 @@
-import {cloneElement,useEffect,useLayoutEffect,useRef,useState,type HTMLAttributes,type ReactElement} from 'react';
+import {cloneElement,useEffect,useLayoutEffect,useRef,useState,type HTMLAttributes,type ReactElement,type CSSProperties} from 'react';
 import {captureLayout,animateLayout} from './layoutMotion';
 import {mergeTabOrder,reorderTab} from './tabOrder';
+import {widgetOutline} from './widgetOutline';
 
 export default function ReorderTabs({items,order,change,active,windowId,transfer}:{
   items:ReactElement<HTMLAttributes<HTMLDivElement>>[];
@@ -22,11 +23,16 @@ export default function ReorderTabs({items,order,change,active,windowId,transfer
     const element=bar.current;
     const workspace=element?.closest<HTMLElement>('.workbench');
     if(!element||!workspace)return;
+    const outline=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    const path=document.createElementNS(outline.namespaceURI,'path');
+    outline.classList.add('joined-tab-outline');outline.setAttribute('aria-hidden','true');
+    path.setAttribute('fill','none');path.setAttribute('stroke','var(--edge)');path.setAttribute('stroke-width','1');
+    outline.append(path);workspace.append(outline);
     const measure=()=>{
       const selected=element.querySelector<HTMLElement>('.selected-note-tab');
     const pane=workspace.querySelector<HTMLElement>('.editor-layout > .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview)');
     if(!selected||!pane||!element.offsetWidth){
-        workspace.removeAttribute('data-tab-joined');return;
+        workspace.removeAttribute('data-tab-joined');workspace.removeAttribute('data-tab-outline');outline.style.display='none';return;
       }
       const bounds=element.getBoundingClientRect(),panel=pane.getBoundingClientRect();
       const scale=bounds.width/element.offsetWidth;
@@ -37,12 +43,26 @@ export default function ReorderTabs({items,order,change,active,windowId,transfer
       workspace.style.setProperty('--tab-join-left',`${left}px`);
       workspace.style.setProperty('--tab-join-selected-width',`${selected.offsetWidth}px`);
       workspace.setAttribute('data-tab-joined','');
+      const frame=workspace.getBoundingClientRect(),tab=selected.getBoundingClientRect();
+      const visible=tab.left>=bounds.left&&tab.right<=bounds.right;
+      const joined=workspace.classList.contains('central-window')&&visible;
+      workspace.toggleAttribute('data-tab-outline',joined);outline.style.display=joined?'':'none';
+      if(joined){
+        const rect=(r:DOMRect)=>({x:(r.left-frame.left)/scale+.5,y:(r.top-frame.top)/scale+.5,width:r.width/scale-1,height:r.height/scale-1});
+        const panelRect=rect(panel),tabRect=rect(tab);
+        const radius=Math.max(0,Math.min(12,(tabRect.x-panelRect.x)/2,(panelRect.x+panelRect.width-tabRect.x-tabRect.width)/2));
+        workspace.style.setProperty('--tab-outline-radius',`${radius}px`);
+        tabRect.height=panelRect.y-tabRect.y+1;
+        path.setAttribute('d',widgetOutline([panelRect,tabRect],radius,true));
+      }
     };
     const observer=new ResizeObserver(measure);
     observer.observe(element);observer.observe(workspace);
     element.addEventListener('scroll',measure,{passive:true});
     measure();
-    return()=>{observer.disconnect();element.removeEventListener('scroll',measure);workspace.removeAttribute('data-tab-joined');};
+    const pane=workspace.querySelector('.editor-layout > .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview)');
+    if(pane)observer.observe(pane);
+    return()=>{observer.disconnect();element.removeEventListener('scroll',measure);workspace.removeAttribute('data-tab-joined');workspace.removeAttribute('data-tab-outline');outline.remove();};
   },[active,keys.join('\n')]);
 
   useLayoutEffect(()=>{
@@ -57,24 +77,7 @@ export default function ReorderTabs({items,order,change,active,windowId,transfer
     else if(right>bar.current.clientWidth)bar.current.scrollLeft+=right-bar.current.clientWidth;
   },[active,items.length]);
 
-  useLayoutEffect(()=>{
-    const element=bar.current;if(!element)return;
-    let frame=0;
-    const measure=()=>{
-      cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
-        if(!element.offsetWidth)return;
-        const bounds=element.getBoundingClientRect(),scale=bounds.width/element.offsetWidth,fade=36*scale;
-        for(const tab of Array.from(element.children) as HTMLElement[]){
-          const left=bounds.left+(tab.offsetLeft-element.scrollLeft)*scale,width=tab.offsetWidth*scale,right=left+width,visible=Math.min(Math.max(0,Math.min(1,(right-bounds.left)/fade)),Math.max(0,Math.min(1,(bounds.right-left)/fade)));
-          tab.style.transform=`scaleX(${visible})`;tab.style.transformOrigin=left<bounds.left?'right center':'left center';tab.style.opacity=String(visible);tab.style.pointerEvents=visible<.12?'none':'';
-        }
-      });
-    };
-    const observer=new ResizeObserver(measure);observer.observe(element);
-    for(const tab of Array.from(element.children))observer.observe(tab);
-    element.addEventListener('scroll',measure,{passive:true});measure();
-    return()=>{cancelAnimationFrame(frame);observer.disconnect();element.removeEventListener('scroll',measure);};
-  },[keys.join('\n')]);
+
 
   function finish(commit:boolean) {
     const current=drag.current;
@@ -84,7 +87,7 @@ export default function ReorderTabs({items,order,change,active,windowId,transfer
     if(commit)change(current.order);
     setPreview(null);
   }
-  return <div className="note-tabs" ref={bar} role="group" aria-label="Открытые вкладки"
+  return <div className="note-tabs" style={{'--tab-count':Math.max(1,keys.length)} as CSSProperties} ref={bar} role="group" aria-label="Открытые вкладки"
     onDragOver={event=>{
       const current=drag.current;
       if(!current){if(transfer&&event.dataTransfer.types.includes('application/x-noteapp-window-tab')){event.preventDefault();event.dataTransfer.dropEffect='move';}return;}

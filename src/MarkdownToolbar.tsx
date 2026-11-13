@@ -7,6 +7,7 @@ import type {ReferenceKind} from './noteReferences';
 import {applyNoteColor} from './noteTextColor';
 import {insertFeature,insertTable,type NoteFeature} from './noteFeatureBlocks';
 import type {TaskBoard} from './types';
+import {insertCodeWidget} from './noteCodeWidgets';
 
 type Format = { prefix: string; suffix?: string; placeholder?: string; line?: boolean; url?: boolean };
 
@@ -156,6 +157,7 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
           <button type="button" title="Сравнительный блок" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('compare')}>Сравнение</button>
           <button type="button" title="Карточка источника" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('source')}>Источник</button>
           <button type="button" title="Назначить определение выделенному термину" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('concept')}>Термин</button>
+          <button type="button" title="Вставить виджет Python / C++" disabled={disabled} onMouseDown={event=>event.preventDefault()} onClick={()=>runEdit(view=>insertCodeWidget(view))}>Код</button>
           <div className="table-insert">
             <button type="button" title="Вставить таблицу. Правый клик — выбрать размер" aria-expanded={tableMenu} aria-haspopup="menu" disabled={insertDisabled}
               onMouseDown={event=>{if(event.button===0)event.preventDefault();}}

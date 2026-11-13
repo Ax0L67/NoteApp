@@ -43,7 +43,7 @@ export default function TaskBoardManager({boards,notes,project,change,close,open
   const [selected,setSelected]=useState(boards[0]?.id??'');
   const board=boards.find(value=>value.id===selected);
   const save=(next:TaskBoard)=>change(boards.map(value=>value.id===next.id?next:value));
-  return <div className="modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)close()}}><section className="modal task-board-manager" role="dialog" aria-modal="true" aria-labelledby="task-board-title">
+  return <div className="modal-overlay" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)close()}}><section className="modal task-board-manager" role="dialog" aria-modal="true" aria-labelledby="task-board-title">
     <header><h2 id="task-board-title">Задачи</h2><button type="button" aria-label="Закрыть" onClick={close}>×</button></header>
     <div className="task-manager-content"><nav aria-label="Доски задач">{boards.map(value=><button key={value.id} type="button" aria-pressed={selected===value.id} onClick={()=>setSelected(value.id)}>{value.name}</button>)}<button type="button" onClick={()=>{const next=newTaskBoard(project);change([...boards,next]);setSelected(next.id)}}><Plus size={16}/>Новая доска</button>
       {board&&<button className="danger" type="button" onClick={()=>{change(boards.filter(value=>value.id!==board.id));setSelected(boards.find(value=>value.id!==board.id)?.id??'')}}><Trash size={16}/>Удалить доску</button>}</nav>

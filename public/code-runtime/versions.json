@@ -1,0 +1,59 @@
+{
+  "pyodide": "0.27.7",
+  "browsercc": "0.1.1",
+  "cppStandard": "c++17",
+  "files": {
+    "worker-runtime.js": {
+      "bytes": 11691,
+      "sha256": "67e18ff1179ea381d65f3e5b84cd71c73f97269b23476a7fdbb63dcaea460506"
+    },
+    "sandbox.html": {
+      "bytes": 1366,
+      "sha256": "65484bb13dbc136e9486b2f94f46d8e95c1d2f5060a1634994e8d4a475751440"
+    },
+    "sandbox-probe.js": {
+      "bytes": 1355,
+      "sha256": "e0fdebb875cb616d60543a6c7523b524a3f2d73e2846eb5656fa5e3508752edb"
+    },
+    "python/pyodide.js": {
+      "bytes": 14913,
+      "sha256": "b4cb23a53aba19c221659b9fb40a2f18281d685691dc06647fb0afd0681baf98"
+    },
+    "python/pyodide.asm.js": {
+      "bytes": 1255688,
+      "sha256": "6b4c90de5b7172873f04f21884d0e9d2274e305fe32116558fe3e4fbe3618d51"
+    },
+    "python/pyodide.asm.wasm": {
+      "bytes": 10105545,
+      "sha256": "a50dd1843f805a0b7c45b61037ee0d7b26dfe85efe0e18ef95a34ad24e401f5f"
+    },
+    "python/python_stdlib.zip": {
+      "bytes": 2360737,
+      "sha256": "16611534726e5d8ac2bd8f926410b2dcb8d6f49aa24913463533b457a2115c16"
+    },
+    "python/pyodide-lock.json": {
+      "bytes": 112205,
+      "sha256": "9c45b916001a750f4102fc287494f3eab215909c7535c626a20db80fd6333e2c"
+    },
+    "cpp/clang.js": {
+      "bytes": 74193,
+      "sha256": "27aeadfcdb71f37fdeb6f1ca339de913ef9e2fdd1fd53c238a5decf635d9b129"
+    },
+    "cpp/clang.wasm": {
+      "bytes": 42553880,
+      "sha256": "d574339640a9764544f405d4b5ae79ef7d05e49725b416fba74f5b15c00f8ee5"
+    },
+    "cpp/lld.js": {
+      "bytes": 71604,
+      "sha256": "b5054c24942687c744adbadcd549073ce3ecaf69b9fed5fa85a20c046751c1bf"
+    },
+    "cpp/lld.wasm": {
+      "bytes": 23202572,
+      "sha256": "810bb3be4eec8ad6bae60ceb7355c07bf7de8a54b5c8acb4d7a80613bd43c4bf"
+    },
+    "cpp/sysroot.tar": {
+      "bytes": 28620800,
+      "sha256": "dbed83f93f0fa695f36041b82a95a8cd78f106a3f49d9cd860e57ae1ac823318"
+    }
+  }
+}

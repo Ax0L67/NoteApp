@@ -54,14 +54,14 @@
   min-height: 44px;
   gap: 8px;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--glass-line);
+  border-bottom: 1px solid var(--edge);
 }
 .dock-panel-heading > .icon-button {
   flex: 0 0 44px;
   width: 44px;
   height: 34px;
   margin-inline: 0;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--edge);
   border-radius: 9px;
   background: color-mix(in srgb, var(--ink) 5%, var(--input));
 }
@@ -163,7 +163,7 @@
   pointer-events: auto;
   color: var(--text);
   background: color-mix(in srgb, var(--selection) 85%, var(--editor));
-  border: 1px dashed var(--accent);
+  border: 1px dashed var(--edge);
   border-radius: 8px;
   font-size: calc(var(--ui-font-scale, 1) * 13px);
   animation: fade-in 150ms var(--ease-ui);
@@ -180,7 +180,7 @@
   inset: 0;
   z-index: 10;
   pointer-events: none;
-  border: 2px solid var(--accent);
+  border: 1px solid var(--edge);
   border-radius: inherit;
   background: color-mix(in srgb, var(--selection) 45%, transparent);
 }
@@ -209,7 +209,7 @@
 .app[data-transparent] > .titlebar, .app[data-transparent] .dock-panel {
   -webkit-backdrop-filter: blur(28px) saturate(1.4);
   backdrop-filter: blur(28px) saturate(1.4);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 16%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--edge) 18%, transparent);
+  box-shadow: none;
 }
 .app[data-transparent] :is(.modal,.dropdown,.explorer-context,.note-insert-actions,.toast,.graph-connections),
 .app[data-transparent] .cm-editor .cm-tooltip {
@@ -217,11 +217,11 @@
 }
 .custom-palette-color { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; font-size: calc(var(--ui-font-scale, 1) * 13px); }
 .custom-palette-color output { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
-.custom-palette-color input[type="color"] { width: 40px; height: 32px; min-height: 32px; padding: 2px; border: 1px solid var(--glass-line); cursor: pointer; }
+.custom-palette-color input[type="color"] { width: 40px; height: 32px; min-height: 32px; padding: 2px; border: 1px solid var(--edge); cursor: pointer; }
 
 .app[data-transparent],
 .app[data-transparent] :is(.project-workspace,.project-card,.note-tab,.dock-panel) {
-  --glass-line: color-mix(in srgb, var(--edge) calc(48% * var(--chrome-line-solid)), transparent);
+  --glass-line: var(--edge);
   --glass-control: color-mix(in srgb, var(--input) calc(74% * var(--chrome-control-solid)), transparent);
   --glass-hover: color-mix(in srgb, var(--selection) calc(72% * var(--chrome-control-solid)), transparent);
   --hover: var(--glass-hover);
@@ -235,24 +235,24 @@
   background: linear-gradient(270deg in oklab,
     color-mix(in srgb, var(--tint) var(--chrome-opacity), transparent),
     color-mix(in srgb, color-mix(in srgb, var(--palette-left-hue) var(--palette-left-mix), var(--surface-tint)) var(--chrome-opacity), transparent));
-  border-color: var(--glass-line);
+  border-color: var(--edge);
 }
 .app[data-transparent] :is(.dock-panel-heading > .icon-button,.markdown-toolbar button,.font-picker,.segmented button,.graph-notes-toggle,.grid-picker button,.palette-mix-action,.inherit-palette,.note-corner-actions .icon-button,.primary,.search-field) {
   background: var(--glass-control);
-  border-color: var(--glass-line);
+  border-color: var(--edge);
 }
 .app[data-transparent] :is(select,input:not([type="range"]):not([type="checkbox"]),textarea) {
-  background: var(--glass-control); border-color: var(--glass-line);
+  background: var(--glass-control); border-color: var(--edge);
 }
 .app[data-transparent] .palette-swatch { opacity: calc(.5 + .5 * var(--chrome-control-solid)); }
 .app[data-transparent] .explorer-row.current-item { background: var(--glass-hover); }
-.app[data-transparent] :is(.dock-panel,.dock-panel-heading,.explorer-sidebar-heading,.inspector .backlinks,.inspector-bottom) { border-color: var(--glass-line); }
-.app[data-transparent] { border-color: var(--glass-line); }
+.app[data-transparent] :is(.dock-panel,.dock-panel-heading,.explorer-sidebar-heading,.inspector .backlinks,.inspector-bottom) { border-color: var(--edge); }
+.app[data-transparent] { border-color: var(--edge); }
 .app[data-transparent] :is(.titlebar,.dock-panel,.explorer-address) {
   position: relative;
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
   backdrop-filter: blur(18px) saturate(1.25);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 12%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--edge) 10%, transparent);
+  box-shadow: none;
 }
 .app[data-transparent] :is(.titlebar,.dock-panel,.explorer-address)::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
@@ -265,11 +265,11 @@
 
 .app[data-transparent] :is(.titlebar,.dock-panel,.explorer-address) > * { position: relative; z-index: 1; }
 .app[data-transparent] :is(.dock-panel-heading > .icon-button,.markdown-toolbar button,.font-picker,.segmented button,.graph-notes-toggle,.grid-picker button,.palette-mix-action,.inherit-palette,.note-corner-actions .icon-button,.primary):hover { background: var(--glass-hover); }
-.app[data-transparent] :is(.segmented button.on,.grid-picker button[aria-pressed="true"]) { border-color: var(--glass-line); }
+.app[data-transparent] :is(.segmented button.on,.grid-picker button[aria-pressed="true"]) { border-color: var(--edge); }
 
 .app[data-transparent] .explorer-address { --glass-fill: var(--glass-control); }
-.app[data-transparent] :is(.graph-tab,.graph-zoom,.graph-links summary) { background: var(--glass-control); border-color: var(--glass-line); }
-.app[data-transparent] :is(.appearance-tabs button[aria-selected="true"],.markdown-ribbon-tabs button[aria-pressed="true"]) { background: var(--glass-hover); border-color: var(--glass-line); }
+.app[data-transparent] :is(.graph-tab,.graph-zoom,.graph-links summary) { background: var(--glass-control); border-color: var(--edge); }
+.app[data-transparent] :is(.appearance-tabs button[aria-selected="true"],.markdown-ribbon-tabs button[aria-pressed="true"]) { background: var(--glass-hover); border-color: var(--edge); }
 
 .note-tab-strip { --joined-tab-fill: var(--panel-fill); }
 .note-tab-strip.folder-workspace { --joined-tab-fill: var(--editor-fill); }

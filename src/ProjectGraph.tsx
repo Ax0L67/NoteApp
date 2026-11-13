@@ -13,7 +13,8 @@ import {gridStep} from './gridPatterns';
 import {snapGrid} from './gridGeometry';
 import {CardFace,paletteDragType,readPaletteDrop} from './appearance';
 import {textureById} from './textures';
-import {FeatureCard,featureDefaults,featureFromMarkdown,markdownBlock,type NoteFeature} from './noteFeatureBlocks';
+import {FeatureCard,featureDefaults,featureFromMarkdown,featureBaseWidth,markdownBlock,type NoteFeature} from './noteFeatureBlocks';
+import {FittedWidget} from './widgetFit';
 import {queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
 import {MapTable,standaloneMapTable} from './noteTables';
 import type {ExplorerItem} from './Explorer';
@@ -45,7 +46,7 @@ function noteExcerpt(note?: Note) {
 
 const linkKey = ({from, to}: ProjectConnection) => JSON.stringify([from, to]);
 
-function layout(project: ExplorerItem, childrenOf: (item: ExplorerItem) => ExplorerItem[],
+export function layoutProjectGraph(project: ExplorerItem, childrenOf: (item: ExplorerItem) => ExplorerItem[],
   measurements: Record<string,Dimensions>, cards: ProjectMap['cards'], viewport: number, drag: Drag | null, step:number, sizing:Sizing|null) {
   const rows: number[] = [];
   const spacing=Math.ceil(gap/step)*step;
@@ -57,7 +58,7 @@ function layout(project: ExplorerItem, childrenOf: (item: ExplorerItem) => Explo
     const height = Math.ceil(Math.max(measurements[id]?.height??0,size.height)/step)*step;
     rows[level] = Math.max(rows[level] ?? sizes.project.height, cards?.[id]?.position ? size.height : height);
     const children = item.kind === 'note' ? [] : [...childrenOf(item)]
-      .sort((a,b)=>(a.kind==='folder'?0:1)-(b.kind==='folder'?0:1)||a.name.localeCompare(b.name,'ru',{numeric:true}))
+      .sort((a,b)=>item.project===':all-projects:'?0:(a.kind==='folder'?0:1)-(b.kind==='folder'?0:1)||a.name.localeCompare(b.name,'ru',{numeric:true}))
       .map(child => branch(child, depth + 1));
     const span = children.reduce((width, child, i) => width + child.width + (i ? spacing : 0), 0);
     return {item, children, span, height, width: Math.max(size.width, span),depth:level};
@@ -195,7 +196,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const selection = useRef<Marquee|null>(null);
   const suppressClick = useRef('');
   const step=gridStep(settings.projectPatterns?.[project.project]);
-  const {nodes, bounds} = layout(project, childrenOf, measurements, map.cards, viewport, drag,step,sizing);
+  const {nodes, bounds} = layoutProjectGraph(project, childrenOf, measurements, map.cards, viewport, drag,step,sizing);
   const blocks=mapBlocks(map);
   const endpoints=new Map<string,Endpoint>();
   for(const [id,node] of nodes)endpoints.set(id,{...node,name:node.item.name});
@@ -339,7 +340,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   }
   function rebuildMap() {
     const cards:Record<string,MapCard>=Object.fromEntries(Object.entries(map.cards??{}).map(([id,card])=>[id,{...card,position:undefined}]));
-    const arranged=layout(project,childrenOf,measurements,cards,viewport,null,step,null);
+    const arranged=layoutProjectGraph(project,childrenOf,measurements,cards,viewport,null,step,null);
     const nextCards:Record<string,MapCard>={...cards};
     for(const [id,node] of arranged.nodes)nextCards[id]={...nextCards[id],position:{x:node.x,y:node.y}};
     let x=snapGrid(arranged.bounds.x+inset,step),y=snapGrid(Math.max(...[...arranged.nodes.values()].map(node=>node.y+node.height))+gap+step/2,step),rowHeight=0;
@@ -402,7 +403,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     suppressClick.current='';
     const target=event.target as Element;
     if(source||editing||pointer.current||pan.current||event.button!==0||
-      target.closest('.graph-card-actions, .graph-comment, .graph-resize'))return;
+      target.closest('.graph-card-title, .graph-card-actions, .graph-comment, .graph-resize'))return;
     if(event.ctrlKey||event.metaKey||event.shiftKey){
       event.preventDefault();event.stopPropagation();
       suppressClick.current=id;
@@ -698,7 +699,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
                 if(suppressClick.current===id&&event.detail!==0){suppressClick.current='';return;}
                 if(source)connect(id);else open(item);
               }}><Icon size={18}/><span>{item.name}</span></button>}
-                path={isNote || item.kind === 'project' ? cover : null} root={root}>
+                path={project.project===':all-projects:' ? (settings.projectBackgrounds?.[item.project]??null) : isNote || item.kind === 'project' ? cover : null} root={root}>
                 <span className="graph-card-context">{parent ? parent.name : 'Проект'}</span>
                 <span className="graph-card-summary">{summary}</span>
               </CardFace>
@@ -788,6 +789,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
                 aria-label={source&&from!==dragId?`Связать с «${position.name}»`:`Начать связь от «${position.name}»`}
                 aria-pressed={from===dragId} title={source?'Выбрать объект назначения':'Провести стрелку'}
                 onClick={()=>source?connect(dragId):setFrom(dragId)}><Link size={19}/></button>}
+              {editCanvas&&feature?.[1]==='plot'&&featureValue&&<details className="graph-plot-settings"><summary title="Настройки графика" aria-label="Настройки графика">⋯</summary><div><label>Цвет графика <input type="color" value={/^#[0-9a-f]{6}$/i.test(featureValue.plotColor??'')?featureValue.plotColor:'#aa66db'} onChange={event=>updateBlock(block.id,{text:markdownBlock('plot',{...featureValue,plotColor:event.target.value})})}/></label></div></details>}
               {editCanvas&&
                 <button type="button" className="icon-button" title={active?'Готово':'Правка блока'} aria-label={active?'Готово':'Правка блока'}
                   onClick={()=>{setRawMapTable('');setActiveBlock(active?'':block.id)}}>{active?<Check size={16}/>:<PencilSimple size={16}/>}</button>}
@@ -803,7 +805,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
               ...textAppearanceStyle({lineHeight:block.lineHeight??map.lineHeight,textColor:block.textColor??map.textColor}),
               ...(font&&{'--body-font':fontStack(font)}),
             } as React.CSSProperties}>
-              {feature&&featureValue?<FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/>:table&&editCanvas&&rawMapTable!==block.id?<MapTable source={block.text} save={text=>updateBlock(block.id,{text})} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
+              {feature&&featureValue?<FittedWidget baseWidth={featureBaseWidth(feature[1] as NoteFeature)}><FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/></FittedWidget>:table&&rawMapTable!==block.id?<FittedWidget baseWidth={668}>{editCanvas?<MapTable source={block.text} save={text=>updateBlock(block.id,{text})} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:""}} notes={notes} read floatingText={false} light={settings.theme==="light"} editorRef={blockEditor} onChange={()=>{}} onLink={openLink}/>}</FittedWidget>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
                 light={settings.theme==='light'} autoFocus={active} editorRef={blockEditor}
                 onChange={text=>updateBlock(block.id,{text})} onLink={openLink}/>}
               {!active&&!block.text&&<p className="subtle">Пустой блок</p>}

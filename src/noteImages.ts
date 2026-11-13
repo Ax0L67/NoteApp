@@ -6,17 +6,21 @@ import { request } from './storage';
 import { noteInsertMenu } from './noteInsertMenu';
 import {nextNoteLayer} from './noteLayers';
 import {elementGridStep,elementScale,snapGridBounded} from './gridGeometry';
-import {queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
+import {widgetBorderControls,widgetBorderWidth,widgetSizeControls,queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
 
-const widthMarker = /#noteapp-width=(\d+)(?:&x=(\d+)&y=(\d+))?(?:&z=(\d{1,9}))?$/;
+const widthMarker = /#noteapp-width=(\d+)(?:&x=(\d+)&y=(\d+))?(?:&z=(\d{1,9}))?(?:&c=([\da-fA-F]{6}))?(?:&s=(\d{2,3}))?(?:&h=(\d{1,4}))?(?:&bw=(\d{1,2}))?$/;
 const limitWidth = (width: number) => Math.max(1, Math.min(1600, Math.round(width)));
 export function imageLayout(src: string) {
   const match = src.match(widthMarker);
   return {
+    borderWidth:match?.[8]?widgetBorderWidth(Number(match[8])/2):undefined,
     width: match ? limitWidth(Number(match[1])) : undefined,
+    height:match?.[7]?Math.max(64,Math.min(1200,Number(match[7]))):undefined,
     x: match?.[2] === undefined ? undefined : Math.min(10000, Number(match[2])),
     y: match?.[3] === undefined ? undefined : Math.min(100000, Number(match[3])),
     z: match?.[4]===undefined?2:Number(match[4]),
+    color:match?.[5]?`#${match[5]}`:undefined,
+    scale:match?.[6]===undefined?1:Math.max(.5,Math.min(2,Number(match[6])/100)),
   };
 }
 export function assetPath(note: string, src: string) {
@@ -41,11 +45,17 @@ const partsByFrame = new WeakMap<HTMLElement, ImageParts>();
 function applyLayout(parts: ImageParts, layout = imageLayout(parts.source.src)) {
   const floating = layout.x !== undefined && layout.y !== undefined;
   parts.box.classList.toggle('floating-image', floating);
-  parts.box.style.left = floating ? 'min(' + layout.x + 'px, max(0px, 100% - ' + (layout.width ?? 320) + 'px))' : '';
+  parts.box.style.left = floating ? 'min(' + layout.x + 'px, max(0px, 100% - min(' + (layout.width ?? 320) + 'px, 100%)))' : '';
   parts.box.style.top = floating ? layout.y + 'px' : '';
   parts.box.style.setProperty('--note-layer',String(layout.z));
   parts.box.toggleAttribute('data-sized',layout.width!==undefined);
-  parts.box.style.width = layout.width ? layout.width + 'px' : '';
+  parts.box.style.width = layout.width ? 'min(' + layout.width + 'px, 100%)' : '';
+  parts.box.style.height=layout.height?layout.height+'px':'';
+  parts.preview.style.height=layout.height?'100%':'';parts.preview.style.objectFit='contain';
+  parts.box.style.setProperty('--note-widget-border-width',widgetBorderWidth(layout.borderWidth)+'px');
+  parts.box.style.borderColor=layout.color??'var(--edge)';
+  parts.preview.style.transform=`scale(${Math.min(1,layout.scale??1)})`;
+  parts.preview.style.transformOrigin='center';
   parts.preview.style.width = layout.width ? '100%' : '';
 }
 
@@ -85,6 +95,11 @@ class ImageWidget extends WidgetType {
     resize.title = 'Перетащите влево или вправо. Можно использовать стрелки.';
     resize.disabled = true;
     actions.insertBefore(resize,remove);
+    const colorLabel=document.createElement('label');colorLabel.className='note-widget-color';colorLabel.append('Цвет рамки');
+    const colorInput=document.createElement('input');colorInput.type='color';colorInput.value=imageLayout(this.image.src).color??'#cba6ed';colorInput.setAttribute('aria-label','Цвет рамки виджета');colorLabel.append(colorInput);actions.insertBefore(colorLabel,remove);
+    const scaleLabel=document.createElement('label');scaleLabel.className='note-widget-scale';scaleLabel.append('Масштаб содержимого');
+    const scaleOutput=document.createElement('output'),scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='50';scaleInput.max='150';scaleInput.step='10';scaleInput.value=String(Math.round((imageLayout(this.image.src).scale??1)*100));scaleOutput.textContent=scaleInput.value+'%';scaleLabel.append(scaleOutput,scaleInput);actions.insertBefore(scaleLabel,remove);
+    const resetColor=document.createElement('button');resetColor.type='button';resetColor.textContent='Вернуть обычный цвет рамки';actions.insertBefore(resetColor,remove);
     box.append(preview,status,menu);
     frame.append(box);
     const parts = {source:this.image, box, preview};
@@ -97,16 +112,25 @@ class ImageWidget extends WidgetType {
       view.dispatch({changes:{from,to},selection:{anchor:from},userEvent:'delete.note-image'});
       view.focus();
     };
-    const save = (width: number, x?: number, y?: number, moving=false) => {
+    const save = (width: number, x?: number, y?: number, moving=false,color:string|null|undefined=imageLayout(parts.source.src).color,scale:number|undefined=imageLayout(parts.source.src).scale,height:number|undefined=imageLayout(parts.source.src).height,borderWidth:number|undefined=imageLayout(parts.source.src).borderWidth) => {
       const { from, to, text, urlFrom, urlTo, src } = parts.source;
       if (view.state.sliceDoc(from, to) !== text) { applyLayout(parts); return; }
       const step=elementGridStep(view.contentDOM);
-      width=Math.max(step,Math.min(Math.floor(1600/step)*step,Math.round(width/step)*step));
+      const maxWidth=Math.min(1600,view.contentDOM.clientWidth||1600);
+      width=Math.max(Math.min(64,maxWidth),Math.min(maxWidth,Math.round(width)));
       const position = x === undefined || y === undefined ? '' : '&x=' + (moving?Math.round(Math.max(0,Math.min(view.contentDOM.clientWidth-width,x))):snapGridBounded(x,Math.max(0,view.contentDOM.clientWidth-width),step)) + '&y=' + (moving?Math.round(Math.max(0,y)):snapGridBounded(y,100000,step));
       const z=moving?nextNoteLayer(view.state.doc.toString()):imageLayout(src).z;
-      const insert = src.replace(widthMarker, '') + '#noteapp-width=' + limitWidth(width) + position+'&z='+z;
+      const appearance=(color?'&c='+color.replace('#',''):'')+((scale??1)!==1?'&s='+Math.round((scale??1)*100):'');
+      const insert = src.replace(widthMarker, '') + '#noteapp-width=' + limitWidth(width) + position+'&z='+z+appearance+(height?'&h='+Math.max(64,Math.min(1200,Math.round(height))):'')+(borderWidth!==undefined?'&bw='+Math.round(widgetBorderWidth(borderWidth)*2):'');
       if (insert !== src) view.dispatch({changes:{from:urlFrom,to:urlTo,insert},userEvent:'input.image'});
     };
+    widgetBorderControls(actions,()=>imageLayout(parts.source.src).borderWidth,borderWidth=>{const l=imageLayout(parts.source.src);save(l.width??box.offsetWidth,l.x,l.y,false,l.color,l.scale,l.height,borderWidth);});
+    widgetSizeControls(actions,()=>{const layout=imageLayout(parts.source.src);return {width:layout.width??box.offsetWidth,height:layout.height??box.offsetHeight};},size=>{const layout=imageLayout(parts.source.src);save(size.width,layout.x,layout.y,false,layout.color,layout.scale,size.height);});
+    colorInput.oninput=()=>{box.style.borderColor=colorInput.value;};
+    colorInput.onchange=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);save(layout.width??preview.getBoundingClientRect().width/scale/(layout.scale??1),layout.x,layout.y,false,colorInput.value,layout.scale);};
+    resetColor.onclick=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);colorInput.value='#cba6ed';box.style.borderColor='var(--edge)';save(layout.width??preview.getBoundingClientRect().width/scale/(layout.scale??1),layout.x,layout.y,false,null,layout.scale);};
+    scaleInput.oninput=()=>{scaleOutput.textContent=scaleInput.value+'%';applyLayout(parts,{...imageLayout(parts.source.src),scale:Number(scaleInput.value)/100});};
+    scaleInput.onchange=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM),nextScale=Number(scaleInput.value)/100;save(layout.width??preview.getBoundingClientRect().width/scale/nextScale,layout.x,layout.y,false,layout.color,nextScale);};
     move.onkeydown = event => {
       if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
       event.preventDefault();
@@ -114,16 +138,17 @@ class ImageWidget extends WidgetType {
       const {left,top,width}=preview.getBoundingClientRect();
       const bounds=view.contentDOM.getBoundingClientRect();
       const scale=elementScale(view.contentDOM),step=elementGridStep(view.contentDOM);
+      const layout=imageLayout(parts.source.src),contentScale=layout.scale??1;
       const dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0;
       const dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;
-      save(width/scale,(left-bounds.left)/scale+dx,(top-bounds.top)/scale+dy,true);
+      save((layout.width??width/scale/contentScale),(layout.x??(left-bounds.left)/scale)+dx,(layout.y??(top-bounds.top)/scale)+dy,true);
     };
     resize.onkeydown = event => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       event.preventDefault();
-      const { x, y } = imageLayout(parts.source.src);
+      const { x, y, scale:contentScale } = imageLayout(parts.source.src);
       const step=elementGridStep(view.contentDOM);
-      save(Math.max(step*4, preview.getBoundingClientRect().width/elementScale(view.contentDOM) + (event.key === 'ArrowLeft' ? -step : step)), x, y);
+      save(Math.max(step*4, preview.getBoundingClientRect().width/elementScale(view.contentDOM)/(contentScale??1) + (event.key === 'ArrowLeft' ? -step : step)), x, y);
     };
     const startPointer = (event: PointerEvent, control: HTMLElement, moving: boolean) => {
       if (event.button !== 0) return;
@@ -135,8 +160,9 @@ class ImageWidget extends WidgetType {
       const content = view.contentDOM;
       const origin = content.getBoundingClientRect();
       const scale=elementScale(content),step=elementGridStep(content);
-      const initialX = (boxRect.left - origin.left)/scale, initialY = (boxRect.top - origin.top)/scale;
-      let x = original.x, y = original.y, width = imageRect.width/scale;
+      const initialX = original.x??(boxRect.left - origin.left)/scale, initialY = original.y??(boxRect.top - origin.top)/scale;
+      let x = original.x, y = original.y, width = original.width??imageRect.width/scale/(original.scale??1);
+      let height=original.height??boxRect.height/scale;
       let changed = false;
       const pointerId=event.pointerId;
       control.setPointerCapture(event.pointerId);
@@ -147,12 +173,11 @@ class ImageWidget extends WidgetType {
         changed = true;
         if(moving)box.dataset.dragging='';
         if (moving) {
-          const bounds = content.getBoundingClientRect();
-          x = snapGridBounded(initialX + (dx + origin.left - bounds.left)/scale,Math.max(0,content.clientWidth-width),step);
-          y = snapGridBounded(initialY + (dy + origin.top - bounds.top)/scale,100000,step);
+          x = snapGridBounded(initialX + dx/scale,Math.max(0,content.clientWidth-width),step);
+          y = snapGridBounded(initialY + dy/scale,100000,step);
           const next=snapNoteWidgetPosition(box,{x,y,width,height:boxRect.height/scale,z},content,step);x=next.x;y=next.y;
-        } else width = Math.min(Math.floor(1600/step)*step,Math.max(step*4,Math.round((imageRect.width/scale+dx/scale)/step)*step));
-        applyLayout(parts,{width,x,y,z});
+        } else {width=Math.min(1600,content.clientWidth||1600,Math.max(64,Math.round(((original.width??boxRect.width/scale)+dx/scale)/step)*step));height=Math.min(1200,Math.max(64,Math.round(((original.height??boxRect.height/scale)+dy/scale)/step)*step));}
+        applyLayout(parts,{width,height,x,y,z,color:original.color,scale:original.scale,borderWidth:original.borderWidth});
         queueNoteWidgetJoinSync(content,step);
       };
       control.onpointerup = upEvent => {
@@ -163,7 +188,7 @@ class ImageWidget extends WidgetType {
         delete box.dataset.dragging;
         if (changed) {
           menu.open=false;
-          save(width,x,y,moving);
+          save(width,x,y,moving,original.color,original.scale,height);
           view.focus();
         }
       };

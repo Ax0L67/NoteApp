@@ -1,27 +1,27 @@
 .central-desktop { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; padding:8px 10px 10px 5px; }
 .detached-app { display:flex; width:100vw; height:100vh; min-width:0; min-height:0; overflow:hidden; }
 .detached-app > .central-desktop { width:100%; height:100%; min-height:0; padding:0; }
-.storage-strip { height:64px; flex-shrink:0; display:flex; align-items:center; gap:16px; padding:0 14px; background:color-mix(in srgb,var(--panel) 72%,var(--base)); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; transition:opacity 220ms var(--ease-ui),transform 220ms var(--ease-ui); }
+.storage-strip { height:64px; flex-shrink:0; display:flex; align-items:center; gap:16px; padding:0 14px; background:color-mix(in srgb,var(--panel) 72%,var(--base)); border:1px solid var(--edge); border-radius:12px; margin-bottom:8px; transition:opacity 220ms var(--ease-ui),transform 220ms var(--ease-ui); }
 .storage-strip .vault-switch { height:48px; padding:0 8px; }
 .storage-strip > span { flex:1; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
 .storage-strip > button:last-child { font-size:14px; }
 .central-desktop[data-storage-covered] > .storage-strip { opacity:0; transform:translateY(-8px); pointer-events:none; }
 .central-stage { flex:1; position:relative; min-height:0; min-width:0; }
-.central-window.workbench { --panel-radius:12px; --tab-curve:12px; position:absolute; flex:none; padding:0; min-width:320px; min-height:240px; display:flex; flex-direction:column; background:var(--base); border-radius:12px; border:1px solid var(--line); overflow:visible; transition:left 280ms cubic-bezier(.16,1,.3,1),top 280ms cubic-bezier(.16,1,.3,1),width 280ms cubic-bezier(.16,1,.3,1),height 280ms cubic-bezier(.16,1,.3,1),box-shadow 180ms var(--ease-ui); }
+.central-window.workbench { --panel-radius:12px; --tab-curve:12px; position:absolute; flex:none; padding:0; min-width:320px; min-height:240px; display:flex; flex-direction:column; background:var(--base); border-radius:12px; border:1px solid var(--edge); overflow:visible; transition:left 280ms cubic-bezier(.16,1,.3,1),top 280ms cubic-bezier(.16,1,.3,1),width 280ms cubic-bezier(.16,1,.3,1),height 280ms cubic-bezier(.16,1,.3,1),box-shadow 180ms var(--ease-ui); }
 .central-window { animation:central-window-enter 220ms cubic-bezier(.16,1,.3,1) both; }
 @keyframes central-window-enter { from { opacity:0; scale:.97; } to { opacity:1; scale:1; } }
 .central-window[data-active] { border-color:var(--edge); }
-.central-window-handle { height:34px; min-height:34px; display:flex; align-items:center; gap:4px; padding:0 8px; cursor:move; touch-action:none; color:var(--muted); border-bottom:1px solid var(--line); border-radius:11px 11px 0 0; background:var(--panel); }
+.central-window-handle { height:34px; min-height:34px; display:flex; align-items:center; gap:4px; padding:0 8px; cursor:move; touch-action:none; color:var(--muted); border-bottom:1px solid var(--edge); border-radius:11px 11px 0 0; background:var(--panel); }
 .central-window-handle > span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
 .central-window-handle > button { width:30px; height:30px; flex-shrink:0; border-radius:7px 7px 0 0; align-self:flex-end; }
-.central-window-handle > button[aria-pressed="true"],.central-window-handle > button[aria-expanded="true"] { background:var(--editor); color:var(--text); border:1px solid var(--line); border-bottom:0; }
+.central-window-handle > button[aria-pressed="true"],.central-window-handle > button[aria-expanded="true"] { background:var(--editor); color:var(--text); border:1px solid var(--edge); border-bottom:0; }
 .central-window-menu.dropdown { top:32px; right:6px; z-index:40; max-width:min(370px,calc(100% - 12px)); }
 .central-window-menu small { margin-left:auto; }
 .central-window > .note-tab-strip { flex:0 0 40px; width:100%; min-width:0; padding:0 8px; overflow:visible; position:relative; }
 .central-window > .note-tab-strip { cursor:grab; }
 .central-window > .note-tab-strip:active { cursor:grabbing; }
 .central-window .note-tabs { display:flex; width:100%; min-width:0; gap:3px; overflow:hidden; height:40px; padding:0; }
-.central-window .note-tab { flex:1 1 180px; min-width:0; max-width:230px; height:40px; border:1px solid var(--line); border-bottom:0; position:relative; overflow:visible; display:flex; align-items:center; background:var(--panel); border-radius:9px 9px 0 0; transition:background 200ms var(--ease-ui),border-color 200ms var(--ease-ui),padding 200ms var(--ease-ui); }
+.central-window .note-tab { flex:1 1 180px; min-width:0; max-width:230px; height:40px; border:1px solid var(--edge); border-bottom:0; position:relative; overflow:visible; display:flex; align-items:center; background:var(--panel); border-radius:9px 9px 0 0; transition:background 200ms var(--ease-ui),border-color 200ms var(--ease-ui),padding 200ms var(--ease-ui); }
 .central-window .note-tab .note-tab-label { flex:1; min-width:0; width:0; height:100%; gap:6px; padding:0 8px; justify-content:flex-start; }
 .central-window .note-tab-label > strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:500; }
 .central-window .note-tab-label > svg { flex-shrink:1; min-width:10px; }
@@ -32,7 +32,7 @@
 .central-window .tabbed-workspace { min-width:0; min-height:0; flex:1; display:flex; flex-direction:column; }
 .central-window .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { flex:1; min-width:0; min-height:0; margin:0; border-radius:0 0 11px 11px; border:0; border-top:1px solid var(--edge); }
 .central-window .project-overview { width:100%; }
-.central-window .statusbar { height:32px; min-height:32px; gap:16px; font-size:12px; padding:0 14px; border-top:1px solid var(--line); }
+.central-window .statusbar { height:32px; min-height:32px; gap:16px; font-size:12px; padding:0 14px; border-top:1px solid var(--edge); }
 .central-window .editor-scroll { min-height:0; }
 .central-window .project-graph { overflow:hidden; }
 .central-resize { position:absolute; z-index:30; touch-action:none; }
@@ -55,7 +55,7 @@
 .modal-settings { width:min(920px,95vw); }
 .settings-layout { display:grid; grid-template-columns:minmax(0,1fr) 205px; gap:28px; min-height:370px; }
 .settings-category-content { min-width:0; }
-.settings-categories { border-left:1px solid var(--line); padding-left:14px; display:flex; flex-direction:column; gap:5px; }
+.settings-categories { border-left:1px solid var(--edge); padding-left:14px; display:flex; flex-direction:column; gap:5px; }
 .settings-categories button { justify-content:flex-start; padding:10px; font-size:14px; text-align:left; }
 .settings-categories button[aria-current] { color:var(--accent); background:var(--selection); }
 .editable-shortcuts { display:flex; flex-direction:column; gap:10px; margin:20px 0; }
@@ -84,19 +84,19 @@
 /* The active tab and editor share one surface, while inactive tabs sit behind it. */
 .central-window .note-tab-strip { --joined-tab-fill:linear-gradient(var(--editor),var(--editor)); flex-basis:36px; height:36px; padding-inline:10px; }
 .central-window .note-tabs { height:36px; gap:5px; }
-.central-window .note-tab { height:36px; flex-basis:172px; background:color-mix(in srgb,var(--panel) 86%,var(--base)); border-color:var(--line); border-radius:8px 8px 0 0; }
+.central-window .note-tab { height:36px; flex-basis:172px; background:color-mix(in srgb,var(--panel) 86%,var(--base)); border-color:var(--edge); border-radius:8px 8px 0 0; }
 .central-window .selected-note-tab { background:var(--editor); border-color:var(--edge); transform:translateY(1px); transition:background 200ms var(--ease-ui),border-color 200ms var(--ease-ui),transform 200ms var(--ease-ui); }
 .central-window .note-tab:not(.selected-note-tab) { margin-top:3px; height:33px; }
 .central-window .central-window-handle { height:28px; min-height:28px; padding-inline:10px; background:var(--base); border-bottom:0; }
 .central-window .central-window-handle > button { width:27px; height:26px; }
 .central-window .central-window-handle > span { font-size:12px; }
 .storage-strip { gap:12px; }
-.storage-strip .vault-switch { height:38px; padding-inline:10px; border:1px solid var(--line); border-radius:8px; background:var(--input); }
+.storage-strip .vault-switch { height:38px; padding-inline:10px; border:1px solid var(--edge); border-radius:8px; background:var(--input); }
 .storage-strip .vault-switch strong { font-size:14px; }
 .storage-up { width:28px; height:32px; padding:0; }
 .storage-path { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); font-size:13px; }
 .storage-path span { padding-inline:8px; color:var(--muted); }
-.storage-graph { flex-shrink:0; min-height:36px; padding:0 11px; border:1px solid var(--line); background:var(--input); font-size:13px; }
+.storage-graph { flex-shrink:0; min-height:36px; padding:0 11px; border:1px solid var(--edge); background:var(--input); font-size:13px; }
 .central-stage[data-tiled] { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr)); grid-auto-rows:minmax(260px,1fr); align-content:stretch; gap:8px; overflow:auto; }
 .central-window[data-mode="tiled"]:not([data-maximized]) { position:relative; left:auto; top:auto; width:auto; height:auto; min-width:0; min-height:260px; }
 .central-window[data-mode="tiled"] .central-window-handle { cursor:grab; }
@@ -116,7 +116,7 @@
 .app .central-window[data-tab-joined] > .note-tab-strip .selected-note-tab { height:calc(36px + var(--tab-join-border)); }
 .central-window .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border:1px solid var(--edge); border-bottom:0; border-radius:10px 10px 0 0; }
 .central-window-actions { position:absolute; right:6px; top:36px; z-index:9; display:flex; gap:4px; }
-.central-window-actions button { width:28px; height:28px; padding:0; border:1px solid var(--line); border-radius:6px; background:var(--panel); }
+.central-window-actions button { width:28px; height:28px; padding:0; border:1px solid var(--edge); border-radius:6px; background:var(--panel); }
 .central-move-handle { cursor:grab; touch-action:none; }
 .central-move-handle:active { cursor:grabbing; }
 .central-window-menu.dropdown { top:66px; }
@@ -149,7 +149,7 @@
 .central-window > .note-tab-strip { padding:0 16px; border-bottom:0; }
 .central-window > .note-tab-strip::after { content:""; position:absolute; z-index:1; left:var(--panel-radius); right:var(--panel-radius); bottom:0; border-bottom:1px solid var(--edge); pointer-events:none; }
 .central-window-actions { top:40px; right:0; z-index:9; display:flex; gap:4px; padding:0 10px; }
-.central-window-actions button { width:30px; height:30px; padding:0; border:1px solid var(--glass-line); border-bottom-color:transparent; border-radius:var(--control-radius) var(--control-radius) 0 0; background:var(--editor-fill); }
+.central-window-actions button { width:30px; height:30px; padding:0; border:1px solid var(--edge); border-bottom-color:transparent; border-radius:var(--control-radius) var(--control-radius) 0 0; background:var(--editor-fill); }
 .central-window-actions button:hover { background:var(--glass-hover); }
 .central-window-actions button[aria-expanded="true"] { background:var(--editor-fill); color:var(--text); }
 .central-window:has(.project-graph) .central-window-actions { top:44px; }
@@ -175,7 +175,9 @@
 .graph-toolbar > * { min-width:0; }
 .graph-toolbar .graph-zoom { flex-shrink:0; }
 .central-window .project-graph .graph-toolbar { padding-right:168px; }
-.main-note-editor > .note-zoom-controls { position:absolute; top:40px; right:148px; z-index:10; margin:0; }
+.central-window-actions > .note-zoom-controls-titlebar { position:static; top:auto; right:auto; z-index:auto; flex-shrink:0; margin:0; background:var(--editor-fill); }
+.central-window-actions > .note-zoom-controls-titlebar button { width:auto; min-width:28px; height:28px; border:0; border-radius:5px; background:transparent; }
+.central-window:has(.note-zoom-controls-titlebar) > .note-tab-strip { padding-right:245px; }
 .tile-stage-resize { display:block; top:0; height:8px; }
 .app .central-window .note-tab:not(.selected-note-tab) { background:color-mix(in srgb,var(--panel) 82%,var(--base)); }
 .app .central-window .same-project-note-tab:not(.selected-note-tab) { background:color-mix(in srgb,var(--panel) 82%,var(--base)); }
@@ -191,3 +193,57 @@
 @media(prefers-reduced-motion:reduce){.central-window .selected-note-tab{animation:none}}
 .central-window .note-tab { transition:background 180ms var(--ease-ui),border-color 180ms var(--ease-ui),padding 180ms var(--ease-ui),transform 100ms ease-out,opacity 100ms ease-out; }
 .app.liquid-shell > .titlebar .brand-name { font-size:calc(var(--ui-font-scale, 1) * 20px); }
+
+.central-window-actions > .note-zoom-controls-titlebar { align-self:flex-end; transform:translateY(8px); border-radius:0 0 8px 8px; border-top:0; box-shadow:0 2px 0 var(--editor-fill); }
+
+/* Window controls meet the ribbon on a shared baseline. */
+.central-window-actions > .note-zoom-controls-titlebar { position:relative; align-self:stretch; transform:none; border:1px solid var(--edge); border-bottom:0; border-radius:8px 8px 0 0; box-shadow:none; background:var(--editor-fill); }
+.central-window-actions > .note-zoom-controls-titlebar::after { content:""; position:absolute; left:0; right:0; bottom:-2px; height:3px; background:var(--editor-fill); pointer-events:none; }
+.central-window .selected-note-tab { border:1px solid var(--edge); border-bottom:0; border-radius:12px 12px 0 0; }
+.central-window .note-tab-strip { --tab-curve:12px; --glass-line:var(--edge); }
+.central-window .selected-note-tab::before,.central-window .selected-note-tab::after { bottom:-1px; }
+
+/* Decorative borders share the settings-controlled tone; keyboard focus stays distinct. */
+.app.liquid-shell :is(.glass-panel,.modal,.primary,.segmented button.on,
+  .titlebar,.dock-panel,.explorer-address,.note-tab,.central-window-actions button,
+  .note-zoom-controls-titlebar) { box-shadow:none; }
+.app[data-transparent] :is(.titlebar,.dock-panel,.explorer-address)::before { background:none; }
+.app.liquid-shell :is(.note-tab,.central-window-actions > button,.note-zoom-controls-titlebar) {
+  border-width:1px;
+  border-color:var(--edge);
+  border-bottom:0;
+}
+
+/* One path owns the tab/window edge, including both concave corners. */
+.joined-tab-outline { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; z-index:3; }
+.app .central-window[data-tab-outline] .selected-note-tab,
+.app .central-window[data-tab-outline] .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border-color:transparent; }
+.central-window[data-tab-outline] > .note-tab-strip::after { border-color:transparent; }
+.central-window[data-tab-outline] .note-tab-strip { --tab-curve:var(--tab-outline-radius); }
+.app .central-window[data-tab-outline] .selected-note-tab { border-radius:var(--tab-outline-radius) var(--tab-outline-radius) 0 0; }
+.app .central-window[data-tab-outline] .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border-radius:var(--tab-outline-radius); }
+.central-window[data-tab-outline] .selected-note-tab::before,
+.central-window[data-tab-outline] .selected-note-tab::after {
+  background-image:var(--joined-tab-fill);
+  mask-image:radial-gradient(circle var(--tab-curve) at 0 0,transparent calc(100% - 1px),#000 100%);
+}
+.central-window[data-tab-outline] .selected-note-tab::after {
+  mask-image:radial-gradient(circle var(--tab-curve) at 100% 0,transparent calc(100% - 1px),#000 100%);
+}
+
+.central-window-actions > .note-zoom-controls-titlebar { order:-1; }
+
+.central-window .note-tabs { padding-inline:12px; gap:clamp(0px,calc((100% - var(--tab-count,1) * 40px) / var(--tab-count,1)),14px); }
+.central-window .note-tab { flex:1 1 120px; min-width:0; max-width:120px; }
+
+/* Note tabs use the same symmetric gutter as graph tabs. */
+.central-window:has(.note-zoom-controls-titlebar) > .note-tab-strip { padding-inline:16px; }
+.app.liquid-shell .markdown-ribbon-tabs > button { border-bottom:1px solid var(--edge); }
+.app.liquid-shell .markdown-ribbon-tabs > button[aria-pressed="true"] { border-bottom-color:transparent; }
+.app.liquid-shell { padding-bottom:0; }
+.app .central-window .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border-bottom-left-radius:0; border-bottom-right-radius:0; }
+.app .central-window .statusbar { border-radius:0; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right,.dock-zone-bottom) .dock-panel { border-bottom-left-radius:0; border-bottom-right-radius:0; }
+.app.liquid-shell .dock-zone-top .dock-panel { border-radius:12px; }
+.app[data-png-export] { pointer-events:none; }
+.app[data-png-export] :is(.note-insert-menu,.floating-note-resize,.graph-resize,.cm-cursorLayer,.cm-selectionLayer,.graph-selection-box) { visibility:hidden; }

@@ -33,7 +33,7 @@ export function removeTile(windows:CentralWindow[],id:string) {
 export function tileRect(path:string) {
   let x=0,y=0,width=100,height=100;
   for(const side of path){if(side==='L'||side==='R'){width/=2;if(side==='R')x+=width;}else{height/=2;if(side==='B')y+=height;}}
-  return {left:`calc(${x}% + 4px)`,top:`calc(${y}% + 4px)`,width:`calc(${width}% - 8px)`,height:`calc(${height}% - 8px)`};
+  return {left:`calc(${x}% + 4px)`,top:`calc(${y}% + 4px)`,width:`calc(${width}% - 8px)`,height:`calc(${height}% - ${y+height===100?4:8}px)`};
 }
 export function remapWindowLocation(location:Location,remap:(path:string)=>string,projectFor:(path:string)=>string):Location {
   if(location.kind==='note')return {...location,path:remap(location.path)};

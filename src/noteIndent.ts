@@ -44,7 +44,7 @@ export function readingIndent(content:string) {
       else if(marker[0]===fence[0]&&marker.length>=fence.length)fence='';
       return line;
     }
-    return fence||/^\t+(?:[-+*]|\d+[.)])\s/.test(line)?line:line.replace(/^\t+/,tabs=>'\u00a0'.repeat(tabs.length*4));
+    return fence||/^\t+(?:[-+*]|\d+[.)])\s/.test(line)?line:line.replace(/^\t+/,tabs=>'\u00a0'.repeat(tabs.length*6));
   }).join('\n');
 }
 function guides(view:EditorView) {
@@ -56,6 +56,7 @@ function guides(view:EditorView) {
       const line=view.state.doc.lineAt(pos);
       const tabs=/^\t+/.exec(line.text)?.[0].length??0;
       if(line.number!==previousLine){
+        if(tabs)ranges.push(Decoration.line({attributes:{style:`background-image:repeating-linear-gradient(to right, transparent 0 19px, var(--edge) 19px 21px, transparent 21px 40px);background-size:${tabs*40}px 100%;background-repeat:no-repeat`}}).range(line.from));
         for(let i=0;i<tabs;i++)ranges.push(guide.range(line.from+i,line.from+i+1));
         const heading=/^ {0,3}(#{1,6})\s+/.test(line.text),target=heading?headingFold(view,line):indentFold(view,line);
         if(target){let collapsed=false;folded.between(target.from,target.to,()=>{collapsed=true;});ranges.push(Decoration.widget({widget:new FoldToggle(target.from,target.to,heading?'heading':'indent',collapsed),side:-1}).range(line.from));}
