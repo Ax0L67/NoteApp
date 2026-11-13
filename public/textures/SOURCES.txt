@@ -1,0 +1,1 @@
+Texture images from ambientCG (https://ambientcg.com/), released under CC0. Asset IDs match file names.

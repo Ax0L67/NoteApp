@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src-tauri/target/
+crates/vault/target/
+target/
+target-rebuild/
+.playwright-mcp/
+.impeccable/
+texture-downloads/
+*.log
+.DS_Store

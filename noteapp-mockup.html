@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NoteApp · Интерактивный макет</title>
+<style>
+:root{color-scheme:dark;--bg:#19181e;--side:#201f26;--surface:#25242c;--raised:#2d2b35;--line:#3c3947;--text:#f4f0f8;--muted:#b7b0c3;--accent:#d0b9ff;--ink:#241936;--selected:#383047;--green:#a0d5b6;--red:#ffb1b7;--measure:720px;--size:16px}
+:root[data-theme=light]{color-scheme:light;--bg:#fcfafd;--side:#f3eff7;--surface:#fff;--raised:#ede7f4;--line:#d9cfe3;--text:#282033;--muted:#635971;--accent:#634396;--ink:#fff;--selected:#eee3fb;--green:#276447;--red:#9c263c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI",system-ui,sans-serif}button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer;background:transparent;border:1px solid transparent;border-radius:8px;padding:7px 10px;min-height:34px;display:inline-flex;align-items:center;gap:8px;text-align:left;touch-action:manipulation}button:hover,summary:hover{background:var(--raised)}button:disabled{opacity:.42;cursor:default}button:focus-visible,summary:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button[aria-current],button[aria-pressed=true]{background:var(--selected);color:var(--accent)}.primary{background:var(--accent);color:var(--ink);font-weight:700}.primary:hover{background:var(--accent);filter:brightness(.92)}.secondary{border-color:var(--line)}.danger{color:var(--red);border-color:var(--line)}.icon{justify-content:center;padding:6px;min-width:34px}.svg{width:18px;height:18px;flex:none;vertical-align:middle}.muted,small{color:var(--muted)}small{display:block}.grow{flex:1;min-width:0}.row{display:flex;align-items:center;gap:8px}.wrap{flex-wrap:wrap}.between{justify-content:space-between}.ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.end{margin-left:auto}[hidden]{display:none!important}h1,h2,h3,p{margin:0}h1{font-size:38px;letter-spacing:-.035em;line-height:1.12}h2{font-size:19px;letter-spacing:-.02em}h3{font-size:15px}::selection{background:var(--accent);color:var(--ink)}kbd{font:11px system-ui;color:var(--muted);padding:2px 5px;border:1px solid var(--line);border-radius:4px;white-space:nowrap}
+.shell{display:grid;grid-template:58px minmax(0,1fr)/248px minmax(0,1fr);height:100dvh}.top{grid-column:1/-1;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);background:var(--side);padding:0 18px}.brand{display:flex;align-items:center;gap:10px;font-weight:750;font-size:18px;letter-spacing:-.025em}.mark{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--ink)}.demo{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 7px}.sidebar{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;padding:14px 12px;overflow:auto}.sidebar button:not(.icon){width:100%}.search-trigger{margin:10px 0 18px;background:var(--bg);border-color:var(--line)}.nav-title{padding:14px 8px 4px;color:var(--muted);font-size:12px;font-weight:650}.tree-sub{margin-left:15px;padding-left:5px;border-left:1px solid var(--line)}.sidebar-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}.workspace{display:flex;flex-direction:column;min-width:0;min-height:0}.crumbs,.tabs,.tools,.status{border-bottom:1px solid var(--line);padding:7px 14px;min-height:46px}.crumbs .grow{display:flex;align-items:center;gap:4px;overflow:auto}.crumbs .grow button{white-space:nowrap}.crumbs .grow span{white-space:nowrap}.tabs{overflow:auto;background:var(--side);padding-block:4px;min-height:40px}.tab{display:flex;align-items:center;white-space:nowrap}.tab button:first-child{border-radius:7px 0 0 7px}.tab button:last-child{border-radius:0 7px 7px 0}.content{flex:1;min-height:0;overflow:auto}.page{width:min(1100px,100%);margin:auto;padding:46px 48px 54px}.intro{margin-bottom:26px}.intro p{margin-top:9px}.section-head{margin:34px 0 10px}.projects{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:14px}.project{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--surface);position:relative}.project>button:first-child{display:block;width:100%;padding:0;border:0}.project .icon{position:absolute;right:9px;bottom:12px}.cover{height:122px;display:block;width:100%;background:#302740;color:#d0b9ff}.project:nth-child(3n+2) .cover{background:#263c37;color:#9dd2bb}.project:nth-child(3n+3) .cover{background:#3d302d;color:#e6bb9f}.project-label{display:block;padding:13px 46px 15px 15px}.project-label strong{display:block;font-size:17px}.list{border-top:1px solid var(--line)}.entry{border-bottom:1px solid var(--line);min-width:0;padding:4px 0}.entry>button:first-child{text-align:left;flex:1;min-width:0}.entry small{font-size:12px}.empty{margin:20px 0;padding:28px;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}.empty strong{display:block;color:var(--text);font-size:17px;margin-bottom:4px}
+.note-layout{display:grid;grid-template-columns:minmax(0,1fr) 226px;min-height:100%}.note-layout.single{grid-template-columns:minmax(0,1fr)}.note-layout.split{grid-template-columns:repeat(2,minmax(0,1fr))}.note-body{min-width:0}.sheet{max-width:var(--measure);margin:auto;padding:36px 40px 48px}.sheet h1{font-size:34px;margin:8px 0 19px}.sheet article{font-size:var(--size);line-height:1.75;overflow-wrap:anywhere}.sheet article h2{margin:24px 0 6px}.sheet article p,.sheet article ul,.sheet article blockquote{margin:0 0 14px}.sheet article blockquote{padding:10px 14px;background:var(--side);border-left:1px solid var(--accent);border-radius:0 6px 6px 0}.sheet article pre{overflow:auto;background:var(--side);padding:12px}.wiki{display:inline;padding:0;min-height:0;color:var(--accent);text-decoration:underline;text-underline-offset:3px}.editor{width:100%;min-height:49vh;resize:vertical;background:var(--surface);line-height:1.65;font:var(--size)/1.7 Consolas,monospace}.inspector,.split-side{border-left:1px solid var(--line)}.inspector{background:var(--side);padding:17px 13px}.inspector section,.inspector details{padding:11px 0;border-bottom:1px solid var(--line)}.inspector button:not(.swatch){width:100%}.swatches{margin:9px 0}.swatch{width:27px;min-height:27px;padding:0;border:2px solid var(--bg);background:var(--swatch)!important}.swatch[aria-pressed=true]{outline:2px solid var(--accent);outline-offset:1px}.status{border-top:1px solid var(--line);border-bottom:0;min-height:32px;color:var(--muted);font-size:12px;padding-block:3px}.dot{width:7px;height:7px;background:var(--green);border-radius:50%}.focused{grid-template-columns:0 minmax(0,1fr)}.focused .sidebar{visibility:hidden}.mobile{display:none}
+.graph-scroll{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:16px;background:radial-gradient(var(--line) 1px,transparent 1px) 0 0/19px 19px var(--side)}.graph{position:relative;min-width:640px;min-height:370px}.node{position:absolute;max-width:178px;background:var(--surface);border-color:var(--line);white-space:normal}.node.root{background:var(--selected);color:var(--accent);font-weight:700}.graph svg.edges{position:absolute;width:100%;height:100%;pointer-events:none}.connections{margin-top:18px}.connections .entry{padding:7px 0}
+dialog{background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:15px;width:min(560px,calc(100% - 24px));max-height:calc(100dvh - 32px);padding:0;box-shadow:0 24px 64px #0006}dialog.wide{width:min(780px,calc(100% - 24px))}dialog::backdrop{background:#0b0711a9}dialog header{padding:12px 19px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1}#dialog-body{padding:17px 19px 20px}#dialog-body section+section{margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}label{display:block;margin:9px 0}input:not([type=checkbox]),textarea,select{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;width:100%;margin-top:4px}input[type=range]{padding:0;accent-color:var(--accent)}textarea{resize:vertical}.actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.error{color:var(--red)}.banner{background:var(--side);padding:6px 14px;border-bottom:1px solid var(--line)}summary{cursor:pointer;border-radius:6px;padding:4px 3px;font-weight:650}.toast{position:fixed;right:16px;bottom:16px;z-index:3;background:var(--raised);border:1px solid var(--line);border-radius:9px;padding:10px 14px;max-width:calc(100% - 32px)}.conflict{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.conflict pre{white-space:pre-wrap;background:var(--bg);padding:9px;border-radius:7px}
+@media(max-width:1000px){.shell{grid-template-columns:204px minmax(0,1fr)}.focused{grid-template-columns:0 minmax(0,1fr)}.page{padding:32px 26px}.sheet{padding:28px 24px}.note-layout{grid-template-columns:minmax(0,1fr) 185px}}
+@media(max-width:760px){.shell,.shell.focused{grid-template-columns:minmax(0,1fr);grid-template-rows:54px minmax(0,1fr)}.mobile{display:inline-flex}.sidebar{display:none;position:fixed;inset:54px auto 0 0;width:min(286px,86vw);z-index:2;box-shadow:12px 0 40px #0005}.nav-open .sidebar{display:flex}.note-layout,.note-layout.split{grid-template-columns:1fr}.inspector,.split-side{border-left:0;border-top:1px solid var(--line)}.page{padding:25px 16px}.sheet{padding:22px 16px}.top{padding-inline:9px;gap:4px}.top .history{display:none}.intro{align-items:flex-start;flex-direction:column}.crumbs,.tools,.tabs{padding-inline:7px}.graph-label{display:none}h1{font-size:31px}.sheet h1{font-size:29px}button{min-height:38px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog id="dialog" aria-labelledby="dialog-title"><header class="row between"><h2 id="dialog-title"></h2><button class="icon" data-do="close" aria-label="Закрыть">×</button></header><div id="dialog-body"></div></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+<script>
+'use strict';
+
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const glyphs={book:'M3 4h5a4 4 0 0 1 4 4v13a4 4 0 0 0-4-4H3z M21 4h-5a4 4 0 0 0-4 4v13a4 4 0 0 1 4-4h5z',home:'m3 11 9-8 9 8v9h-6v-6H9v6H3z',folder:'M3 6h6l2 2h10v11H3z',file:'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6m-6 4h6',search:'M16 16l5 5 M18 10a8 8 0 1 1-16 0 8 8 0 1 1 16 0',plus:'M12 5v14M5 12h14',close:'m6 6 12 12M6 18 18 6',left:'m14 5-7 7 7 7',right:'m9 5 7 7-7 7',up:'m5 11 7-7 7 7m-7-7v16',more:'M5 12h.1m6.9 0h.1m6.9 0h.1',graph:'M6 6l12 4-10 8L6 6',panel:'M3 4h18v16H3z M15 4v16',focus:'M9 3H3v6m12-6h6v6m-6 12h6v-6m-12 6H3v-6',settings:'M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-7 2v4',trash:'M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7',menu:'M4 6h16M4 12h16M4 18h16',split:'M3 4h18v16H3z M12 4v16',stack:'m3 8 9-5 9 5-9 5z M3 12l9 5 9-5M3 16l9 5 9-5',link:'m10 14 4-4m-6 6-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m4-2 2-2a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0',clock:'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',clip:'m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9'};
+const icon=k=>`<svg class="svg" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="${glyphs[k]}"/></svg>`;
+const btn=(act,label,k='',opts='')=>`<button type="button" data-do="${esc(act)}" ${opts}>${k?icon(k):''}${esc(label)}</button>`;
+const ib=(act,label,k,opts='')=>btn(act,'',k,`class="icon" title="${esc(label)}" aria-label="${esc(label)}" ${opts}`);
+const empty=(title,body)=>`<div class="empty"><strong>${title}</strong><p>${body}</p></div>`;
+let serial=20, current=0, split=0, read=true, focus=false, inspector=true, nav=false, theme='dark', palette='Лаванда', message='', graphSource=0;
+let history=[0], cursor=0, tabs=[6,7], recent=[6,7,8], toastTimer, onSubmit;
+const expanded=new Set([1,4]);
+const palettes={'Лаванда':'#d0b9ff','Мята':'#a0d5b6','Сланец':'#a9c9f8','Песок':'#e8be9f'};
+const templates=new Map([['Конспект','## Основные идеи\n- \n\n## Выводы\n\n## Источники'],['Идея','## Суть\n\n## Зачем это нужно\n\n## Следующий шаг\n- [ ] '],['Дневниковая запись','## Что произошло\n\n## Мысли'],['План','## Цель\n\n## Задачи\n- [ ] ']]);
+const links=[{from:6,to:7,label:'развивает идею'}];
+const items=[
+ {id:1,kind:'project',name:'База знаний'}, {id:2,kind:'project',name:'Личный дневник'}, {id:3,kind:'project',name:'Идеи и проекты'},
+ {id:4,kind:'folder',parent:1,name:'Обучение'}, {id:5,kind:'folder',parent:1,name:'Материалы'},
+ {id:6,kind:'note',parent:4,name:'Как устроена память',text:'Краткий конспект о том, как работает память и что помогает запоминать надолго.\n\n#обучение\n\n## Основные идеи\n- Память объединяет **кодирование**, хранение и извлечение.\n- Новое легче запомнить, если связать его с тем, что уже знакомо.\n\n> Вспоминая событие, мы каждый раз немного меняем его.\n\nПодробнее в заметке [[Интервальное повторение]].\n\n## Практика\n- [ ] Составить набор карточек по теме\n- [ ] Повторить через 1, 3 и 7 дней\n\n## Источники\n- Г. Эббингауз, «О памяти» (1885).'},
+ {id:7,kind:'note',parent:4,name:'Интервальное повторение',text:'## Метод\nПовторяйте материал с увеличивающимися интервалами.\n\nСм. [[Как устроена память]].\n\n## Расписание\n- Через день\n- Через три дня\n- Через неделю'},
+ {id:8,kind:'note',parent:2,name:'Итоги недели',text:'## Что получилось\nДочитал книгу и разобрал записи за октябрь.\n\n## На следующей неделе\nВыделить время для прогулок и чтения.'},
+ {id:9,kind:'folder',parent:3,name:'Черновики'}, {id:10,kind:'note',parent:9,name:'Список идей',text:'## На потом\n- Собрать личный каталог книг\n- Сделать подборку мест для прогулки'},
+ {id:11,kind:'note',parent:5,name:'Список литературы',deleted:true,text:'Материалы для конспекта.'}
+];
+const by=id=>items.find(x=>x.id===Number(id));
+const par=x=>by(x?.parent);
+const project=x=>!x||x.kind==='project'?x:project(par(x));
+const active=x=>x&&!x.deleted&&(!par(x)||active(par(x)));
+const kids=id=>items.filter(x=>active(x)&&(x.parent||0)===id).sort((a,b)=>Number(b.kind==='folder')-Number(a.kind==='folder'));
+const path=x=>x?[...path(par(x)),x]:[];
+const kind=x=>({project:'Проект',folder:'Папка',note:'Заметка'}[x.kind]);
+const symbol=x=>({project:'stack',folder:'folder',note:'file'}[x.kind]);
+const open=x=>'go:'+x.id;
+const words=x=>(x?.text||'').trim().split(/\s+/).filter(Boolean).length;
+function go(id,record=true){
+ if(id&&!active(by(Math.abs(id))))id=0;
+ current=id;
+ if(by(id)?.kind==='note'){
+   if(!tabs.includes(id))tabs.push(id);
+   recent=[id,...recent.filter(x=>x!==id)];
+ }else{focus=false;split=0}
+ if(split===id)split=0;
+ path(by(Math.abs(id))).slice(0,-1).forEach(x=>expanded.add(x.id));
+ if(record&&history[cursor]!==id){history=history.slice(0,cursor+1);history.push(id);cursor=history.length-1}
+ nav=false;graphSource=0;render();
+}
+function tree(x){
+ const branch=x.kind!=='note', show=expanded.has(x.id);
+ return `<div class="row">${branch?ib('expand:'+x.id,(show?'Свернуть ':'Развернуть ')+x.name,show?'up':'right',`aria-expanded="${show}"`):''}${btn(open(x),x.name,symbol(x),current===x.id?'aria-current="page"':'')}</div>${branch&&show?`<div class="tree-sub">${kids(x.id).map(tree).join('')}</div>`:''}`;
+}
+function entry(x,context=true){
+ return `<div class="row entry"><button type="button" data-do="${open(x)}">${icon(symbol(x))}<span class="grow"><strong>${esc(x.name)}</strong><small>${esc(path(par(x)).map(y=>y.name).join(' / ')||kind(x))}</small></span></button>${context?ib('context:'+x.id,'Действия · '+x.name,'more'):''}</div>`;
+}
+function cover(i){
+ const shapes=['<rect x="64" y="24" width="103" height="72" rx="12"/><path d="M64 47h103M95 24v72"/><circle cx="132" cy="69" r="14"/><path d="M36 60h20m-10-10v20M177 60h32"/>','<circle cx="115" cy="60" r="36"/><circle cx="115" cy="60" r="21"/><path d="M63 60h104M115 14v92M72 32l86 56m0-56-86 56"/>','<path d="m115 21 53 28-53 28-53-28zM62 65l53 28 53-28m-106 15 53 28 53-28"/><circle cx="115" cy="49" r="10"/>'];
+ return `<svg class="cover" viewBox="0 0 230 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.25"><path opacity=".25" d="M0 22h230M0 97h230M42 0v120M188 0v120"/>${shapes[i%3]}</svg>`;
+}
+function overview(){
+ const projects=kids(0), visited=recent.map(by).filter(active);
+ return `<div class="page"><div class="row between intro"><div><h1>Все проекты</h1><p class="muted">Откройте проект, чтобы продолжить работу с заметками.</p></div>${btn('project','Новый проект','plus','class="primary"')}</div>
+ ${projects.length?`<div class="projects">${projects.map((p,i)=>`<div class="project"><button type="button" data-do="${open(p)}">${cover(i)}<span class="project-label"><strong>${esc(p.name)}</strong><small>Заметок: ${items.filter(x=>x.kind==='note'&&active(x)&&project(x)===p).length}</small></span></button>${ib('context:'+p.id,'Действия · '+p.name,'more')}</div>`).join('')}</div>`:empty('Проектов пока нет','Создайте проект или восстановите его из корзины.')}
+ <div class="row section-head">${icon('clock')}<h2>Недавние заметки</h2></div>${visited.length?`<div class="list">${visited.slice(0,5).map(x=>entry(x,false)).join('')}</div>`:empty('Здесь появятся заметки','Откройте заметку в любом проекте.')}</div>`;
+}
+function folderPage(x){
+ const entries=kids(x.id);
+ return `<div class="page"><div class="row between intro"><div><h1>${esc(x.name)}</h1><p class="muted">Объектов: ${entries.length}</p></div><div class="row wrap">${btn('new:'+x.id,'Новая заметка','plus','class="primary"')}${btn('folder:'+x.id,'Новая папка','folder','class="secondary"')}${ib('delete:'+x.id,'В корзину','trash')}</div></div>${entries.length?`<div class="list">${entries.map(x=>entry(x)).join('')}</div>`:empty('Здесь пока пусто','Создайте заметку или добавьте папку для новой темы.')}</div>`;
+}
+const headings=x=>[...x.text.matchAll(/^#{1,6} (.+)$/gm)];
+function reading(x){
+ const inline=raw=>raw.split(/(\[\[[^\]]+\]\]|\*\*[^*]+\*\*)/g).map((part,i)=>{
+   if(i%2===0)return esc(part);
+   const value=esc(part.slice(2,-2));
+   return part.startsWith('[[')?`<button class="wiki" type="button" data-do="wiki" data-name="${value}">${value}</button>`:`<strong>${value}</strong>`;
+ }).join('');
+ let index=0;
+ return x.text.split('\n').map(line=>{
+   const h=line.match(/^#{1,6} (.+)$/);
+   if(h)return `<h2 id="head-${index++}">${inline(h[1])}</h2>`;
+   const task=line.match(/^- \[([ x])\] (.*)$/);
+   if(task)return `<div><input type="checkbox" data-task="${esc(line)}" aria-label="${esc(task[2])}" ${task[1]==='x'?'checked':''}> ${inline(task[2])}</div>`;
+   if(line.startsWith('> '))return `<blockquote>${inline(line.slice(2))}</blockquote>`;
+   if(line.startsWith('- '))return `<div>• ${inline(line.slice(2))}</div>`;
+   return line?`<p>${inline(line)}</p>`:'';
+ }).join('');
+}
+function sheet(x,preview){
+ return `<div class="sheet" ${x.background?'style="background:var(--side)"':''}><div class="muted">${icon('file')} ${esc(par(x)?.name)} · Markdown</div><h1>${esc(x.name)}</h1>${preview?`<article>${reading(x)||empty('Заметка пока пуста','Откройте режим правки, чтобы добавить текст.')}</article>`:`<textarea class="editor" data-editor="${x.id}" aria-label="Markdown · ${esc(x.name)}" placeholder="Напишите первую строку…">${esc(x.text)}</textarea>`}${x.background?`<img src="${esc(x.background)}" alt="Фон заметки" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px">`:''}</div>`;
+}
+function notePage(x){
+ const p=project(x), other=by(split), heads=headings(x), show=inspector&&!focus&&!other;
+ const backs=items.filter(y=>y.id!==x.id&&y.kind==='note'&&active(y)&&y.text.includes('[['+x.name+']]'));
+ return `<div class="note-layout ${other?'split':show?'':'single'}"><div class="note-body">${sheet(x,read)}</div>
+ ${other?`<section class="split-side"><div class="row tools between"><strong>${esc(other.name)}</strong>${ib('unsplit','Закрыть редактор справа','close')}</div>${sheet(other,false)}</section>`:''}
+ ${show?`<aside class="inspector" aria-label="Панель заметки"><details open><summary>Оглавление</summary>${heads.length?heads.map((h,i)=>btn('heading:'+i,h[1])).join(''):'<p class="muted">Заголовки появятся здесь.</p>'}</details><details open><summary>Обратные ссылки · ${backs.length}</summary>${backs.length?backs.map(y=>btn(open(y),y.name,'link')).join(''):'<p class="muted">На эту заметку пока нет ссылок.</p>'}</details>
+ <section><h3>Палитра проекта</h3><div class="row swatches">${Object.entries(palettes).map(([k,c])=>btn('palette:'+k,'','',`class="swatch" style="--swatch:${c}" aria-label="${k}" title="${k}" aria-pressed="${(p.palette||palette)===k}"`)).join('')}</div>${p.palette?btn('palette:inherit','Общая палитра'):''}${btn('background','Фон заметки','file')}${x.background?btn('clear-bg','Убрать фон','close'):''}</section>
+ <section>${btn('daily','Заметка на сегодня','clock')}</section></aside>`:''}</div>`;
+}
+function graphPage(p){
+ const cards=items.filter(x=>active(x)&&project(x)===p&&x!==p);
+ const pos=new Map([[p.id,[244,18]],...cards.map((x,i)=>[x.id,[20+i%3*205,103+Math.floor(i/3)*90]])]);
+ const edges=links.filter(l=>pos.has(l.from)&&pos.has(l.to));
+ const lines=edges.map(l=>{const [x,y]=pos.get(l.from),[a,b]=pos.get(l.to);return `<path d="M${x+65} ${y+35} Q${(x+a)/2+65} ${Math.max(y,b)+78} ${a+65} ${b+35}" marker-end="url(#arrow)"/>`}).join('');
+ return `<div class="page"><div class="row between intro"><div><h1>Карта связей</h1><p class="muted">${esc(p.name)} · ${cards.length} объектов</p></div>${btn('graph-link','Добавить связь','link','class="secondary"')}</div>
+ ${graphSource?`<div class="row banner">${graphSource===-1?'Выберите начальную карточку.':'Выберите карточку назначения.'}${btn('graph-cancel','Отмена')}</div>`:''}
+ <div class="graph-scroll" tabindex="0" aria-label="Карта карточек"><div class="graph" style="min-height:${Math.max(310,130+Math.ceil(cards.length/3)*90)}px"><svg class="edges" aria-hidden="true" stroke="var(--accent)" stroke-width="1.5" fill="none"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="m0 0 8 4-8 4" fill="var(--accent)" stroke="none"/></marker></defs>${lines}</svg>${[p,...cards].map(x=>{const [left,top]=pos.get(x.id);return btn('node:'+x.id,x.name,symbol(x),`class="node ${x===p?'root':''}" style="left:${left}px;top:${top}px" ${graphSource===x.id?'aria-pressed="true"':''}`)}).join('')}</div></div>
+ <div class="connections"><div class="row between"><h2>Связи · ${edges.length}</h2>${btn('comments','Комментарии','more')}</div>${edges.length?edges.map(l=>`<div class="row entry"><span class="grow">${esc(by(l.from).name)} → ${esc(by(l.to).name)}<small>${esc(l.label)}</small></span>${ib('edit-link:'+links.indexOf(l),'Изменить связь','more')}${ib('remove-link:'+links.indexOf(l),'Удалить связь','trash')}</div>`).join(''):empty('Связей пока нет','Добавьте стрелку между двумя карточками.')}</div></div>`;
+}
+
+
+function render(){
+ const x=by(Math.abs(current)), p=project(x), note=current>0&&x?.kind==='note';
+ document.documentElement.dataset.theme=theme;
+ const color=palettes[p?.palette||palette];
+ if(theme==='dark')document.documentElement.style.setProperty('--accent',color);
+ else document.documentElement.style.setProperty('--accent',({'Лаванда':'#634396','Мята':'#26654b','Сланец':'#345d8a','Песок':'#865033'})[p?.palette||palette]);
+ const root=$('#app'), oldScroll=$('.content')?.scrollTop||0, last=root.dataset.view;
+ root.dataset.view=current;
+ root.className='shell'+(focus?' focused':'')+(nav?' nav-open':'');
+ root.innerHTML=`<header class="top">${ib('nav','Открыть навигацию','menu',`aria-expanded="${nav}" style="display:var(--nav-display,none)"`)}<div class="brand"><span class="mark">${icon('book')}</span>NoteApp</div><div class="row history">${ib('back','Назад','left',cursor<=0?'disabled':'')}${ib('forward','Вперёд','right',cursor>=history.length-1?'disabled':'')}</div><span class="demo end">Макет</span>${ib('states','Состояния макета','more')}</header>
+ <aside class="sidebar" aria-label="Навигация">${btn('vault','Хранилище','stack')}<button class="search-trigger" data-do="search">${icon('search')}<span class="grow">Поиск заметок</span><kbd>Ctrl K</kbd></button>
+ ${btn('go:0','Все проекты','home',current===0?'aria-current="page"':'')}
+ <div class="row between nav-title">Проекты ${ib('project','Добавить проект','plus')}</div><nav aria-label="Дерево проектов">${kids(0).map(tree).join('')}</nav>
+ <div class="sidebar-foot">${btn('trash','Корзина','trash')}${btn('settings','Настройки','settings')}</div></aside>
+ <main class="workspace"><nav class="row crumbs" aria-label="Путь">${ib('go:0','Все проекты','home')}${x?ib('go:'+(current<0?p.id:x.parent||0),'На уровень выше','up'):''}<div class="grow">${!x?'<span>Все проекты</span>':path(x).map((y,i)=>`${i?icon('right'):''}${y===x&&current>0?`<span aria-current="location">${esc(y.name)}</span>`:btn(open(y),y.name)}`).join('')}${current<0?'<span> / Карта связей</span>':''}</div>${p?`<button data-do="go:-${p.id}" title="Карта связей" aria-label="Карта связей" aria-pressed="${current<0}">${icon('graph')}<span class="graph-label">Карта связей</span></button>`:''}</nav>
+ ${(note||current<0)&&tabs.length?`<div class="row tabs" aria-label="Открытые вкладки">${tabs.map(by).filter(active).map(y=>`<div class="tab">${btn(open(y),y.name,'file',current===y.id?'aria-current="page"':'')}${note&&current!==y.id?ib('split:'+y.id,'Открыть рядом · '+y.name,'split'):''}${ib('tab-close:'+y.id,'Закрыть вкладку · '+y.name,'close')}</div>`).join('')}</div>`:''}
+ ${note?`<div class="row tools wrap">${btn('edit','Правка','','aria-pressed="'+!read+'"')}${btn('read','Чтение','','aria-pressed="'+read+'"')}${ib('focus','Режим фокуса','focus','aria-pressed="'+focus+'"')}${ib('inspector','Оглавление и ссылки','panel','aria-pressed="'+(inspector&&!focus&&!split)+'"')}${ib('note-menu','Действия с заметкой','more')}<div class="grow"></div>${!read?['Заголовок','Жирный','Список','Задача'].map((name,i)=>btn('format:'+i,name)).join(''):''}${ib('attach','Добавить вложение','clip')}</div>`:''}
+ ${message?`<div class="row banner error" role="alert"><span class="grow">${esc(message)}</span>${ib('clear-error','Закрыть сообщение','close')}</div>`:''}
+ <div class="content">${!x?overview():current<0?graphPage(p):note?notePage(x):folderPage(x)}</div>
+ <footer class="row status"><span class="dot"></span><span>Локальное хранилище · демоданные</span>${note?`<span id="words" class="end">Markdown · Слов: ${words(x)}</span>`:''}</footer></main>`;
+ if(Number(last)===current) $('.content').scrollTop=oldScroll;
+}
+const dialog=$('#dialog'), body=$('#dialog-body');
+function show(title,html,submit=null,wide=false){
+ $('#dialog-title').textContent=title;body.innerHTML=html;onSubmit=submit;
+ dialog.classList.toggle('wide',wide);
+ if(!dialog.open)dialog.showModal();
+ (body.querySelector('input,textarea,select')||dialog.querySelector('header button')).focus();
+}
+function close(){if(dialog.open)dialog.close()}
+function notify(text){
+ const t=$('#toast');t.textContent=text;t.hidden=false;clearTimeout(toastTimer);
+ toastTimer=setTimeout(()=>t.hidden=true,2400);
+}
+const field=(label,name,value='',required=true)=>`<label>${label}<input name="${name}" value="${esc(value)}" ${required?'required':''} maxlength="120"></label>`;
+const select=(label,name,opts)=>`<label>${label}<select name="${name}">${opts.map(([value,text,selected])=>`<option value="${esc(value)}" ${selected?'selected':''}>${esc(text)}</option>`).join('')}</select></label>`;
+function form(title,html,save,submitLabel='Сохранить'){
+ show(title,`<form>${html}<p id="form-error" class="error" role="alert"></p><div class="actions">${btn('close','Отмена')}<button class="primary" type="submit">${submitLabel}</button></div></form>`,save);
+}
+function itemForm(type,id,initial=''){
+ const x=by(id);
+ const rename=type==='rename', isNote=type==='new'||(rename&&x.kind==='note');
+ const itemKind=rename?x.kind:({new:'note',folder:'folder',project:'project'})[type];
+ const folderChoices=items.filter(y=>active(y)&&y.kind!=='note');
+ let html=field('Название','name',rename?x.name:initial);
+ if(isNote)html+=select('Расположение','parent',folderChoices.map(y=>[y.id,path(y).map(z=>z.name).join(' / '),y.id===(rename?x.parent:id)]));
+ if(type==='new')html+=select('Шаблон','template',[['','Пустая заметка'],...[...templates.keys()].map(t=>[t,t])]);
+ form(({new:'Новая заметка',folder:'Новая папка',project:'Новый проект',rename:'Переименовать или переместить'})[type],html,data=>{
+   const name=String(data.get('name')).trim(), destination=itemKind==='project'?0:isNote?Number(data.get('parent')):rename?x.parent:id;
+   if(!name||/[\\/]/.test(name))return 'Введите название без косой черты.';
+   if(items.some(y=>active(y)&&y!==x&&(y.parent||0)===destination&&y.name.toLowerCase()===name.toLowerCase()))return 'В этом разделе уже есть объект с таким названием.';
+   if(rename){x.name=name;if(destination)x.parent=destination;close();go(x.id);notify('Изменения сохранены');return}
+   const created={id:serial++,kind:itemKind,name,parent:destination};
+   if(itemKind==='note'){created.text=templates.get(data.get('template'))||'';read=false}
+   items.push(created);close();go(created.id);notify('Создано · '+name);
+ },rename?'Сохранить':'Создать');
+}
+function searchResults(value){
+ const q=value.trim().toLocaleLowerCase('ru');
+ const found=items.filter(x=>active(x)&&x.kind==='note'&&(x.name+' '+x.text).toLocaleLowerCase('ru').includes(q));
+ $('#results').innerHTML=found.length?`<div class="list">${found.map(x=>entry(x,false)).join('')}</div><p class="muted" style="margin-top:8px">Найдено: ${found.length}</p>`:empty('Ничего не найдено','Попробуйте другое слово или часть названия.');
+}
+function settings(){
+ show('Настройки',`<section><h3>Внешний вид</h3><div class="row wrap" style="margin-top:8px">${btn('theme:dark','Тёмная','','aria-pressed="'+(theme==='dark')+'"')}${btn('theme:light','Светлая','','aria-pressed="'+(theme==='light')+'"')}</div>
+ ${select('Общая палитра','global-palette',Object.keys(palettes).map(p=>[p,p,p===palette]))}
+ <label>Размер текста <output>${document.documentElement.style.getPropertyValue('--size')||'16px'}</output><input type="range" name="size" min="13" max="24" value="${parseInt(document.documentElement.style.getPropertyValue('--size'))||16}"></label>
+ <label>Ширина текста <output>${document.documentElement.style.getPropertyValue('--measure')||'720px'}</output><input type="range" name="measure" min="480" max="1100" step="10" value="${parseInt(document.documentElement.style.getPropertyValue('--measure'))||720}"></label></section>
+ <section><h3>Хранилище и сохранность</h3><p class="muted">Демонстрационное хранилище</p><div class="row wrap" style="margin-top:8px">${btn('vault','Выбрать хранилище','folder','class="secondary"')}${['Импорт папки','Экспорт с вложениями','Резервная копия','Открыть резервную копию'].map(t=>btn('storage:'+t,t,'','class="secondary"')).join('')}${btn('templates','Редактор шаблонов','file','class="secondary"')}</div></section>
+ <section><h3>Горячие клавиши</h3><div class="row wrap" style="margin-top:8px"><kbd>Ctrl K</kbd> Поиск <kbd>Ctrl N</kbd> Новая заметка <kbd>Ctrl S</kbd> Сохранить <kbd>Ctrl E</kbd> Правка / чтение <kbd>Ctrl Shift F</kbd> Фокус</div></section>`);
+}
+function trash(){
+ const deleted=items.filter(x=>x.deleted);
+ show('Корзина',`<p class="muted">Восстановите объект, чтобы вернуть его в исходный раздел.</p>${deleted.length?deleted.map(x=>`<div class="row entry"><span class="grow">${esc(x.name)}<small>${kind(x)} · ${esc(par(x)?.name||'Хранилище')}</small></span>${btn('restore:'+x.id,'Восстановить')}</div>`).join(''):empty('Корзина пуста','Здесь будут удалённые заметки, папки и проекты.') }<p class="error" id="restore-error" role="alert"></p>`);
+}
+function templatePage(x,selected=''){
+ const html=select('Выбрать шаблон','template-picker',[['','Новый шаблон'],...[...templates.keys()].map(t=>[t,t,t===selected])])+field('Название','name',selected||x?.name||'')+`<label>Текст Markdown<textarea rows="7" name="body">${esc(templates.get(selected)||x?.text||'')}</textarea></label>`+(selected?btn('delete-template:'+selected,'Удалить шаблон','trash','class="danger"'):'');
+ form('Редактор шаблонов',html,data=>{
+   const name=data.get('name').trim();
+   if(!name)return 'Введите название шаблона.';
+   if(name!==selected&&templates.has(name))return 'Шаблон с таким названием уже существует.';
+   if(selected&&selected!==name)templates.delete(selected);
+   templates.set(name,data.get('body'));close();notify('Шаблон сохранён');
+ });
+}
+function confirmDelete(x){
+ show(x.kind==='project'?'Удалить проект?':'Переместить в корзину?',`<p>«${esc(x.name)}» ${x.kind==='note'?'':'и его содержимое '}можно будет восстановить из корзины.</p><div class="actions">${btn('close','Отмена')}${btn('delete-confirm:'+x.id,'В корзину','trash','class="danger"')}</div>`);
+}
+function noteMenu(x){
+ show('Действия с заметкой',`<div class="row wrap">${btn('daily','Ежедневная заметка','clock')}${btn('rename:'+x.id,'Переименовать / переместить')}${btn('attach','Добавить вложение','clip')}${btn('note-template','Сохранить как шаблон','file')}${btn('split-select','Открыть заметку рядом','split')}${btn('inspector',inspector?'Скрыть панель связей':'Показать панель связей','panel')}${btn('delete:'+x.id,'В корзину','trash','class="danger"')}</div>`);
+}
+function linkForm(from,to,index=-1){
+ form(index<0?'Новая связь':'Изменить связь',`<p>${esc(by(from).name)} → ${esc(by(to).name)}</p>${field('Подпись стрелки','label',links[index]?.label||'',false)}`,data=>{
+   const link={from,to,label:data.get('label').trim()};
+   if(index<0)links.push(link);else links[index]=link;
+   graphSource=0;close();render();notify('Связь сохранена');
+ });
+}
+function comments(p,selected=String(p.id)){
+ const cards=items.filter(x=>active(x)&&project(x)===p), x=by(selected);
+ form('Комментарий к карточке',select('Карточка','comment-picker',cards.map(y=>[y.id,y.name,y===x]))+`<label>Комментарий<textarea name="comment" rows="4" maxlength="4000">${esc(x.comment||'')}</textarea></label>`+(x.comment?btn('comment-remove:'+x.id,'Удалить комментарий','trash','class="danger"'):''),data=>{
+   x.comment=data.get('comment').trim();close();notify('Комментарий сохранён');
+ });
+}
+function chooseFile(x,background){
+ const input=document.createElement('input');input.type='file';
+ if(background)input.accept='image/png,image/jpeg,image/webp,image/gif';
+ input.onchange=()=>{
+   const file=input.files[0];if(!file)return;
+   if(background){
+     if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type)){notify('Выберите изображение PNG, JPEG, WebP или GIF');return}
+     if(x.background)URL.revokeObjectURL(x.background);
+     x.background=URL.createObjectURL(file);
+   }else{x.text+='\n\n[Вложение: '+file.name+']';read=false}
+   render();notify(background?'Фон обновлён':'Вложение добавлено в макет');
+ };
+ input.click();
+}
+
+
+function newNote(){
+ const x=by(Math.abs(current));
+ if(x)itemForm('new',x.kind==='note'?x.parent:x.id);
+ else if(kids(0).length)itemForm('new',kids(0)[0].id);
+ else itemForm('project',0);
+}
+function conflict(){
+ const x=by(current)?.kind==='note'?by(current):items.find(y=>y.kind==='note'&&active(y));
+ if(!x){show('Конфликт версий',empty('Нет заметки для примера','Создайте заметку и откройте этот сценарий ещё раз.'));return}
+ const disk='## Версия с диска\nЭтот абзац изменён во внешнем редакторе.';
+ show('Файл изменился вне NoteApp',`<p>Выберите, какую версию заметки «${esc(x.name)}» оставить.</p><div class="conflict"><section><h3>Ваши изменения</h3><pre>${esc(x.text.slice(0,320))}</pre></section><section><h3>Версия с диска</h3><pre>${esc(disk)}</pre></section></div><div class="actions">${btn('resolve:disk:'+x.id,'Версия с диска')}${btn('resolve:mine:'+x.id,'Моя версия')}${btn('resolve:copy:'+x.id,'Сохранить обе версии','','class="primary"')}</div>`,null,true);
+}
+document.addEventListener('click',event=>{
+ const button=event.target.closest('[data-do]');
+ if(!button)return;
+ const [action,...parts]=button.dataset.do.split(':'), arg=parts.join(':'), id=Number(arg), y=by(id), x=by(current), p=project(by(Math.abs(current)));
+ switch(action){
+   case 'go': close();go(id);break;
+   case 'back': case 'forward': go(history[cursor+=action==='back'?-1:1],false);break;
+   case 'nav': nav=!nav;focus=false;render();$('[data-do="nav"]').focus();break;
+   case 'expand': expanded.has(id)?expanded.delete(id):expanded.add(id);render();$('[data-do="expand:'+id+'"]').focus();break;
+   case 'new': case 'folder': case 'project': case 'rename': itemForm(action,id);break;
+   case 'close': if(graphSource>0){graphSource=0;render()}close();break;
+   case 'search': show('Поиск заметок','<label>По названию и содержимому<input type="search" id="query" placeholder="Название, текст или фраза…"></label><div id="results"></div>');searchResults('');break;
+   case 'settings': settings();break;
+   case 'trash': trash();break;
+   case 'templates': templatePage();break;
+   case 'theme': theme=arg;render();settings();break;
+   case 'vault': show('Выбрать хранилище','<p>В макете доступно демонстрационное хранилище.</p>'+btn('close','Открыть демохранилище','folder','class="primary"'));break;
+   case 'storage': show(arg,'<p>Этот шаг показан для знакомства с интерфейсом. Файловая операция доступна в настольном NoteApp.</p><div class="actions">'+btn('settings','К настройкам')+'</div>');break;
+   case 'states': show('Состояния макета',`<p class="muted">Изменения сохраняются до перезагрузки страницы.</p><div class="row wrap" style="margin-top:12px">${btn('search','Поиск','search')}${btn('settings','Настройки','settings')}${btn('trash','Корзина','trash')}${btn('conflict','Конфликт версий')}${btn('error','Ошибка доступа')}${btn('empty-view','Пустой редактор')}</div>`);break;
+   case 'empty-view': show('Нет открытой заметки',empty('Выберите заметку','Откройте заметку из дерева проектов или создайте новую.')+btn('new-shortcut','Новая заметка','plus','class="primary"'));break;
+   case 'new-shortcut': newNote();break;
+   case 'error': close();message='Не удалось открыть хранилище. Проверьте доступ к папке и выберите её заново.';render();break;
+   case 'clear-error': message='';render();break;
+   case 'conflict': conflict();break;
+   case 'resolve': {
+     const target=by(parts[1]), disk='## Версия с диска\nЭтот абзац изменён во внешнем редакторе.';
+     if(parts[0]==='disk')target.text=disk;
+     if(parts[0]==='copy')items.push({...target,id:serial++,name:target.name+' · версия с диска',text:disk});
+     close();go(target.id);notify(parts[0]==='copy'?'Обе версии сохранены в макете':'Версия выбрана');break;
+   }
+   case 'context': show(y.name,`<p class="muted">${kind(y)}</p><div class="row wrap" style="margin-top:12px">${btn(open(y),'Открыть',symbol(y))}${y.kind!=='note'?btn('new:'+id,'Новая заметка','plus')+btn('folder:'+id,'Новая папка','folder'):''}${y.kind!=='project'?btn('rename:'+id,'Переименовать'):''}${btn('delete:'+id,'В корзину','trash','class="danger"')}</div>`);break;
+   case 'delete': confirmDelete(y);break;
+   case 'delete-confirm': y.deleted=true;tabs=tabs.filter(t=>active(by(t)));close();go(active(par(y))?y.parent:0);notify('Перемещено в корзину');break;
+   case 'restore':
+     if(par(y)&&!active(par(y))){$('#restore-error').textContent='Сначала восстановите исходный раздел.';break}
+     if(kids(y.parent||0).some(z=>z.name===y.name)){ $('#restore-error').textContent='В исходном разделе уже есть объект с таким названием.';break }
+     y.deleted=false;render();trash();notify('Объект восстановлен');break;
+   case 'note-menu': noteMenu(x);break;
+   case 'note-template': templatePage(x);break;
+   case 'delete-template': templates.delete(arg);templatePage();break;
+   case 'daily': {
+     const name='Дневник · '+new Date().toLocaleDateString('ru-RU'), daily=kids(p.id).find(y=>y.kind==='note'&&y.name===name);
+     close();if(daily)go(daily.id);else itemForm('new',p.id,name);break;
+   }
+   case 'edit': case 'read': read=action==='read';if(read)split=0;render();$('[data-do="'+action+'"]').focus();break;
+   case 'focus': focus=!focus;nav=false;split=0;render();$('[data-do="focus"]').focus();break;
+   case 'inspector': {
+     close();
+     const panel=$('.inspector');
+     const stacked=matchMedia('(max-width:760px)').matches;
+     if(stacked&&panel&&panel.getBoundingClientRect().top>$('.content').getBoundingClientRect().bottom){
+       panel.scrollIntoView({block:'start'});panel.querySelector('summary').focus({preventScroll:true});break;
+     }
+     inspector=Boolean(focus||split||!inspector);focus=false;split=0;render();
+     if(stacked&&inspector){$('.inspector').scrollIntoView({block:'start'});$('.inspector summary').focus({preventScroll:true})}
+     else $('[data-do="inspector"]').focus();
+     break;
+   }
+   case 'split-select': show('Открыть рядом',items.filter(z=>active(z)&&z.kind==='note'&&z!==x).map(z=>btn('split:'+z.id,z.name,'file')).join('')||empty('Вторая заметка пока недоступна','Создайте ещё одну заметку.'));break;
+   case 'split': close();split=id;read=false;focus=false;render();break;
+   case 'unsplit': split=0;render();break;
+   case 'tab-close': tabs=tabs.filter(t=>t!==id);if(split===id)split=0;if(current===id)go(x.parent);else render();break;
+   case 'format': {
+     const editor=$('.editor'), a=editor.selectionStart,b=editor.selectionEnd, selection=editor.value.slice(a,b);
+     const value=['## '+selection,'**'+selection+'**','- '+selection,'- [ ] '+selection][id];
+     editor.setRangeText(value,a,b,'end');editor.dispatchEvent(new Event('input',{bubbles:true}));editor.focus();break;
+   }
+   case 'heading':
+     if(read)$('#head-'+id)?.scrollIntoView({block:'start'});
+     else {const editor=$('.editor'), heading=headings(x)[id];if(heading){editor.focus();editor.setSelectionRange(heading.index,heading.index+heading[0].length)}}
+     break;
+   case 'wiki': {
+     const name=button.dataset.name, note=items.find(z=>active(z)&&z.kind==='note'&&z.name===name);
+     if(note)go(note.id);else itemForm('new',x.parent,name);break;
+   }
+   case 'palette': p.palette=arg==='inherit'?'':arg;render();break;
+   case 'background': case 'attach': close();chooseFile(x,action==='background');break;
+   case 'clear-bg': URL.revokeObjectURL(x.background);delete x.background;render();break;
+   case 'graph-link': graphSource=-1;render();break;
+   case 'graph-cancel': graphSource=0;render();break;
+   case 'node':
+     if(!graphSource)go(id);
+     else if(graphSource===-1){graphSource=id;render()}
+     else if(graphSource!==id)linkForm(graphSource,id);
+     break;
+   case 'edit-link': linkForm(links[id].from,links[id].to,id);break;
+   case 'remove-link': links.splice(id,1);render();notify('Связь удалена');break;
+   case 'comments': comments(p);break;
+   case 'comment-remove': delete y.comment;comments(p,arg);break;
+ }
+});
+dialog.addEventListener('submit',e=>{
+ e.preventDefault();
+ const error=onSubmit?.(new FormData(e.target));
+ if(error)$('#form-error').textContent=error;
+});
+dialog.addEventListener('cancel',()=>{if(graphSource>0){graphSource=0;render()}});
+document.addEventListener('input',({target:t})=>{
+ if(t.id==='query')searchResults(t.value);
+ if(t.matches('input[type=range]')){
+   document.documentElement.style.setProperty('--'+t.name,t.value+'px');
+   t.previousElementSibling.textContent=t.value+'px';
+ }
+ if(t.dataset.editor){
+   const x=by(t.dataset.editor);x.text=t.value;
+   if(x.id===current)$('#words').textContent='Markdown · Слов: '+words(x);
+ }
+});
+document.addEventListener('change',({target:t})=>{
+ if(t.name==='global-palette'){palette=t.value;render()}
+ if(t.name==='template-picker')templatePage(null,t.value);
+ if(t.name==='comment-picker')comments(project(by(Math.abs(current))),t.value);
+ if(t.dataset.task){const x=by(current);x.text=x.text.replace(t.dataset.task,t.dataset.task.replace(/^-\s\[[ x]\]/,t.checked?'- [x]':'- [ ]'));t.dataset.task=t.dataset.task.replace(/^-\s\[[ x]\]/,t.checked?'- [x]':'- [ ]')}
+});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Enter'&&e.target.id==='query'){$('#results button')?.click();return}
+ if(e.key==='Escape'&&nav&&!dialog.open){nav=false;render();return}
+ if(e.altKey&&!dialog.open&&['ArrowLeft','ArrowRight'].includes(e.key)){
+   const step=e.key==='ArrowLeft'?-1:1;
+   if(history[cursor+step]!==undefined){e.preventDefault();go(history[cursor+=step],false)}
+   return;
+ }
+ if(!(e.ctrlKey||e.metaKey)||e.altKey)return;
+ const key=e.key.toLowerCase(), note=by(current)?.kind==='note';
+ if(key==='k'){e.preventDefault();show('Поиск заметок','<label>По названию и содержимому<input type="search" id="query" placeholder="Название, текст или фраза…"></label><div id="results"></div>');searchResults('')}
+ if(dialog.open)return;
+ if(key==='n'){e.preventDefault();newNote()}
+ if(key==='e'&&note){e.preventDefault();$('[data-do="'+(read?'edit':'read')+'"]').click()}
+ if(key==='f'&&e.shiftKey&&note){e.preventDefault();$('[data-do="focus"]').click()}
+ if(key==='s'&&note){e.preventDefault();notify('Черновик обновлён в макете')}
+});
+render();
+</script>
+<style>
+@media(max-width:760px){:root{--nav-display:inline-flex}}
+.tree-sub .row button:not(.icon){overflow-wrap:anywhere;min-width:0}
+.note-body article>div{margin-bottom:5px}
+.note-body article>div:has(+ p){margin-bottom:16px}
+#dialog-body .row.entry{margin-top:4px}
+@media(prefers-reduced-motion:no-preference){button{transition:background-color .16s,color .16s}}
+</style>
+</body>
+</html>
+

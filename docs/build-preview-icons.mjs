@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import * as phosphor from '@phosphor-icons/react';
+const path=new URL('../design-preview.html',import.meta.url);
+let html=fs.readFileSync(path,'utf8');
+const names=['Info','Notebook','Stack','Plus','ArrowLeft','ArrowRight','SidebarSimple','ArrowsOut','MagnifyingGlass','Files','Star','Clock','CalendarBlank','SquaresFour','FolderPlus','Trash','GearSix','HardDrive','TextB','TextItalic','TextStrikethrough','Code','LinkSimple','ListBullets','ListNumbers','CheckSquare','Image','Table','DotsThree','X','Check','FileText','CaretRight','CaretDown','Folder','List','PencilSimple','Paperclip','DownloadSimple','UploadSimple','Copy','ArrowCounterClockwise'];
+const icons=Object.fromEntries(names.map(name=>[name,renderToStaticMarkup(React.createElement(phosphor[name],{size:20,weight:'regular','aria-hidden':true}))]));
+icons.StarFill=renderToStaticMarkup(React.createElement(phosphor.Star,{size:20,weight:'fill','aria-hidden':true}));
+html=html.replace('/* ICON_LIBRARY */','const ICONS='+JSON.stringify(icons)+';');
+html=html.replace("$('#favorite').innerHTML=icon(n.favorite?'StarFill':'Star');","$('#favorite').dataset.icon=n.favorite?'StarFill':'Star';$('#favorite').innerHTML=icon(n.favorite?'StarFill':'Star');");
+html=html.replace("$('#canvas').innerHTML='<div class=\"empty\">'+icon('Notebook')+'<p>Откройте заметку слева<br>или создайте новую кнопкой +.</p></div>'+$('#document').outerHTML;bindEditor()", "if(!$('#empty-note'))$('#canvas').insertAdjacentHTML('afterbegin','<div class=\"empty\" id=\"empty-note\">'+icon('Notebook')+'<p>Откройте заметку слева<br>или создайте новую кнопкой +.</p></div>')");
+html=html.replace("$('#document').hidden=!n;if(n)","$('#document').hidden=!n;if(n)$('#empty-note')?.remove();if(n)");
+fs.writeFileSync(path,html);
+const script=html.match(/<script>([\s\S]*)<\/script>/)[1];
+new Function(script);
+console.log('Standalone HTML ready: '+Buffer.byteLength(html)+' bytes. JavaScript syntax OK.');
