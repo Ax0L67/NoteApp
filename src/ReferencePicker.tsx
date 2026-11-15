@@ -1,16 +1,18 @@
 import {useEffect,useRef,useState} from 'react';
 import {FileText,Graph} from '@phosphor-icons/react';
+import {ObjectIcon} from './ObjectIcon';
 import {ExplorerTree,itemKey,type ExplorerItem} from './Explorer';
 import {folder} from './indexing';
 import {referenceUrl,type ReferenceKind,type ReferenceTarget} from './noteReferences';
 
-export default function ReferencePicker({roots,childrenOf,targets,value,kind,choose}: {
+export default function ReferencePicker({roots,childrenOf,targets,value,kind,choose,icons}: {
   roots:ExplorerItem[];
   childrenOf:(item:ExplorerItem)=>ExplorerItem[];
   targets:ReadonlyMap<string,ReferenceTarget>;
   value:string;
   kind?:ReferenceKind;
   choose:(url:string)=>void;
+  icons?:Record<string,string>;
 }) {
   const selected=targets.get(value);
   const tree=useRef<HTMLElement>(null);
@@ -39,7 +41,7 @@ export default function ReferencePicker({roots,childrenOf,targets,value,kind,cho
     <aside ref={tree} className="reference-picker-tree" aria-label="Цели ссылки">
       {kind!=='map'&&<>
         <h3>Заметки</h3>
-        <ExplorerTree roots={roots} childrenOf={childrenOf} expanded={expanded} toggle={toggle}
+        <ExplorerTree roots={roots} childrenOf={childrenOf} expanded={expanded} toggle={toggle} icons={icons}
           active={item=>item.kind==='note'&&noteUrl(item)===value}
           open={item=>item.kind==='note'?choose(noteUrl(item)):toggle(item)}/>
       </>}
@@ -52,7 +54,7 @@ export default function ReferencePicker({roots,childrenOf,targets,value,kind,cho
     </aside>
     <div className="reference-picker-selection" aria-live="polite">
       {selected?<>
-        {selected.kind==='note'?<FileText size={24}/>:<Graph size={24}/>}
+        {selected.kind==='note'?<ObjectIcon item={{kind:'note',path:selected.path}} icons={icons} size={24}/>:<Graph size={24}/>}
         <strong>{selected.name}</strong>
         <small>{selected.path}</small>
       </>:<p className="subtle">Выберите цель в дереве слева.</p>}

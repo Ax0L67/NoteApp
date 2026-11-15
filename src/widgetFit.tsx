@@ -18,7 +18,7 @@ export function fitWidgetContent(viewport:HTMLElement,content:HTMLElement,baseWi
       const width=viewport.clientWidth-(parseFloat(style.paddingLeft)||0)-(parseFloat(style.paddingRight)||0);
       const height=viewport.clientHeight-(parseFloat(style.paddingTop)||0)-(parseFloat(style.paddingBottom)||0);
       if(width<=0||height<=0)return;
-      const base=Math.max(160,Math.min(baseWidth,width/Math.max(.5,Math.min(2,userScale()))));
+      const base=Math.max(160,Math.min(baseWidth,width/Math.max(.05,Math.min(3,userScale()))));
       content.style.width=`${base}px`;
       content.style.minHeight="0";
       for(let i=0;i<3;i++){
@@ -30,9 +30,9 @@ export function fitWidgetContent(viewport:HTMLElement,content:HTMLElement,baseWi
       }
       const naturalWidth=Math.max(content.offsetWidth,content.scrollWidth),naturalHeight=Math.max(content.offsetHeight,content.scrollHeight,1);
        const scale=Math.min(1.2,widgetFitScale(width,height,naturalWidth,naturalHeight));
-       const fitted=Math.min(widgetFitScale(width,height,naturalWidth,naturalHeight),scale*Math.max(.5,Math.min(2,userScale())));
+       const fitted=Math.min(widgetFitScale(width,height,naturalWidth,naturalHeight),scale*Math.max(.1,Math.min(3,userScale())));
        content.style.transform=`scale(${fitted})`;
-       content.style.minHeight=`${height/fitted}px`;
+       content.style.minHeight=fitted>0?`${Math.min(4000,height/fitted)}px`:'0px';
     });
   };
   const resize=new ResizeObserver(update);resize.observe(viewport);resize.observe(content);

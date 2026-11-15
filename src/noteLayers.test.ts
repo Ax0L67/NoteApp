@@ -18,3 +18,8 @@ describe('Порядок слоёв заметки',()=>{
     expect(assetPath('Проект/Заметка.md','photo.png#noteapp-width=320&x=10&y=20&z=12')).toBe('Проект/photo.png');
   });
 });
+
+it('includes layers from feature, table and code widgets',()=>{
+ const code=encodeURIComponent(JSON.stringify({widget:{z:31}}));
+ expect(nextNoteLayer('{"widget":{"z":19}} <!-- noteapp-table z=25 --> noteapp-code='+code)).toBe(32);
+});

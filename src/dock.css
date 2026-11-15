@@ -195,8 +195,8 @@
 }
 
 .liquid-shell :is(.editor-pane,.project-overview,.folder-contents,.graph-scroll,.project-card,.project-cover) { background: var(--editor-fill); }
-.liquid-shell :is(.explorer-address,.markdown-ribbon-tabs,.statusbar,.graph-toolbar,.titlebar,.dock-panel) { background: var(--panel-fill); }
-.liquid-shell :is(.markdown-toolbar,.graph-annotation > header) { background: var(--editor-fill); }
+.liquid-shell :is(.explorer-address,.titlebar,.dock-panel) { background: var(--panel-fill); }
+.liquid-shell :is(.markdown-ribbon-tabs,.statusbar,.graph-toolbar,.markdown-toolbar,.graph-annotation > header) { background: var(--tint-fill); }
 .note-tab.selected-note-tab { background: var(--tint-fill); }
 .liquid-shell .project-open > strong { background: var(--panel-fill); }
 
@@ -302,3 +302,16 @@
   background-position: 0 0, calc(-1 * (var(--tab-join-left) + var(--tab-join-selected-width))) 0;
   mask-image: radial-gradient(circle var(--tab-curve) at 100% 0, transparent calc(100% - 1px), #000 calc(100% - .5px));
 }
+
+/* The binding crosses the same eight-pixel gap used by the central workspace. */
+.dock-panel:has(> .inspector-rings) > .dock-panel-heading { flex:0 0 64px; min-height:64px; border-bottom:1px solid var(--edge); }
+.dock-panel:has(> .inspector-rings) > .dock-panel-body { margin-top:8px; border-top:1px solid var(--edge); }
+.inspector-rings { position:absolute; z-index:3; left:10%; right:10%; top:55px; display:flex; justify-content:space-between; pointer-events:none; }
+.inspector-rings i { display:block; position:relative; width:13px; height:29px; border:1px solid var(--edge); border-radius:8px; background:linear-gradient(90deg,var(--panel) 0%,var(--edge) 24%,var(--muted) 48%,var(--edge) 73%,var(--panel) 100%); box-shadow:inset 0 0 0 1px var(--line),0 2px 4px #0005; }
+.inspector-rings i::before,.inspector-rings i::after { content:''; position:absolute; left:2px; width:7px; height:5px; border:1px solid var(--edge); border-radius:50%; background:var(--base); }
+.inspector-rings i::before { top:-5px; }.inspector-rings i::after { bottom:-5px; }
+.dock-zone-left,.dock-zone-right { position:relative; }
+.dock-zone-left[data-collapsed],.dock-zone-right[data-collapsed] { overflow:visible; z-index:10; }
+.dock-zone-left[data-collapsed] > .dock-stack,.dock-zone-right[data-collapsed] > .dock-stack { visibility:hidden; }
+.dock-zone-left[data-collapsed] > .dock-resize { position:absolute; right:-3px; height:100%; width:6px; }
+.dock-zone-right[data-collapsed] > .dock-resize { position:absolute; left:-3px; height:100%; width:6px; }

@@ -35,8 +35,8 @@ function codeSyntax(language:CodeLanguage) {
   });
 }
 const highlight=syntaxHighlighting(HighlightStyle.define([
-  {tag:tags.keyword,color:'#c8a9ed'},{tag:tags.string,color:'#b6d6a3'},{tag:tags.number,color:'#e3bd8c'},
-  {tag:tags.comment,color:'#8d929c',fontStyle:'italic'},{tag:tags.meta,color:'#9ecbe5'},
+  {tag:tags.keyword,color:'var(--accent)'},{tag:tags.string,color:'var(--success)'},{tag:tags.number,color:'var(--warning)'},
+  {tag:tags.comment,color:'var(--hint)',fontStyle:'italic'},{tag:tags.meta,color:'var(--muted)'},
 ]));
 export function NoteCodeCard({block,notePath='',editable=false,save,menuTarget,onFloat,onInline,onRemove}:{block:NoteCodeBlock;notePath?:string;editable?:boolean;save?:(code:string,language:CodeLanguage,options:CodeOptions)=>void;menuTarget?:HTMLElement;onFloat?:(code:string,language:CodeLanguage,options:CodeOptions)=>void;onInline?:(code:string,language:CodeLanguage,options:CodeOptions)=>void;onRemove?:()=>void}) {
   const [code,setCode]=useState(block.code),[options,setOptions]=useState(block.options),[language,setLanguage]=useState(block.language);
@@ -75,9 +75,9 @@ export function NoteCodeCard({block,notePath='',editable=false,save,menuTarget,o
   };
   const runSummary=run.phase==='done'?'Завершено. Код возврата: '+run.exitCode:run.phase==='stopped'?'Программа остановлена.':run.phase==='loading'?'Подготовка среды / компиляция…':run.phase==='running'?'Выполнение…':run.output?'':'Программа ещё не запускалась.';
   const appearanceSettings=editable&&!options.widget?<>
-    <label className="note-widget-color">Цвет рамки<input type="color" value={options.color??'#cba6ed'} onChange={event=>update({...options,color:event.target.value})}/></label>
+    <label className="note-widget-color">Цвет рамки<input type="color" value={options.color??'#b0b0b0'} onChange={event=>update({...options,color:event.target.value})}/></label>
     <button type="button" onClick={()=>update({...options,color:undefined})}>Вернуть обычный цвет рамки</button>
-    <label className="note-widget-scale">Масштаб содержимого<output>{Math.round((options.scale??1)*100)}%</output><input type="range" min="50" max="150" step="10" value={Math.round((options.scale??1)*100)} onChange={event=>setOptions({...options,scale:Number(event.target.value)/100})} onBlur={event=>{const next={...options,scale:Number(event.target.value)/100};setOptions(next);commit(code,language,next)}}/></label>
+    <label className="note-widget-scale">Масштаб содержимого<output>{Math.round((options.scale??1)*100)}%</output><input type="range" min="0" max="300" step="5" value={Math.round((options.scale??1)*100)} onChange={event=>setOptions({...options,scale:Number(event.target.value)/100})} onBlur={event=>{const next={...options,scale:Number(event.target.value)/100};setOptions(next);commit(code,language,next)}}/></label>
   </>:null;
   const settings=<>{appearanceSettings}
     <label>Язык<select aria-label="Язык программы" value={language} disabled={!editable||busy} onChange={e=>{const next=e.target.value as CodeLanguage;const nextOptions={...options,fileName:next==='python'?'main.py':'main.cpp'};setLanguage(next);setOptions(nextOptions);commit(code,next,nextOptions)}}><option value="python">Python</option><option value="cpp">C++</option></select></label>
@@ -87,7 +87,7 @@ export function NoteCodeCard({block,notePath='',editable=false,save,menuTarget,o
     {editable&&onInline&&<button type="button" onClick={()=>onInline(code,language,options)}>Вернуть в текст заметки</button>}
     {editable&&onRemove&&<button type="button" onClick={()=>{if(confirm('Удалить этот блок кода?'))onRemove()}}>Удалить блок</button>}
   </>;
-  return <section className="note-code-card" style={!options.widget?{borderColor:options.color,zoom:options.scale??1} as CSSProperties:undefined} aria-label={`Код ${language==='cpp'?'C++':'Python'}`} onPointerDown={event=>{if(!(event.target instanceof Element&&event.target.closest('.note-code-heading')))event.stopPropagation()}}>
+  return <section className="note-code-card" style={!options.widget?{borderColor:options.color,zoom:options.scale??1} as CSSProperties:undefined} aria-label={`Код ${language==='cpp'?'C++':'Python'}`} onClick={event=>{if(!editable||event.target instanceof Element&&event.target.closest('button,input,select,textarea,summary,a'))return;const menu=event.currentTarget.closest('.note-code-host')?.querySelector<HTMLDetailsElement>(':scope > .note-insert-menu')??event.currentTarget.querySelector<HTMLDetailsElement>('.note-code-menu');if(menu)menu.open=true;}} onPointerDown={event=>{if(!(event.target instanceof Element&&event.target.closest('.note-code-heading')))event.stopPropagation()}}>
     <header className="note-code-heading"><span className="note-code-symbol" aria-hidden="true">{'</>'}</span><strong title={options.fileName}>{options.fileName}</strong><span className="note-code-language">{language==='cpp'?'C++':'Python'}</span>
       <div className="note-code-controls"><button type="button" onClick={()=>void copy()}>{copied?'Скопировано':'Копировать'}</button><button type="button" className="note-code-run" disabled={!status?.available||starting} title={status?.reason} onClick={()=>busy?stopCodeRun(key):void execute()}>{busy?"■ Стоп":"▷ Запуск"}</button></div>
       {!menuTarget&&<details className="note-code-menu" onKeyDown={event=>{if(event.key==='Escape')event.currentTarget.open=false}}><summary aria-label="Настройки блока кода" title="Настройки блока кода">⋯</summary><div className="note-code-settings">{settings}</div></details>}

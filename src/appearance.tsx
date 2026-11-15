@@ -42,8 +42,9 @@ export function readPaletteDrop(value:string):{palette:string;blend?:string}|nul
   } catch {return null;}
 }
 
-export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, blend, customColor, changeCustomColor, textureColors, changeTextureColor }: { value: string; choose: (id: string) => void; mix?:(id:string)=>void; disabled?:string; autoFocus?:boolean; blend?:string|null; customColor?:string; changeCustomColor?:(color:string)=>void; textureColors?:Record<string,string>; changeTextureColor?:(id:string,color:string|undefined)=>void }) {
+export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, blend, customColor, changeCustomColor, textureColors, changeTextureColor, collapsible=false }: { value: string; choose: (id: string) => void; mix?:(id:string)=>void; disabled?:string; autoFocus?:boolean; blend?:string|null; customColor?:string; changeCustomColor?:(color:string)=>void; textureColors?:Record<string,string>; changeTextureColor?:(id:string,color:string|undefined)=>void; collapsible?:boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const [showPalettes,setShowPalettes]=useState(!collapsible);
   const [showTextures,setShowTextures]=useState(false);
   const texture=textureById(value);
   const extraId = useId();
@@ -65,17 +66,14 @@ export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, 
   }
 
   return <>
+    {collapsible&&<button type="button" className="inspector-palette-toggle" aria-expanded={showPalettes} onClick={()=>{setShowPalettes(!showPalettes);setExpanded(true);}}>Палитры</button>}
+    <div hidden={!showPalettes}>
     <div className="swatches" role="group" aria-label="Основные палитры">
       {mainPalettes.map(swatch)}
-      <button type="button" className={`icon-button${extra ? ' chosen' : ''}`}
+      {!collapsible&&<button type="button" className={`icon-button${extra ? ' chosen' : ''}`}
         title={label} aria-label={label} aria-expanded={expanded} aria-controls={extraId}
-        onClick={() => setExpanded(!expanded)}><Palette size={18}/></button>
+        onClick={() => setExpanded(!expanded)}><Palette size={18}/></button>}
     </div>
-    {!disabled&&<button type="button" className="texture-picker-toggle" aria-expanded={showTextures} onClick={()=>setShowTextures(!showTextures)}>Текстуры</button>}
-    {showTextures&&<div className="texture-picker" role="group" aria-label="Текстуры">
-      <div className="texture-swatches">{textures.map(item=><button type="button" key={item.id} className={`texture-swatch palette-${item.id}`} title={item.name} aria-label={item.name} aria-pressed={value===item.id} draggable onDragStart={event=>{event.dataTransfer.setData(paletteDragType,JSON.stringify({palette:item.id}));event.dataTransfer.effectAllowed='copy';}} onClick={()=>choose(item.id)}><span>{item.name}</span></button>)}</div>
-      {texture&&changeTextureColor&&<div className="texture-color"><label>Цвет текстуры <input type="color" value={textureColors?.[texture.id]??texture.color} onChange={event=>changeTextureColor(texture.id,event.target.value)}/></label><button type="button" onClick={()=>changeTextureColor(texture.id,undefined)}>Исходный цвет</button></div>}
-    </div>}
     <div id={extraId} hidden={!expanded} className="swatches" role="group" aria-label="Дополнительные палитры">
       {extraPalettes.map(swatch)}
     </div>
@@ -86,6 +84,12 @@ export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, 
         if(!disabled&&value!=='custom')choose('custom');
       }}/>
     </label>}
+    </div>
+    {!disabled&&<button type="button" className="texture-picker-toggle" aria-expanded={showTextures} onClick={()=>setShowTextures(!showTextures)}>Текстуры</button>}
+    {showTextures&&<div className="texture-picker" role="group" aria-label="Текстуры">
+      <div className="texture-swatches">{textures.map(item=><button type="button" key={item.id} className={`texture-swatch palette-${item.id}`} title={item.name} aria-label={item.name} aria-pressed={value===item.id} draggable onDragStart={event=>{event.dataTransfer.setData(paletteDragType,JSON.stringify({palette:item.id}));event.dataTransfer.effectAllowed='copy';}} onClick={()=>choose(item.id)}><span>{item.name}</span></button>)}</div>
+      {texture&&changeTextureColor&&<div className="texture-color"><label>Цвет текстуры <input type="color" value={textureColors?.[texture.id]??texture.color} onChange={event=>changeTextureColor(texture.id,event.target.value)}/></label><button type="button" onClick={()=>changeTextureColor(texture.id,undefined)}>Исходный цвет</button></div>}
+    </div>}
     {mix&&<button type="button" className="palette-mix-action" onClick={()=>mix(value)}><Palette size={16}/>Смешать палитры</button>}
   </>;
 }

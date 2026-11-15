@@ -19,7 +19,16 @@ async fn request(app: tauri::AppHandle, state: tauri::State<'_, AppState>, op: S
             std::fs::read_to_string(config).ok().map(std::path::PathBuf::from).filter(|p|p.is_dir()).unwrap_or(app.path().document_dir().map_err(|e|e.to_string())?.join("NoteApp"))
         };
         if guard.as_ref().map(|v|same_vault(v,&path)).unwrap_or(false) { return guard.as_ref().unwrap().snapshot(); }
+        let new_default_vault=op=="init" && !path.exists();
         let vault=storage::Vault::open(path.clone())?;
+        if new_default_vault {
+            use std::io::Write;
+            match std::fs::OpenOptions::new().write(true).create_new(true).open(vault.root.join(".noteapp/settings.json")) {
+                Ok(mut file)=>file.write_all(br#"{"projects":[]}"#).map_err(|e|e.to_string())?,
+                Err(e) if e.kind()==std::io::ErrorKind::AlreadyExists=>{},
+                Err(e)=>return Err(e.to_string()),
+            }
+        }
         let result=vault.snapshot()?;
         let config=app.path().app_config_dir().map_err(|e|e.to_string())?;
         std::fs::create_dir_all(&config).map_err(|e|e.to_string())?;

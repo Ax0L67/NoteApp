@@ -20,8 +20,8 @@ export function readDockLayout(value:DockLayout|undefined,left=334,right=282):Do
     },
     order:[...new Set([...order.filter(id=>dockPanels.includes(id)),...dockPanels])],
     sizes:{
-      left:bounded(value?.sizes?.left,bounded(left,334,96,10000),96,10000),
-      right:bounded(value?.sizes?.right,bounded(right,282,96,10000),96,10000),
+      left:bounded(value?.sizes?.left,bounded(left,334,96,10000),0,10000),
+      right:bounded(value?.sizes?.right,bounded(right,282,96,10000),0,10000),
       top:bounded(value?.sizes?.top,220,0,10000),
       bottom:bounded(value?.sizes?.bottom,220,96,10000),
     },

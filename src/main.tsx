@@ -9,10 +9,11 @@ import './dock.css';
 import './centralWindows.css';
 import './noteFeatures.css';
 import './textures.css';
+import './themes.css';
 function StartupError({error}:{error:unknown}){
  const message=error instanceof Error?error.message:String(error);
- return <main role="alert" style={{height:'100vh',display:'grid',placeContent:'center',gap:10,padding:32,background:'#1b1b1b',color:'#eee',fontFamily:'Segoe UI,sans-serif'}}>
-  <strong>Не удалось запустить NoteApp</strong><code style={{maxWidth:800,whiteSpace:'pre-wrap',color:'#c0c0c0'}}>{message}</code>
+ return <main role="alert" style={{height:'100vh',display:'grid',placeContent:'center',gap:10,padding:32,background:'#181818',color:'#dedede',fontFamily:'Segoe UI,sans-serif'}}>
+  <strong>Не удалось запустить NoteApp</strong><code style={{maxWidth:800,whiteSpace:'pre-wrap',color:'#b9b9b9'}}>{message}</code>
  </main>;
 }
 class StartupBoundary extends Component<{children:ReactNode},{error:unknown}> {
@@ -22,3 +23,5 @@ class StartupBoundary extends Component<{children:ReactNode},{error:unknown}> {
 }
 const root=createRoot(document.getElementById('root')!);
 void import('./App').then(({default:App})=>root.render(<StartupBoundary><App/></StartupBoundary>)).catch(error=>root.render(<StartupError error={error}/>));
+
+import './canvas.css';

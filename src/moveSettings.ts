@@ -27,6 +27,7 @@ export function movedSettings(settings:Settings,from:string,to:string,notePaths:
   return {...settings,projects,projectOrder:[...new Set([...(settings.projectOrder??[]).filter(name=>projects.includes(name)),...projects])],archivedProjects:settings.archivedProjects?.filter(name=>projects.includes(name)),
     active:settings.active&&path(settings.active),favorites:settings.favorites?.map(path),recent:settings.recent?.map(path),
     dailyNotes:settings.dailyNotes&&Object.fromEntries(Object.entries(settings.dailyNotes).map(([day,value])=>[day,path(value)])),
+    objectIcons:settings.objectIcons&&Object.fromEntries(Object.entries(settings.objectIcons).map(([key,value])=>{const at=key.indexOf(':');return [key.slice(0,at+1)+path(key.slice(at+1)),value]})),
     noteAppearance:settings.noteAppearance&&Object.fromEntries(Object.entries(settings.noteAppearance).map(([name,value])=>[path(name),value])),
     projectNotes:record(settings.projectNotes,path),projectPalettes:record(settings.projectPalettes),projectPaletteBlends:record(settings.projectPaletteBlends),
     projectBackgrounds:record(settings.projectBackgrounds),projectPatterns:record(settings.projectPatterns),projectGridOpacity:record(settings.projectGridOpacity),

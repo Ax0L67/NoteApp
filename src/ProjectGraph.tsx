@@ -1,5 +1,5 @@
 import {useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent} from 'react';
-import {ArrowRight, ArrowsClockwise, ArrowsIn, ArrowsOutCardinal, ChatText, Check, FileText, Folder, Link, Minus, NotePencil, PencilSimple, Plus, Stack, Trash, X} from '@phosphor-icons/react';
+import {ArrowRight, ArrowsClockwise, ArrowsIn, ArrowsOutCardinal, CaretDown, ChatText, Check, FileText, Folder, Link, Minus, NotePencil, PencilSimple, Plus, Stack, Trash, X} from '@phosphor-icons/react';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import Editor from './Editor';
 import MarkdownToolbar from './MarkdownToolbar';
@@ -18,6 +18,7 @@ import {FittedWidget} from './widgetFit';
 import {queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
 import {MapTable,standaloneMapTable} from './noteTables';
 import type {ExplorerItem} from './Explorer';
+import {ObjectIcon} from './ObjectIcon';
 import type {MapBlock, MapCard, MapPoint, Note, ProjectConnection, ProjectMap, Settings, TaskBoard} from './types';
 
 const sizes = {
@@ -168,6 +169,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const [rebuilding,setRebuilding]=useState(false);
   const [panning, setPanning] = useState(false);
   const [editCanvas, setEditCanvas] = useState(false);
+  const [ribbonHidden,setRibbonHidden]=useState(false);
   const [placingText, setPlacingText] = useState(false);
   const [activeBlock, setActiveBlock] = useState('');
   const [rawMapTable,setRawMapTable]=useState('');
@@ -498,13 +500,14 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
         <button className="icon-button" title="Отменить связывание" aria-label="Отменить связывание" onClick={cancelLink}><X size={18}/></button>
       </>}
       <div className="graph-zoom" role="group" aria-label="Масштаб карты">
+        <button className="icon-button" title={ribbonHidden?'Показать панель редактирования':'Скрыть панель редактирования'} aria-label={ribbonHidden?'Показать панель редактирования':'Скрыть панель редактирования'} aria-expanded={!ribbonHidden} onClick={()=>setRibbonHidden(value=>!value)}><CaretDown size={16} className={ribbonHidden?'ribbon-collapsed':''}/></button>
         <button className="icon-button" title="Отдалить" aria-label="Отдалить" disabled={camera.zoom===minZoom} onClick={()=>zoomCenter(1/1.25)}><Minus size={18}/></button>
         <button title="Сбросить масштаб" aria-label={`Масштаб ${Math.round(camera.zoom*100)}%. Сбросить масштаб`} onClick={()=>zoomCenter(1,true)}>{Math.round(camera.zoom*100)}%</button>
         <button className="icon-button" title="Приблизить" aria-label="Приблизить" disabled={camera.zoom===maxZoom} onClick={()=>zoomCenter(1.25)}><Plus size={18}/></button>
       </div>
       <button className="icon-button" title="К карточке проекта" aria-label="К карточке проекта" onClick={center}><ArrowsIn size={20}/></button>
       <button className="icon-button" title="Перестроить карту" aria-label="Перестроить карту" disabled={rebuilding} onClick={rebuildMap}><ArrowsClockwise size={18}/></button>
-      <button className="graph-notes-toggle" aria-expanded={editCanvas} aria-controls={editToolsId}
+      <button className="graph-notes-toggle" aria-expanded={editCanvas&&!ribbonHidden} aria-controls={editToolsId}
         onClick={()=>{setEditCanvas(!editCanvas);setActiveBlock('');setPlacingText(false);}}>
         <NotePencil size={18}/>Редактирование
       </button>
@@ -554,8 +557,8 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
       <button className="primary" type="submit" disabled={!editingValid}>Сохранить</button>
       <button type="button" onClick={()=>setEditing(null)}>Отмена</button>
     </form>}
-    <div id={editToolsId} hidden={!editCanvas}>
-      {editCanvas&&<MarkdownToolbar disabled={!selectedBlock} runEdit={apply=>{
+    <div id={editToolsId} hidden={!editCanvas||ribbonHidden}>
+      {editCanvas&&!ribbonHidden&&<MarkdownToolbar disabled={!selectedBlock} runEdit={apply=>{
         const view=blockEditor.current?.view;
         if(view)apply(view);
       }} insertReference={kind=>pickReference(kind,insertionPoint())} insertMapFeature={addMapFeature}
@@ -659,12 +662,11 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
         </svg>
         {[...nodes].map(([id, node]) => {
           const {item, parent, children, width, bodyHeight, x, y} = node;
-          const Icon = icons[item.kind];
           const isNote = item.kind === 'note';
           const duplicate = !!source && effective.has(linkKey({from,to:id}));
           const comments=map.cards?.[id]?.comments??[];
           const commentOpen=comment?.id===id;
-          const summary = isNote ? noteExcerpt(notesByPath.get(item.path)) :
+          const summary = item.path.endsWith('.canvas') ? 'Полотно' : isNote ? noteExcerpt(notesByPath.get(item.path)) :
             children.length ? children.slice(0, 4).map(child => child.name).join(' · ') + (children.length > 4 ? ' · …' : '') : 'Пока пусто';
           return <article key={id} className={`project-card graph-card graph-card-${item.kind}${textureById(map.cards?.[id]?.texture)?` palette-${map.cards![id].texture}`:''}`} data-node-id={id} data-depth={node.depth}
             onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
@@ -698,7 +700,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
               onClick={event=>{
                 if(suppressClick.current===id&&event.detail!==0){suppressClick.current='';return;}
                 if(source)connect(id);else open(item);
-              }}><Icon size={18}/><span>{item.name}</span></button>}
+              }}><ObjectIcon item={item} icons={settings.objectIcons} size={18}/><span>{item.name}</span></button>}
                 path={project.project===':all-projects:' ? (settings.projectBackgrounds?.[item.project]??null) : isNote || item.kind === 'project' ? cover : null} root={root}>
                 <span className="graph-card-context">{parent ? parent.name : 'Проект'}</span>
                 <span className="graph-card-summary">{summary}</span>
@@ -789,7 +791,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
                 aria-label={source&&from!==dragId?`Связать с «${position.name}»`:`Начать связь от «${position.name}»`}
                 aria-pressed={from===dragId} title={source?'Выбрать объект назначения':'Провести стрелку'}
                 onClick={()=>source?connect(dragId):setFrom(dragId)}><Link size={19}/></button>}
-              {editCanvas&&feature?.[1]==='plot'&&featureValue&&<details className="graph-plot-settings"><summary title="Настройки графика" aria-label="Настройки графика">⋯</summary><div><label>Цвет графика <input type="color" value={/^#[0-9a-f]{6}$/i.test(featureValue.plotColor??'')?featureValue.plotColor:'#aa66db'} onChange={event=>updateBlock(block.id,{text:markdownBlock('plot',{...featureValue,plotColor:event.target.value})})}/></label></div></details>}
+              {editCanvas&&feature?.[1]==='plot'&&featureValue&&<details className="graph-plot-settings"><summary title="Настройки графика" aria-label="Настройки графика">⋯</summary><div><label>Цвет графика <input type="color" value={/^#[0-9a-f]{6}$/i.test(featureValue.plotColor??'')?featureValue.plotColor:'#96a6b6'} onChange={event=>updateBlock(block.id,{text:markdownBlock('plot',{...featureValue,plotColor:event.target.value})})}/></label></div></details>}
               {editCanvas&&
                 <button type="button" className="icon-button" title={active?'Готово':'Правка блока'} aria-label={active?'Готово':'Правка блока'}
                   onClick={()=>{setRawMapTable('');setActiveBlock(active?'':block.id)}}>{active?<Check size={16}/>:<PencilSimple size={16}/>}</button>}

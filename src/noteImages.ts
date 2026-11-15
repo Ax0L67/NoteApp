@@ -8,7 +8,7 @@ import {nextNoteLayer} from './noteLayers';
 import {elementGridStep,elementScale,snapGridBounded} from './gridGeometry';
 import {widgetBorderControls,widgetBorderWidth,widgetSizeControls,queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
 
-const widthMarker = /#noteapp-width=(\d+)(?:&x=(\d+)&y=(\d+))?(?:&z=(\d{1,9}))?(?:&c=([\da-fA-F]{6}))?(?:&s=(\d{2,3}))?(?:&h=(\d{1,4}))?(?:&bw=(\d{1,2}))?$/;
+const widthMarker = /#noteapp-width=(\d+)(?:&x=(\d+)&y=(\d+))?(?:&z=(\d{1,9}))?(?:&c=([\da-fA-F]{6}))?(?:&s=(\d{1,3}))?(?:&h=(\d{1,4}))?(?:&bw=(\d{1,2}))?$/;
 const limitWidth = (width: number) => Math.max(1, Math.min(1600, Math.round(width)));
 export function imageLayout(src: string) {
   const match = src.match(widthMarker);
@@ -20,7 +20,7 @@ export function imageLayout(src: string) {
     y: match?.[3] === undefined ? undefined : Math.min(100000, Number(match[3])),
     z: match?.[4]===undefined?2:Number(match[4]),
     color:match?.[5]?`#${match[5]}`:undefined,
-    scale:match?.[6]===undefined?1:Math.max(.5,Math.min(2,Number(match[6])/100)),
+    scale:match?.[6]===undefined?1:Math.max(0,Math.min(3,Number(match[6])/100)),
   };
 }
 export function assetPath(note: string, src: string) {
@@ -51,10 +51,10 @@ function applyLayout(parts: ImageParts, layout = imageLayout(parts.source.src)) 
   parts.box.toggleAttribute('data-sized',layout.width!==undefined);
   parts.box.style.width = layout.width ? 'min(' + layout.width + 'px, 100%)' : '';
   parts.box.style.height=layout.height?layout.height+'px':'';
-  parts.preview.style.height=layout.height?'100%':'';parts.preview.style.objectFit='contain';
+  parts.preview.style.height=layout.height?(floating?'calc(100% - 29px)':'100%'):'';parts.preview.style.objectFit='contain';
   parts.box.style.setProperty('--note-widget-border-width',widgetBorderWidth(layout.borderWidth)+'px');
-  parts.box.style.borderColor=layout.color??'var(--edge)';
-  parts.preview.style.transform=`scale(${Math.min(1,layout.scale??1)})`;
+  parts.box.style.borderColor=layout.color??'color-mix(in srgb,var(--editor) 72%,var(--base))';
+  parts.preview.style.transform=`scale(${layout.scale??1})`;
   parts.preview.style.transformOrigin='center';
   parts.preview.style.width = layout.width ? '100%' : '';
 }
@@ -96,11 +96,13 @@ class ImageWidget extends WidgetType {
     resize.disabled = true;
     actions.insertBefore(resize,remove);
     const colorLabel=document.createElement('label');colorLabel.className='note-widget-color';colorLabel.append('Цвет рамки');
-    const colorInput=document.createElement('input');colorInput.type='color';colorInput.value=imageLayout(this.image.src).color??'#cba6ed';colorInput.setAttribute('aria-label','Цвет рамки виджета');colorLabel.append(colorInput);actions.insertBefore(colorLabel,remove);
+    const colorInput=document.createElement('input');colorInput.type='color';colorInput.value=imageLayout(this.image.src).color??'#b0b0b0';colorInput.setAttribute('aria-label','Цвет рамки виджета');colorLabel.append(colorInput);actions.insertBefore(colorLabel,remove);
     const scaleLabel=document.createElement('label');scaleLabel.className='note-widget-scale';scaleLabel.append('Масштаб содержимого');
-    const scaleOutput=document.createElement('output'),scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='50';scaleInput.max='150';scaleInput.step='10';scaleInput.value=String(Math.round((imageLayout(this.image.src).scale??1)*100));scaleOutput.textContent=scaleInput.value+'%';scaleLabel.append(scaleOutput,scaleInput);actions.insertBefore(scaleLabel,remove);
+    const scaleOutput=document.createElement('output'),scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='0';scaleInput.max='300';scaleInput.step='5';scaleInput.value=String(Math.round((imageLayout(this.image.src).scale??1)*100));scaleOutput.textContent=scaleInput.value+'%';scaleLabel.append(scaleOutput,scaleInput);actions.insertBefore(scaleLabel,remove);
     const resetColor=document.createElement('button');resetColor.type='button';resetColor.textContent='Вернуть обычный цвет рамки';actions.insertBefore(resetColor,remove);
-    box.append(preview,status,menu);
+    const heading=document.createElement('div');heading.className='note-widget-heading';heading.textContent='Изображение';
+    const corners=(['nw','ne','sw','se'] as const).map(corner=>{const handle=document.createElement('div');handle.className=`floating-note-resize floating-note-resize-${corner}`;handle.setAttribute('role','separator');handle.setAttribute('aria-label','Изменить размер изображения');handle.tabIndex=0;return {corner,handle};});
+    box.append(heading,preview,status,menu,...corners.map(({handle})=>handle));
     frame.append(box);
     const parts = {source:this.image, box, preview};
     partsByFrame.set(frame,parts);
@@ -127,8 +129,8 @@ class ImageWidget extends WidgetType {
     widgetBorderControls(actions,()=>imageLayout(parts.source.src).borderWidth,borderWidth=>{const l=imageLayout(parts.source.src);save(l.width??box.offsetWidth,l.x,l.y,false,l.color,l.scale,l.height,borderWidth);});
     widgetSizeControls(actions,()=>{const layout=imageLayout(parts.source.src);return {width:layout.width??box.offsetWidth,height:layout.height??box.offsetHeight};},size=>{const layout=imageLayout(parts.source.src);save(size.width,layout.x,layout.y,false,layout.color,layout.scale,size.height);});
     colorInput.oninput=()=>{box.style.borderColor=colorInput.value;};
-    colorInput.onchange=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);save(layout.width??preview.getBoundingClientRect().width/scale/(layout.scale??1),layout.x,layout.y,false,colorInput.value,layout.scale);};
-    resetColor.onclick=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);colorInput.value='#cba6ed';box.style.borderColor='var(--edge)';save(layout.width??preview.getBoundingClientRect().width/scale/(layout.scale??1),layout.x,layout.y,false,null,layout.scale);};
+    colorInput.onchange=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);save(layout.width??preview.getBoundingClientRect().width/scale/Math.max(.01,layout.scale??1),layout.x,layout.y,false,colorInput.value,layout.scale);};
+    resetColor.onclick=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);colorInput.value='#b0b0b0';box.style.borderColor='color-mix(in srgb,var(--editor) 72%,var(--base))';save(layout.width??preview.getBoundingClientRect().width/scale/Math.max(.01,layout.scale??1),layout.x,layout.y,false,null,layout.scale);};
     scaleInput.oninput=()=>{scaleOutput.textContent=scaleInput.value+'%';applyLayout(parts,{...imageLayout(parts.source.src),scale:Number(scaleInput.value)/100});};
     scaleInput.onchange=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM),nextScale=Number(scaleInput.value)/100;save(layout.width??preview.getBoundingClientRect().width/scale/nextScale,layout.x,layout.y,false,layout.color,nextScale);};
     move.onkeydown = event => {
@@ -148,9 +150,9 @@ class ImageWidget extends WidgetType {
       event.preventDefault();
       const { x, y, scale:contentScale } = imageLayout(parts.source.src);
       const step=elementGridStep(view.contentDOM);
-      save(Math.max(step*4, preview.getBoundingClientRect().width/elementScale(view.contentDOM)/(contentScale??1) + (event.key === 'ArrowLeft' ? -step : step)), x, y);
+      save(Math.max(step*4, preview.getBoundingClientRect().width/elementScale(view.contentDOM)/Math.max(.01,contentScale??1) + (event.key === 'ArrowLeft' ? -step : step)), x, y);
     };
-    const startPointer = (event: PointerEvent, control: HTMLElement, moving: boolean) => {
+    const startPointer = (event: PointerEvent, control: HTMLElement, moving: boolean, corner:'nw'|'ne'|'sw'|'se'='se') => {
       if (event.button !== 0) return;
       event.preventDefault();
       const original = imageLayout(parts.source.src);
@@ -161,7 +163,7 @@ class ImageWidget extends WidgetType {
       const origin = content.getBoundingClientRect();
       const scale=elementScale(content),step=elementGridStep(content);
       const initialX = original.x??(boxRect.left - origin.left)/scale, initialY = original.y??(boxRect.top - origin.top)/scale;
-      let x = original.x, y = original.y, width = original.width??imageRect.width/scale/(original.scale??1);
+      let x = original.x, y = original.y, width = original.width??imageRect.width/scale/Math.max(.01,original.scale??1);
       let height=original.height??boxRect.height/scale;
       let changed = false;
       const pointerId=event.pointerId;
@@ -176,7 +178,7 @@ class ImageWidget extends WidgetType {
           x = snapGridBounded(initialX + dx/scale,Math.max(0,content.clientWidth-width),step);
           y = snapGridBounded(initialY + dy/scale,100000,step);
           const next=snapNoteWidgetPosition(box,{x,y,width,height:boxRect.height/scale,z},content,step);x=next.x;y=next.y;
-        } else {width=Math.min(1600,content.clientWidth||1600,Math.max(64,Math.round(((original.width??boxRect.width/scale)+dx/scale)/step)*step));height=Math.min(1200,Math.max(64,Math.round(((original.height??boxRect.height/scale)+dy/scale)/step)*step));}
+        } else {const oldWidth=original.width??boxRect.width/scale,oldHeight=original.height??boxRect.height/scale;const west=corner.includes('w'),north=corner.includes('n');width=Math.min(1600,content.clientWidth||1600,Math.max(64,Math.round((oldWidth+(west?-dx:dx)/scale)/step)*step));height=Math.min(1200,Math.max(64,Math.round((oldHeight+(north?-dy:dy)/scale)/step)*step));if(original.x!==undefined&&original.y!==undefined){x=west?Math.max(0,initialX+oldWidth-width):initialX;y=north?Math.max(0,initialY+oldHeight-height):initialY;}}
         applyLayout(parts,{width,height,x,y,z,color:original.color,scale:original.scale,borderWidth:original.borderWidth});
         queueNoteWidgetJoinSync(content,step);
       };
@@ -204,6 +206,10 @@ class ImageWidget extends WidgetType {
     };
     move.onpointerdown = event => startPointer(event,move,true);
     resize.onpointerdown = event => startPointer(event,resize,false);
+    for(const {corner,handle} of corners){
+      handle.onpointerdown=event=>{event.stopPropagation();if(box.classList.contains('floating-image'))startPointer(event,handle,false,corner);};
+      handle.onkeydown=event=>{if(!box.classList.contains('floating-image'))return;const step=elementGridStep(view.contentDOM),dx=event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0,dy=event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0;if(!dx&&!dy)return;event.preventDefault();event.stopPropagation();const layout=imageLayout(parts.source.src),oldWidth=layout.width??box.offsetWidth,oldHeight=layout.height??box.offsetHeight,width=Math.max(64,oldWidth+(corner.includes('w')?-dx:dx)),height=Math.max(64,oldHeight+(corner.includes('n')?-dy:dy));save(width,corner.includes('w')?(layout.x??0)+oldWidth-width:layout.x,corner.includes('n')?(layout.y??0)+oldHeight-height:layout.y,false,layout.color,layout.scale,height);};
+    }
     box.onpointerdown=event=>{
       if(!box.classList.contains('floating-image')||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.note-insert-resize,button')))return;
       startPointer(event,box,true);

@@ -661,6 +661,15 @@
   border-top: 1px solid var(--edge);
   font-size: calc(var(--ui-font-scale, 1) * 17px);
 }
+.explorer-tools { justify-content:space-between; gap:4px; padding:5px 3px; }
+.explorer-tools > .icon-button,.explorer-sort > .icon-button { flex:1; min-width:0; height:30px; padding:4px; color:var(--muted); }
+.explorer-tools > .icon-button:hover,.explorer-sort > .icon-button:hover,.explorer-tools .icon-button.active { color:var(--text); background:var(--glass-hover); }
+.explorer-sort { position:relative; flex:1; min-width:0; display:flex; }
+.explorer-sort-menu { position:absolute; z-index:20; top:34px; left:0; width:min(390px,calc(100vw - 48px)); padding:5px; border:1px solid var(--edge); border-radius:9px; background:var(--popup); box-shadow:0 12px 25px #0005; }
+.explorer-sort-menu button { width:100%; justify-content:flex-start; gap:9px; min-height:32px; padding:6px 8px; font-size:13px; text-align:left; }
+.explorer-sort-menu button span { flex:1; }
+.explorer-sort-menu .sort-divider { margin-top:5px; padding-top:9px; border-top:1px solid var(--line); border-radius:0; }
+.explorer-sort-menu button:hover,.explorer-sort-menu button[aria-checked="true"] { background:var(--glass-hover); }
 .explorer-tree { min-height: 0; flex: 1; overflow: auto; margin: 0 -4px 8px; padding: 0 4px; }
 .explorer-tree ul, .file-list { list-style: none; margin: 0; padding: 0; }
 .explorer-tree .explorer-branch { padding-left: 13px; margin-left: 4px; }
@@ -771,3 +780,11 @@
   .folder-actions { flex-wrap: wrap; }
   .liquid-shell .editor-toolbar { padding-inline: 6px; }
 }
+
+.app.liquid-shell .markdown-toolbar .ribbon-action { background:color-mix(in srgb,var(--ink) 9%,var(--tint)); border:1px solid var(--line); }
+.app.liquid-shell .markdown-toolbar .ribbon-action:hover { background:color-mix(in srgb,var(--ink) 15%,var(--tint)); }
+.app.liquid-shell .markdown-toolbar[aria-label="Вставка в документ"] { flex-wrap:nowrap; overflow:visible; }
+.app.liquid-shell .markdown-toolbar[aria-label="Вставка в документ"] .markdown-ribbon-group { flex-wrap:nowrap; }
+
+.widget-insert-menu { max-height:min(65vh,500px); overflow-y:auto; min-width:190px; }
+.widget-insert-menu select { width:100%; }

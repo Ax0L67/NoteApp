@@ -2,7 +2,8 @@ import type {Note} from './types';
 import type {ExplorerItem} from './Explorer';
 
 export function search(notes:Note[],query:string,items:ExplorerItem[]) {
-  const q=query.trim().toLocaleLowerCase(),contents=new Map(notes.map(note=>[note.path,note.content]));
+  const canvasText=(content:string)=>{try{const widgets=JSON.parse(content).widgets;return Array.isArray(widgets)?widgets.map(widget=>typeof widget?.text==='string'?widget.text:'').join(' '):''}catch{return ''}};
+  const q=query.trim().toLocaleLowerCase(),contents=new Map(notes.map(note=>[note.path,note.path.endsWith('.canvas')?canvasText(note.content):note.content]));
   return items.map(item=>{
     const content=item.kind==='note'?contents.get(item.path)??'':'';
     const index=content.toLocaleLowerCase().indexOf(q),name=item.name.toLocaleLowerCase();

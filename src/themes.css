@@ -1,0 +1,514 @@
+/* Adapted from Nord, Gruvbox, Everforest, Solarized and Catppuccin.
+   Themes supply base tokens; appearance.css applies palette tinting afterward. */
+.app[data-theme="nord"], .theme-option[data-theme="nord"] {
+  --surface-base: #242933;
+  --surface-panel: #2e3440;
+  --surface-tint: #384448;
+  --surface-editor: #303a40;
+  --surface-popup: #343c4b;
+  --surface-input: #434c5e;
+  --ink: #eceff4;
+  --secondary-ink: #d8dee9;
+  --quiet-ink: #bcc6d7;
+  --line-base: #4c566a;
+  --edge-base: #67758c;
+  --selection-base: #465d70;
+  --dot-base: #59677b;
+  --theme-accent: #88c0d0;
+  --success: #a3be8c;
+  --warning: #ebcb8b;
+  --danger: #e5a0a7;
+}
+.app.light[data-theme="nord"], .app.light .theme-option[data-theme="nord"] {
+  --surface-base: #c8d0dd;
+  --surface-panel: #d8dee9;
+  --surface-tint: #e5e9f0;
+  --surface-editor: #eceff4;
+  --surface-popup: #e5e9f0;
+  --surface-input: #d8dee9;
+  --ink: #2e3440;
+  --secondary-ink: #434c5e;
+  --quiet-ink: #4c566a;
+  --line-base: #a7b3c6;
+  --edge-base: #8493ab;
+  --selection-base: #bdcddb;
+  --dot-base: #9eafc4;
+  --theme-accent: #356579;
+  --success: #426337;
+  --warning: #785b22;
+  --danger: #974c59;
+}
+.app[data-theme="gruvbox"], .theme-option[data-theme="gruvbox"] {
+  --surface-base: #1d2021;
+  --surface-panel: #282c26;
+  --surface-tint: #403b30;
+  --surface-editor: #3c3836;
+  --surface-popup: #32302f;
+  --surface-input: #4b4439;
+  --ink: #fbf1c7;
+  --secondary-ink: #ebdbb2;
+  --quiet-ink: #d5c4a1;
+  --line-base: #665c54;
+  --edge-base: #7c6f64;
+  --selection-base: #665640;
+  --dot-base: #665c54;
+  --theme-accent: #fabd2f;
+  --success: #b8bb26;
+  --warning: #fabd2f;
+  --danger: #fb9985;
+}
+.app.light[data-theme="gruvbox"], .app.light .theme-option[data-theme="gruvbox"] {
+  --surface-base: #d5c4a1;
+  --surface-panel: #ebdbb2;
+  --surface-tint: #f2e5bc;
+  --surface-editor: #fbf1c7;
+  --surface-popup: #f2e5bc;
+  --surface-input: #ebdbb2;
+  --ink: #3c3836;
+  --secondary-ink: #504945;
+  --quiet-ink: #665c54;
+  --line-base: #bdae93;
+  --edge-base: #a89984;
+  --selection-base: #d8c89d;
+  --dot-base: #bdae93;
+  --theme-accent: #854f0c;
+  --success: #586819;
+  --warning: #855912;
+  --danger: #9d4030;
+}
+.app[data-theme="everforest"], .theme-option[data-theme="everforest"] {
+  --surface-base: #232a2e;
+  --surface-panel: #293833;
+  --surface-tint: #3b3b32;
+  --surface-editor: #343a42;
+  --surface-popup: #3d484d;
+  --surface-input: #424c40;
+  --ink: #d3c6aa;
+  --secondary-ink: #c1c6b0;
+  --quiet-ink: #afbbaa;
+  --line-base: #56635f;
+  --edge-base: #708477;
+  --selection-base: #4a5c4e;
+  --dot-base: #56635f;
+  --theme-accent: #a7c080;
+  --success: #a7c080;
+  --warning: #dbbc7f;
+  --danger: #e6a19b;
+}
+.app.light[data-theme="everforest"], .app.light .theme-option[data-theme="everforest"] {
+  --surface-base: #d6d9bd;
+  --surface-panel: #e6e2cc;
+  --surface-tint: #efebd4;
+  --surface-editor: #f3ead3;
+  --surface-popup: #e9e5d0;
+  --surface-input: #e0e2c9;
+  --ink: #37443a;
+  --secondary-ink: #4d5c50;
+  --quiet-ink: #596653;
+  --line-base: #b5bca2;
+  --edge-base: #97a38a;
+  --selection-base: #c6d3af;
+  --dot-base: #afb89b;
+  --theme-accent: #4e7041;
+  --success: #4e7041;
+  --warning: #806220;
+  --danger: #a14f45;
+}
+.app[data-theme="solarized"], .theme-option[data-theme="solarized"] {
+  --surface-base: #00212b;
+  --surface-panel: #002b36;
+  --surface-tint: #183d43;
+  --surface-editor: #293b40;
+  --surface-popup: #073642;
+  --surface-input: #474637;
+  --ink: #eee8d5;
+  --secondary-ink: #b7c6bf;
+  --quiet-ink: #a5b8b5;
+  --line-base: #37616a;
+  --edge-base: #527c83;
+  --selection-base: #285662;
+  --dot-base: #37616a;
+  --theme-accent: #d8b658;
+  --success: #a6b95b;
+  --warning: #d8b658;
+  --danger: #e69b87;
+}
+.app.light[data-theme="solarized"], .app.light .theme-option[data-theme="solarized"] {
+  --surface-base: #d8d2bf;
+  --surface-panel: #eee8d5;
+  --surface-tint: #f2ecdb;
+  --surface-editor: #fdf6e3;
+  --surface-popup: #eee8d5;
+  --surface-input: #e6e0ce;
+  --ink: #073642;
+  --secondary-ink: #455e60;
+  --quiet-ink: #52696b;
+  --line-base: #b7b5a0;
+  --edge-base: #959d8e;
+  --selection-base: #d4d8ba;
+  --dot-base: #b7b5a0;
+  --theme-accent: #8b6810;
+  --success: #5a7013;
+  --warning: #8b6810;
+  --danger: #a54c3d;
+}
+.app[data-theme="catppuccin"], .theme-option[data-theme="catppuccin"] {
+  --surface-base: #11111b;
+  --surface-panel: #242736;
+  --surface-tint: #3b3235;
+  --surface-editor: #30313e;
+  --surface-popup: #262637;
+  --surface-input: #48404a;
+  --ink: #cdd6f4;
+  --secondary-ink: #bac2de;
+  --quiet-ink: #a6adc8;
+  --line-base: #585b70;
+  --edge-base: #6c7086;
+  --selection-base: #52516b;
+  --dot-base: #585b70;
+  --theme-accent: #fab387;
+  --success: #a6e3a1;
+  --warning: #f9e2af;
+  --danger: #f38ba8;
+}
+.app.light[data-theme="catppuccin"], .app.light .theme-option[data-theme="catppuccin"] {
+  --surface-base: #dce0e8;
+  --surface-panel: #e6e9ef;
+  --surface-tint: #eff1f5;
+  --surface-editor: #f5f6fa;
+  --surface-popup: #eff1f5;
+  --surface-input: #dce0e8;
+  --ink: #4c4f69;
+  --secondary-ink: #5c5f77;
+  --quiet-ink: #62667d;
+  --line-base: #bcc0cc;
+  --edge-base: #9ca0b0;
+  --selection-base: #ccd4e6;
+  --dot-base: #bcc0cc;
+  --theme-accent: #965220;
+  --success: #406b23;
+  --warning: #85620a;
+  --danger: #ad3154;
+}
+.theme-picker { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:16px 0 24px; }
+.modal-settings .theme-option { display:flex; flex-direction:column; align-items:stretch; gap:6px; min-width:0; padding:10px; text-align:left; background:var(--surface-panel); color:var(--ink); border:1px solid var(--line-base); border-radius:8px; }
+.modal-settings .theme-option:hover { background:var(--surface-tint); }
+.modal-settings .theme-option[aria-pressed="true"] { outline:2px solid var(--accent); outline-offset:1px; }
+.theme-option strong { font-size:13px; }
+.theme-option small { color:var(--secondary-ink); font-size:12px; line-height:1.4; }
+.theme-preview { display:flex; height:24px; overflow:hidden; border-radius:4px; }
+.theme-preview i { flex:1; background:var(--surface-base); }
+.theme-preview i:nth-child(2) { background:var(--surface-panel); }
+.theme-preview i:nth-child(3) { flex:2; background:var(--surface-editor); }
+.theme-preview i:nth-child(4) { background:var(--theme-accent,var(--ink)); }
+@media(max-width:600px) { .theme-picker { grid-template-columns:1fr; } }
+.theme-option[data-theme="graphite"] {
+  --surface-base: #181818;
+  --surface-panel: #1e1e1e;
+  --surface-tint: #282828;
+  --surface-editor: #2c2c2c;
+  --surface-popup: #222222;
+  --surface-input: #2b2b2b;
+  --ink: #dedede;
+  --secondary-ink: #b9b9b9;
+  --line-base: #3c3c3c;
+--theme-accent:var(--ink);
+}
+.app.light .theme-option[data-theme="graphite"] {
+  --surface-base: #d2d2d2;
+  --surface-panel: #dedede;
+  --surface-tint: #e4e4e4;
+  --surface-editor: #eaeaea;
+  --surface-popup: #e5e5e5;
+  --surface-input: #e4e4e4;
+  --ink: #333333;
+  --secondary-ink: #595959;
+  --line-base: #b8b8b8;
+--theme-accent:var(--ink);
+}
+
+/* Adapted from Rosé Pine, Kanagawa, GitHub and PaperColor. */
+.app[data-theme="rose-pine"], .theme-option[data-theme="rose-pine"] {
+  --surface-base: #191724;
+  --surface-panel: #203032;
+  --surface-tint: #38303a;
+  --surface-editor: #302936;
+  --surface-popup: #292533;
+  --surface-input: #443742;
+  --ink: #e0def4;
+  --secondary-ink: #ccc3d8;
+  --quiet-ink: #b5aabd;
+  --line-base: #524853;
+  --edge-base: #746875;
+  --selection-base: #514253;
+  --dot-base: #4b424f;
+  --theme-accent: #ebbcba;
+  --success: #9ccfd8;
+  --warning: #f6c177;
+  --danger: #eb9eae;
+}
+.app.light[data-theme="rose-pine"], .app.light .theme-option[data-theme="rose-pine"] {
+  --surface-base: #e5dcd8;
+  --surface-panel: #e2ebe6;
+  --surface-tint: #eee1df;
+  --surface-editor: #faf4ed;
+  --surface-popup: #f2e9e1;
+  --surface-input: #e9dbd7;
+  --ink: #403946;
+  --secondary-ink: #5b5260;
+  --quiet-ink: #695e6c;
+  --line-base: #c7b9be;
+  --edge-base: #a1939b;
+  --selection-base: #e1cbd1;
+  --dot-base: #c7b9be;
+  --theme-accent: #94545f;
+  --success: #396d69;
+  --warning: #805922;
+  --danger: #a44460;
+}
+.app[data-theme="kanagawa"], .theme-option[data-theme="kanagawa"] {
+  --surface-base: #16161d;
+  --surface-panel: #202e35;
+  --surface-tint: #36362d;
+  --surface-editor: #292a37;
+  --surface-popup: #252b35;
+  --surface-input: #3c4245;
+  --ink: #dcd7ba;
+  --secondary-ink: #c8c5ad;
+  --quiet-ink: #b3b3a0;
+  --line-base: #4b5357;
+  --edge-base: #697578;
+  --selection-base: #3b5260;
+  --dot-base: #4b5357;
+  --theme-accent: #7fb4ca;
+  --success: #a3b98d;
+  --warning: #e6c384;
+  --danger: #e7a294;
+}
+.app.light[data-theme="kanagawa"], .app.light .theme-option[data-theme="kanagawa"] {
+  --surface-base: #d6ceb1;
+  --surface-panel: #d5dfd9;
+  --surface-tint: #e4d9b9;
+  --surface-editor: #f2ecda;
+  --surface-popup: #e6dfc8;
+  --surface-input: #dce0cb;
+  --ink: #363646;
+  --secondary-ink: #50525b;
+  --quiet-ink: #60636a;
+  --line-base: #bab9a4;
+  --edge-base: #92968a;
+  --selection-base: #c4d3cf;
+  --dot-base: #bab9a4;
+  --theme-accent: #355f70;
+  --success: #4f6848;
+  --warning: #79571b;
+  --danger: #974c41;
+}
+.app[data-theme="github"], .theme-option[data-theme="github"] {
+  --surface-base: #16181b;
+  --surface-panel: #1e2125;
+  --surface-tint: #25292e;
+  --surface-editor: #2c3035;
+  --surface-popup: #24282d;
+  --surface-input: #353a40;
+  --ink: #e1e4e8;
+  --secondary-ink: #bdc4cc;
+  --quiet-ink: #aab2bc;
+  --line-base: #464d55;
+  --edge-base: #606a76;
+  --selection-base: #414a55;
+  --dot-base: #454c55;
+  --theme-accent: #b3c7dc;
+  --success: #a6bdab;
+  --warning: #cab98d;
+  --danger: #d3a4a4;
+}
+.app.light[data-theme="github"], .app.light .theme-option[data-theme="github"] {
+  --surface-base: #d4d8dc;
+  --surface-panel: #e2e5e8;
+  --surface-tint: #e9ecef;
+  --surface-editor: #f4f5f6;
+  --surface-popup: #eaedf0;
+  --surface-input: #e0e4e8;
+  --ink: #30363d;
+  --secondary-ink: #525b65;
+  --quiet-ink: #616c77;
+  --line-base: #b4bcc5;
+  --edge-base: #929da8;
+  --selection-base: #cbd5df;
+  --dot-base: #b4bcc5;
+  --theme-accent: #3c617f;
+  --success: #47664d;
+  --warning: #786127;
+  --danger: #975454;
+}
+.app[data-theme="paper"], .theme-option[data-theme="paper"] {
+  --surface-base: #202020;
+  --surface-panel: #292929;
+  --surface-tint: #343434;
+  --surface-editor: #383837;
+  --surface-popup: #303030;
+  --surface-input: #414140;
+  --ink: #e4e4e0;
+  --secondary-ink: #c4c4bf;
+  --quiet-ink: #b2b2ad;
+  --line-base: #50504e;
+  --edge-base: #73736e;
+  --selection-base: #494b4b;
+  --dot-base: #50504e;
+  --theme-accent: #c6cccd;
+  --success: #adbdac;
+  --warning: #c9b991;
+  --danger: #cca7a3;
+}
+.app.light[data-theme="paper"], .app.light .theme-option[data-theme="paper"] {
+  --surface-base: #d1d1ce;
+  --surface-panel: #dededb;
+  --surface-tint: #e6e6e2;
+  --surface-editor: #eeeee9;
+  --surface-popup: #e5e5e1;
+  --surface-input: #d9d9d5;
+  --ink: #343535;
+  --secondary-ink: #595b5b;
+  --quiet-ink: #696b69;
+  --line-base: #b6b8b4;
+  --edge-base: #90948f;
+  --selection-base: #cbd1d0;
+  --dot-base: #b6b8b4;
+  --theme-accent: #4d666c;
+  --success: #53674f;
+  --warning: #7c6638;
+  --danger: #945951;
+}
+.theme-menu { margin:0 0 20px; border:1px solid var(--edge); border-radius:8px; padding:0 12px; background:var(--panel); }
+.theme-menu > summary { display:flex; align-items:center; gap:12px; min-height:44px; padding:10px 0; cursor:pointer; list-style:none; }
+.theme-menu > summary::-webkit-details-marker { display:none; }
+.theme-menu > summary small { margin-left:auto; color:var(--muted); }
+.theme-menu > summary::after { content:'›'; color:var(--muted); transition:transform 180ms var(--ease-ui); }
+.theme-menu[open] > summary::after { transform:rotate(90deg); }
+.theme-menu > summary:hover { color:var(--accent); }
+.theme-menu > summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:4px; }
+.theme-menu > .subtle { margin:4px 0 12px; }
+.theme-menu .theme-picker { margin:12px 0; }
+@media(prefers-reduced-motion:reduce) { .theme-menu > summary::after { transition:none; } }
+
+.app[data-theme="classic"], .theme-option[data-theme="classic"] {
+  --surface-base: #17191c;
+  --surface-panel: #202329;
+  --surface-tint: #282d34;
+  --surface-editor: #2c3035;
+  --surface-popup: #252a31;
+  --surface-input: #343b45;
+  --ink: #e0e3e7;
+  --secondary-ink: #b9c1ca;
+  --quiet-ink: #a4adb9;
+  --line-base: #414a56;
+  --edge-base: #5c6c80;
+  --selection-base: #34475e;
+  --dot-base: #414a56;
+  --theme-accent: #a5bfde;
+  --success: #a5bfa9;
+  --warning: #c9bb94;
+  --danger: #d0a2a2;
+}
+.app.light[data-theme="classic"], .app.light .theme-option[data-theme="classic"] {
+  --surface-base: #cdd2d8;
+  --surface-panel: #dce1e7;
+  --surface-tint: #e5e9ee;
+  --surface-editor: #f0f1f3;
+  --surface-popup: #e7eaee;
+  --surface-input: #d7dee7;
+  --ink: #293440;
+  --secondary-ink: #4e5c6c;
+  --quiet-ink: #606d7d;
+  --line-base: #b2beca;
+  --edge-base: #8b9bae;
+  --selection-base: #c7d5e6;
+  --dot-base: #b2beca;
+  --theme-accent: #3f6084;
+  --success: #45664d;
+  --warning: #7c652e;
+  --danger: #955456;
+}
+
+.app[data-theme="stone"], .theme-option[data-theme="stone"] {
+  --surface-base: #181818;
+  --surface-panel: #2c2c2c;
+  --surface-tint: #232323;
+  --surface-editor: #1e1e1e;
+  --surface-popup: #222222;
+  --surface-input: #2b2b2b;
+  --ink: #dedede;
+  --secondary-ink: #b9b9b9;
+  --quiet-ink: #a6a6a6;
+  --line-base: #3c3c3c;
+  --edge-base: #565656;
+  --selection-base: #303030;
+  --dot-base: #393939;
+  --theme-accent: #dedede;
+  --success: #a9bcae;
+  --warning: #c7b68f;
+  --danger: #cca6a4;
+}
+.app.light[data-theme="stone"], .app.light .theme-option[data-theme="stone"] {
+  --surface-base: #d2d2d2;
+  --surface-panel: #eaeaea;
+  --surface-tint: #e3e3e3;
+  --surface-editor: #dedede;
+  --surface-popup: #e5e5e5;
+  --surface-input: #e4e4e4;
+  --ink: #333333;
+  --secondary-ink: #595959;
+  --quiet-ink: #676767;
+  --line-base: #b8b8b8;
+  --edge-base: #909090;
+  --selection-base: #c5c5c5;
+  --dot-base: #b0b0b0;
+  --theme-accent: #333333;
+  --success: #4b6654;
+  --warning: #76613b;
+  --danger: #865752;
+}
+.app[data-theme="stone"] .central-window > .note-tab-strip { background:var(--tint-fill); }
+.app.liquid-shell[data-theme="stone"] .storage-strip { background-color:var(--tint-fill); }
+.app[data-theme="stone"] .central-window .note-tab-strip { --joined-tab-fill:var(--tint-fill); }
+.app[data-theme="stone"] .central-window .selected-note-tab,
+.app[data-theme="stone"] .central-window-actions > .note-zoom-controls-titlebar,
+.app[data-theme="stone"] .central-window-actions > .note-zoom-controls-titlebar::after { background:var(--tint-fill); }
+.app[data-theme="stone"] .central-window:has(.editor-pane[data-ribbon-hidden]) .selected-note-tab { background:var(--editor-fill); }
+.app[data-theme="stone"] .central-window:has(.editor-pane[data-ribbon-hidden]) .note-tab-strip { --joined-tab-fill:var(--editor-fill); }
+.app.liquid-shell[data-theme="stone"] .dock-workspace { padding:8px; gap:8px; }
+.app.liquid-shell[data-theme="stone"] .dock-resize { flex-basis:8px; }
+.app.liquid-shell[data-theme="stone"] .central-desktop { gap:8px; padding-inline:6px; }
+.app.liquid-shell[data-theme="stone"] .storage-strip { border-radius:12px; }
+.app.liquid-shell[data-theme="stone"] .central-window .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border-radius:12px 12px 0 0; }
+
+/* Settings use the same theme tokens as the workspace. */
+.app.settings-window { min-height:0; border:0; border-radius:0; background:var(--base); }
+.settings-window > .modal-overlay { position:absolute; inset:0; padding:0; background:var(--base); backdrop-filter:none; }
+.settings-window .modal.modal-settings { width:100%; height:100%; max-height:none; border:0; border-radius:0; box-shadow:none; }
+.modal-settings .settings-category-content { background:var(--panel); padding:32px; }
+.modal-settings .settings-categories { background:var(--base); border-right:1px solid var(--line); }
+.modal-settings .settings-categories button { border:1px solid transparent; border-radius:7px; }
+.modal-settings .settings-categories button[aria-current] { border-color:var(--edge); background:var(--input); }
+.modal-settings .settings-category-content section { background:var(--tint); padding:20px; border-radius:12px; }
+.modal-settings .settings-category-content :is(.range-label,.setting-row,.settings-palette,.editable-shortcuts label) { border-color:var(--line); }
+.modal-settings .settings-category-content .range-label { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; }
+.modal-settings .range-label input { grid-column:1/-1; width:100%; accent-color:var(--accent); }
+.modal-settings .settings-category-content .setting-row { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.modal-settings .theme-menu { background:var(--panel); border-color:var(--line); }
+.modal-settings .settings-category-content button:not(.theme-option):not(.swatch):not(.icon-button) { border-radius:5px; }
+@media(max-width:700px) { .modal-settings .settings-category-content { padding:18px 12px; } }
+
+.app .modal.modal-settings { padding:0; }
+.app .modal.modal-settings > header { margin:0; padding:5px 50px; }
+.app.settings-window .modal.modal-settings { max-width:none; margin:0; }
+
+.modal-settings .settings-ring-toggle input { appearance:none; flex:none; width:38px; min-width:38px; height:22px; min-height:22px; padding:2px; margin:0; border:1px solid var(--edge); border-radius:12px; background:var(--input); cursor:pointer; transition:background 150ms ease; }
+.modal-settings .settings-ring-toggle input::before { content:''; display:block; width:16px; height:16px; border-radius:50%; background:var(--muted); transition:transform 150ms ease; }
+.modal-settings .settings-ring-toggle input:checked { background:var(--accent); }
+.modal-settings .settings-ring-toggle input:checked::before { transform:translateX(16px); background:var(--panel); }
+@media (prefers-reduced-motion:reduce) { .modal-settings .settings-ring-toggle input,.modal-settings .settings-ring-toggle input::before { transition:none; } }
+
+.modal-settings .settings-category-content .settings-ring-toggle { flex-direction:row; align-items:center; margin:0; padding:18px 0; border-bottom:1px solid var(--line); }
+.modal-settings .settings-ring-toggle input { margin-left:auto; min-height:22px; height:22px; }

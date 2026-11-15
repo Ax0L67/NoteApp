@@ -3,6 +3,7 @@ import { CaretDown, CaretRight, DotsThree, FilePlus, FileText, Folder, FolderOpe
 import { folder, title } from './indexing';
 import { NoteBackdrop } from './appearance';
 import type { Note } from './types';
+import {ObjectIcon} from './ObjectIcon';
 
 export type ExplorerItem = { kind: 'project' | 'folder' | 'note'; project: string; path: string; name: string };
 export type ExplorerMenu = { item: ExplorerItem; x: number; y: number };
@@ -23,7 +24,7 @@ export function entriesIn(project: string, dir: string, folders: string[], notes
 export const itemKey = (item: ExplorerItem) => JSON.stringify([item.kind, item.project, item.path]);
 const itemIcon = (item: ExplorerItem, expanded = false, size = 20) => {
   if (item.kind === 'project') return <Stack size={size}/>;
-  if (item.kind === 'note') return <FileText size={size}/>;
+  if (item.kind === 'note') return item.path.endsWith('.canvas')?<SquaresFour size={size}/>:<FileText size={size}/>;
   return expanded ? <FolderOpen size={size}/> : <Folder size={size}/>;
 };
 
@@ -33,7 +34,7 @@ function MenuButton({ item, showMenu }: { item: ExplorerItem; showMenu: OpenMenu
     onClick={event => showMenu(event, item)}><DotsThree size={22}/></button>;
 }
 
-export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle, showMenu, projectPalette }: {
+export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle, showMenu, projectPalette, icons }: {
   roots: ExplorerItem[];
   childrenOf: (item: ExplorerItem) => ExplorerItem[];
   expanded: string[];
@@ -42,6 +43,7 @@ export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle
   toggle: (item: ExplorerItem) => void;
   showMenu?: OpenMenu;
   projectPalette?: (project:string)=>string;
+  icons?:Record<string,string>;
 }) {
   function branch(item: ExplorerItem) {
     const key = itemKey(item);
@@ -56,7 +58,7 @@ export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle
               onClick={() => toggle(item)}>{isExpanded ? <CaretDown size={13}/> : <CaretRight size={13}/>}</button>
           : <span className="explorer-indent"/>}
         <button type="button" className="explorer-name" title={item.name} aria-current={active(item) ? 'location' : undefined}
-          onClick={() => open(item)}>{item.kind==='project'&&projectPalette?
+          onClick={() => open(item)}>{icons?.[item.kind+':'+item.path]?<ObjectIcon item={item} icons={icons}/>:item.kind==='project'&&projectPalette?
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
               strokeLinecap="round" strokeLinejoin="round" className={`project-tree-icon palette-${projectPalette(item.project)}`} aria-hidden="true">
               <path d="m12 3 10 5-10 5L2 8Z" fill="var(--swatch-color, var(--palette-highlight, var(--palette-hue)))"/>
@@ -70,10 +72,11 @@ export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle
   return <nav className="explorer-tree" aria-label="Дерево проектов"><ul>{roots.map(branch)}</ul></nav>;
 }
 
-export function FolderContents({ name, background, root, entries, open, showMenu, actions }: {
+export function FolderContents({ name, background, root, entries, open, showMenu, actions, icons }: {
   name: string; background: string | null; root: string;
   entries: ExplorerItem[]; open: (item: ExplorerItem) => void; showMenu: OpenMenu;
   actions: ReactNode;
+  icons?:Record<string,string>;
 }) {
   return <main className="folder-contents glass-panel" aria-labelledby="folder-title">
     <NoteBackdrop path={background} root={root}/>
@@ -83,8 +86,8 @@ export function FolderContents({ name, background, root, entries, open, showMenu
       {entries.length ? <><div className="file-columns" aria-hidden="true"><span>Имя</span><span>Тип</span></div>
         <ul className="file-list">{entries.map(item => <li key={itemKey(item)} onContextMenu={event => showMenu(event, item)}>
           <button className="file-open" title={item.name} onClick={() => open(item)}>
-            <span>{itemIcon(item, false, 23)}<strong>{item.name}</strong></span>
-            <small>{item.kind === 'folder' ? 'Папка' : 'Заметка Markdown'}</small>
+            <span><ObjectIcon item={item} icons={icons} size={23}/><strong>{item.name}</strong></span>
+            <small>{item.kind === 'folder' ? 'Папка' : item.path.endsWith('.canvas')?'Полотно':'Заметка Markdown'}</small>
           </button>
           <MenuButton item={item} showMenu={showMenu}/>
         </li>)}</ul></> : <div className="folder-empty"><FolderOpen size={34}/><p>В этой папке пока пусто</p><small>Создайте заметку или папку на панели сверху.</small></div>}
@@ -92,8 +95,8 @@ export function FolderContents({ name, background, root, entries, open, showMenu
   </main>;
 }
 
-export function ExplorerContextMenu({ menu, close, newNote, newFolder, rename, move, remove, openSeparate }: {
-  menu: ExplorerMenu; close: () => void; newNote: () => void; newFolder: () => void; rename: () => void; remove: () => void;
+export function ExplorerContextMenu({ menu, close, newNote, newCanvas, newFolder, rename, move, remove, openSeparate, chooseIcon }: {
+  menu: ExplorerMenu; close: () => void; newNote: () => void; newCanvas:()=>void; newFolder: () => void; rename: () => void; remove: () => void;chooseIcon:()=>void;
   openSeparate:()=>void;
   move:()=>void;
 }) {
@@ -129,8 +132,10 @@ export function ExplorerContextMenu({ menu, close, newNote, newFolder, rename, m
     }}>
     <button role="menuitem" onClick={()=>pick(openSeparate)}><SquaresFour size={19}/>Открыть в отдельной вкладке</button>
     <button role="menuitem" disabled={menu.item.kind==='project'&&!menu.item.path} onClick={()=>pick(move)}><Folder size={19}/>Переместить…</button>
+    <button role="menuitem" onClick={()=>pick(chooseIcon)}><Stack size={19}/>Выбрать иконку…</button>
     {menu.item.kind !== 'note' ? <>
       <button role="menuitem" onClick={() => pick(newNote)}><FilePlus size={19}/>Новая заметка</button>
+      <button role="menuitem" onClick={() => pick(newCanvas)}><SquaresFour size={19}/>Новое полотно</button>
       <button role="menuitem" onClick={() => pick(newFolder)}><FolderPlus size={19}/>Новая папка</button>
     </> : <button role="menuitem" onClick={() => pick(rename)}><FileText size={19}/>Переименовать / переместить</button>}
     <button role="menuitem" className="context-remove" onClick={() => pick(remove)}><Trash size={19}/>В корзину</button>

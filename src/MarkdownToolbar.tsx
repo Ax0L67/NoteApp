@@ -27,7 +27,7 @@ const blockTools = [
 ];
 const symbols=['©','®','™','§','№','«','»','…','—','–','•','→','←','↔','↑','↓','✓','✗','★','☆','±','×','÷','≠','≤','≥','∞','°','µ','Ω','π','√','₽','€','£'];
 
-function changeIndent(view:EditorView,add:boolean) {
+export function changeIndent(view:EditorView,add:boolean) {
   const {from,to}=view.state.selection.main;
   const first=view.state.doc.lineAt(from).number;
   const last=view.state.doc.lineAt(to>from?to-1:to).number;
@@ -41,7 +41,7 @@ function changeIndent(view:EditorView,add:boolean) {
   view.focus();
 }
 
-function applyFormat(view: EditorView, format: Format) {
+export function applyFormat(view: EditorView, format: Format) {
   const { from, to } = view.state.selection.main;
   if (format.line) {
     const first = view.state.doc.lineAt(from);
@@ -114,6 +114,7 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
         <div className="markdown-ribbon-group" role="group" aria-label="Начертание">{tools.map(tool)}</div>
         <div className="markdown-ribbon-group" role="group" aria-label="Абзац">
           {blockTools.map(tool)}
+          <button type="button" title="Блок кода" aria-label="Блок кода" disabled={disabled} onMouseDown={event=>event.preventDefault()} onClick={()=>runEdit(view=>{const {from,to}=view.state.selection.main,text=view.state.sliceDoc(from,to),ticks=String.fromCharCode(96).repeat(Math.max(3,...[...text.matchAll(/`+/g)].map(match=>match[0].length+1))),insert=`\n${ticks}\n${text}\n${ticks}\n`;view.dispatch({changes:{from,to,insert},selection:{anchor:from+ticks.length+2,head:from+ticks.length+2+text.length}});view.focus();})}>Блок кода</button>
           <button type="button" title="Уменьшить отступ" aria-label="Уменьшить отступ" disabled={disabled}
             onMouseDown={event=>event.preventDefault()} onClick={()=>runEdit(view=>changeIndent(view,false))}><TextOutdent size={21}/></button>
           <button type="button" title="Увеличить отступ" aria-label="Увеличить отступ" disabled={disabled}
@@ -131,14 +132,23 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
         <div className="markdown-ribbon-group" role="group" aria-label="Объекты">
           <div className="widget-insert" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setWidgetMenu(false);}}
             onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setWidgetMenu(false);}}}>
-            <button type="button" className="ribbon-action" title="Добавить текстовый виджет. Правый клик — другие типы" aria-label="Добавить текстовый виджет"
+            <button type="button" className="ribbon-action" title="Выбрать виджет" aria-label="Виджет"
               aria-haspopup="menu" aria-expanded={widgetMenu} disabled={insertDisabled}
-              onMouseDown={event=>{if(event.button===0)event.preventDefault();}} onClick={()=>{setWidgetMenu(false);createWidget('text');}}
-              onContextMenu={event=>{event.preventDefault();setWidgetMenu(true);}}><Paperclip size={17}/>Виджет</button>
+              onMouseDown={event=>{if(event.button===0)event.preventDefault();}} onClick={()=>setWidgetMenu(value=>!value)}><Paperclip size={17}/>Виджет</button>
             {widgetMenu&&<div className="widget-insert-menu" role="menu" aria-label="Тип виджета">
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);createWidget('text');}}>Текст</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);createWidget('image');}}>Изображение</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);createWidget('link');}}>Ссылка</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('compare');}}>Сравнение</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('source');}}>Источник</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('concept');}}>Термин</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);runEdit(view=>insertCodeWidget(view));}}>Код</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addTable();}}>Таблица</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('math');}}>Формула</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('plot');}}>График</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);openTasks?.();}}>Задачи</button>
+              <select aria-label="Доска для встраивания" value={selectedBoard} onChange={event=>setSelectedBoard(event.target.value)}><option value="">Новая доска</option>{taskBoards.map(board=><option key={board.id} value={board.id}>{board.name}</option>)}</select>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);insertMapFeature?insertMapFeature('board',{boardId:selectedBoard||undefined}):runEdit(view=>insertBoard?.(view,selectedBoard||undefined));}}>Встроить доску</button>
             </div>}
           </div>
           <select className="font-picker" aria-label="Специальные символы" value="" disabled={disabled}
@@ -153,24 +163,7 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
             {symbols.map(symbol=><option key={symbol}>{symbol}</option>)}
           </select>
         </div>
-        <div className="markdown-ribbon-group feature-insert-actions" role="group" aria-label="Интерактивные блоки">
-          <button type="button" title="Сравнительный блок" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('compare')}>Сравнение</button>
-          <button type="button" title="Карточка источника" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('source')}>Источник</button>
-          <button type="button" title="Назначить определение выделенному термину" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('concept')}>Термин</button>
-          <button type="button" title="Вставить виджет Python / C++" disabled={disabled} onMouseDown={event=>event.preventDefault()} onClick={()=>runEdit(view=>insertCodeWidget(view))}>Код</button>
-          <div className="table-insert">
-            <button type="button" title="Вставить таблицу. Правый клик — выбрать размер" aria-expanded={tableMenu} aria-haspopup="menu" disabled={insertDisabled}
-              onMouseDown={event=>{if(event.button===0)event.preventDefault();}}
-              onClick={()=>{setTableMenu(false);addTable();}}
-              onContextMenu={event=>{event.preventDefault();setTableMenu(true);}}>Таблица</button>
-            {tableMenu&&<div className="table-insert-popover"><label>Строки<input type="number" min={1} max={30} value={tableRows} onChange={event=>setTableRows(Number(event.target.value))}/></label><label>Столбцы<input type="number" min={1} max={16} value={tableColumns} onChange={event=>setTableColumns(Number(event.target.value))}/></label><button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{setTableMenu(false);addTable()}}>Вставить</button></div>}
-          </div>
-          <button type="button" title="Интерактивная формула" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('math')}>Формула</button>
-          <button type="button" title="График функции" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>addFeature('plot')}>График</button>
-          <button type="button" title="Открыть общую доску задач" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={openTasks}>Задачи</button>
-          <select className="font-picker" aria-label="Доска для встраивания" value={selectedBoard} onChange={event=>setSelectedBoard(event.target.value)}><option value="">Новая доска</option>{taskBoards.map(board=><option key={board.id} value={board.id}>{board.name}</option>)}</select>
-          <button type="button" title="Встроить доску задач в заметку" disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>insertMapFeature?insertMapFeature('board',{boardId:selectedBoard||undefined}):runEdit(view=>insertBoard?.(view,selectedBoard||undefined))}>Встроить</button>
-        </div>
+        <button type="button" className="ribbon-action" disabled={disabled} onMouseDown={event=>event.preventDefault()} onClick={()=>runEdit(view=>{const {from,to}=view.state.selection.main;view.dispatch({changes:{from,to,insert:'\n\n---\n\n'},selection:{anchor:from+7},userEvent:'input.horizontal-rule'});view.focus();})}>Горизонтальная линия</button>
       </>}
     </div>
     </div>

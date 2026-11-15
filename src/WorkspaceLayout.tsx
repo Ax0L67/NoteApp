@@ -46,9 +46,9 @@ function ResizeGrip({axis,label,value,resize,toggle}:{axis:'x'|'y';label:string;
     }}/>;
 }
 
-export default function WorkspaceLayout({navigation,homeButton,inspector,children,layout,leftWidth,rightWidth,change,focus,palette,blend,appearances,applyPalette}:{
+export default function WorkspaceLayout({navigation,homeButton,inspector,children,layout,leftWidth,rightWidth,change,focus,palette,blend,appearances,applyPalette,decorativeRings}:{
   navigation:ReactNode;inspector:ReactNode;children:ReactNode;layout?:DockLayout;
-  homeButton:ReactNode;
+  homeButton:ReactNode;decorativeRings?:boolean;
   leftWidth?:number;rightWidth?:number;change:(layout:DockLayout)=>void;focus:boolean;
   palette:string;blend?:string;appearances?:Settings['panelAppearance'];applyPalette:(panel:DockPanel,value:PanelAppearance)=>void;
 }) {
@@ -125,8 +125,9 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
     }else{
       const sign=side==='right'||side==='bottom'?-1:1;
       const limit=side==='left'||side==='right'?bounds.width-280:bounds.height-180;
-      const minimum=side==='top'?0:96;
-      const size=Math.max(minimum,Math.min(Math.max(minimum,limit),start.sizes[side]+delta*sign));
+      const minimum=side==='bottom'?96:0;
+      const raw=Math.max(minimum,Math.min(Math.max(minimum,limit),start.sizes[side]+delta*sign));
+      const size=(side==='left'||side==='right')&&raw<80?0:raw;
       next={...start,sizes:{...start.sizes,[side]:size}};
     }
     if(phase==='end'){change(next);resizeStart.current=null;setDraft(null);setResizing(false);}
@@ -146,7 +147,7 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
       {children}
     </div>
     {dockSides.map(side=>groups[side].length>0&&<div key={side} className={`dock-zone dock-zone-${side}`} data-dock-side={side}
-      data-collapsed={side==='top'&&sizes.top===0||undefined}>
+      data-collapsed={sizes[side]===0||undefined}>
       {(side==='right'||side==='bottom')&&<ResizeGrip axis={side==='right'?'x':'y'} value={sizes[side]} label={`Размер панелей · ${sideLabels[side]}`} resize={(delta,phase)=>resize(side,delta,phase)}/>}
       <div className="dock-stack">
         {groups[side].map((id,index)=><div className="dock-stack-item" key={id} style={{flex:dockPanelWeight(model,id,groups[side])}}>
@@ -200,6 +201,7 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
                   setDragging(id);
                 }}><DotsSixVertical size={17}/><span>{labels[id]}</span></button>
             </header>
+            {id==='inspector'&&decorativeRings&&<span className="inspector-rings" aria-hidden="true"><i/><i/><i/><i/></span>}
             <div className="dock-panel-body">{panels[id]}</div>
           </section>
         </div>)}

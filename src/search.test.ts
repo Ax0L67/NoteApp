@@ -22,4 +22,9 @@ describe('Поиск по хранилищу',()=>{
   it('при пустом запросе показывает все доступные объекты',()=>{
     expect(search(notes,'',items)).toHaveLength(items.length);
   });
+  it('ищет текст виджета полотна без показа служебного JSON',()=>{
+    const item:ExplorerItem={kind:'note',project:'Учёба',path:'Учёба/Идеи.canvas',name:'Идеи'};
+    const result=search([{path:item.path,content:JSON.stringify({widgets:[{text:'Набросок проекта'}],strokes:[]}),revision:'1'}],'набросок',[item]);
+    expect(result[0].snippet).toBe('Набросок проекта');
+  });
 });

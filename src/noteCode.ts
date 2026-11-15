@@ -22,13 +22,13 @@ export function codeOptions(language:CodeLanguage,raw:unknown={}):CodeOptions {
   const options:CodeOptions={fileName:codeFileName(value.fileName,language),stdin:typeof value.stdin==='string'?value.stdin.slice(0,STDIN_LIMIT):''};
   if(typeof value.id==='string'&&/^[\w-]{1,80}$/.test(value.id))options.id=value.id;
   if(typeof value.color==='string'&&/^#[\da-f]{6}$/i.test(value.color))options.color=value.color;
-  if(typeof value.scale==='number'&&Number.isFinite(value.scale))options.scale=Math.max(.5,Math.min(2,value.scale));
+  if(typeof value.scale==='number'&&Number.isFinite(value.scale))options.scale=Math.max(0,Math.min(3,value.scale));
   const w=value.widget as Record<string,unknown>|undefined;
   if(w&&typeof w==='object'&&['x','y','width','height','z'].every(key=>typeof w[key]==='number'&&Number.isFinite(w[key]))){
     const n=(key:string,min:number,max:number)=>Math.max(min,Math.min(max,w[key] as number));
     options.widget={x:n('x',0,100000),y:n('y',0,100000),width:n('width',64,1600),height:n('height',64,1200),z:n('z',1,1000000000)};
     if(typeof w.borderWidth==='number'&&Number.isFinite(w.borderWidth))options.widget.borderWidth=widgetBorderWidth(w.borderWidth);
-    if(typeof w.scale==='number'&&Number.isFinite(w.scale))options.widget.scale=n('scale',.5,2);
+    if(typeof w.scale==='number'&&Number.isFinite(w.scale))options.widget.scale=n('scale',0,3);
     for(const key of ['color','fill'] as const)if(typeof w[key]==='string'&&/^#[\da-f]{6}$/i.test(w[key]))options.widget[key]=w[key];
     if(typeof w.texture==='string'&&/^[\w-]{1,80}$/.test(w.texture))options.widget.texture=w.texture;
   }

@@ -51,3 +51,21 @@ export function codeWidgets(notePath='') {
   const decorate=(state:EditorView['state']):DecorationSet=>Decoration.set(noteCodeBlocks(state.doc.toString()).map(block=>Decoration.replace({block:true,widget:new CodeWidget(block)}).range(block.from,block.to)),true);
   return StateField.define<DecorationSet>({create:decorate,update:(value,tr)=>tr.docChanged?decorate(tr.state):value,provide:field=>[EditorView.decorations.from(field),EditorView.atomicRanges.of(view=>view.state.field(field))]});
 }
+
+export function markdownCodeFrame() {
+  const decorate=(text:string)=>{
+    const rows=text.split('\n'),marks:ReturnType<ReturnType<typeof Decoration.line>['range']>[]=[];
+    let offset=0,open=false,marker='',length=0;
+    for(let i=0;i<rows.length;i++){
+      const row=rows[i],fence=new RegExp('^ {0,3}('+String.fromCharCode(96)+'{3,}|~{3,})([^\\r]*)$').exec(row);
+      if(!open&&fence){open=true;marker=fence[1][0];length=fence[1].length;}
+      if(open){const closing=i>0&&new RegExp('^ {0,3}'+marker+'{'+length+',}[ \\t]*\\r?$').test(row);
+        marks.push(Decoration.line({class:'markdown-code-frame'+(fence&&!closing?' markdown-code-frame-start':'')+(closing?' markdown-code-frame-end':'')}).range(offset));
+        if(closing)open=false;
+      }
+      offset+=row.length+1;
+    }
+    return Decoration.set(marks,true);
+  };
+  return StateField.define({create:state=>decorate(state.doc.toString()),update:(value,tr)=>tr.docChanged?decorate(tr.state.doc.toString()):value,provide:field=>EditorView.decorations.from(field)});
+}

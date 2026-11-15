@@ -1,3 +1,4 @@
+import {noteFenceRanges} from './noteFenceRanges';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot,type Root} from 'react-dom/client';
 import {syntaxTree} from '@codemirror/language';
@@ -86,7 +87,7 @@ export function featureBlocks(getNotes:()=>Note[],getBoards:()=>TaskBoard[],chan
       const chrome=noteWidgetChrome(host,view,position,this.block.kind==='board'?'Доска задач':'Блок заметки',next=>{position=next;write(value);},()=>write({__delete:true}),true,featureBaseWidth(this.block.kind));
       if(this.block.kind==='plot'){
         const label=document.createElement('label');label.className='note-widget-color';label.textContent='Цвет графика';
-        const input=document.createElement('input');input.type='color';input.value=/^#[0-9a-f]{6}$/i.test(value.plotColor??'')?value.plotColor:'#aa66db';input.setAttribute('aria-label','Цвет графика');
+        const input=document.createElement('input');input.type='color';input.value=/^#[0-9a-f]{6}$/i.test(value.plotColor??'')?value.plotColor:'#96a6b6';input.setAttribute('aria-label','Цвет графика');
         input.onchange=()=>{value={...value,plotColor:input.value};write(value);};label.append(input);chrome.actions.append(label);
       }
       fitByHost.set(host,chrome.dispose);
@@ -98,8 +99,9 @@ export function featureBlocks(getNotes:()=>Note[],getBoards:()=>TaskBoard[],chan
     destroy(dom:HTMLElement) {const refresh=refreshByHost.get(dom);if(refresh)refreshers.delete(refresh);fitByHost.get(dom)?.();fitByHost.delete(dom);roots.get(dom)?.unmount();roots.delete(dom);}
   }
   const decorate=(state:EditorView['state']):DecorationSet=>{
-    const widgets=[];fenceBlock.lastIndex=0;
+    const widgets=[],fences=noteFenceRanges(state.doc.toString());fenceBlock.lastIndex=0;
     for(const match of state.doc.toString().matchAll(fenceBlock)){
+      if(!fences.some(range=>range.from===match.index&&range.to===match.index!+match[0].length))continue;
       let value:FeatureValue;try{value=JSON.parse(match[4]);if(!value||typeof value!=='object'||Array.isArray(value))continue;}catch{continue;}
       const from=match.index!,to=from+match[0].length;
       const block:BlockRange={from,to,source:match[0],fence:match[1],kind:match[3] as NoteFeature,value};
@@ -169,10 +171,10 @@ function publishMathValues(id:string,variables:{name:string;value:number}[]) {
 
 export function FeatureCard({kind,value,editable,notes,boards,save,draftChange,changeBoard,openNote}:{kind:NoteFeature;value:FeatureValue;editable:boolean;notes:Note[];boards:TaskBoard[];save?:(value:FeatureValue)=>void;draftChange?:(value:FeatureValue)=>void;changeBoard:(board:TaskBoard)=>void;openNote:(path:string)=>void}) {
   const [draft,setDraft]=useState(()=>structuredClone(value));
-  const [saved,setSaved]=useState(false);
+
   useEffect(()=>{setDraft(current=>({...current,plotColor:value.plotColor}));},[value.plotColor]);
   const draftRef=useRef(draft);draftRef.current=draft;
-  const update=(patch:FeatureValue)=>{const next={...draftRef.current,...patch};draftRef.current=next;setDraft(next);draftChange?.(next);setSaved(false);if(kind==='math')publishMathValues(String(next.id??''),next.variables??[]);};
+  const update=(patch:FeatureValue)=>{const next={...draftRef.current,...patch};draftRef.current=next;setDraft(next);draftChange?.(next);if(kind==='math')publishMathValues(String(next.id??''),next.variables??[]);};
   useEffect(()=>{if(kind==='math')publishMathValues(String(draft.id??''),draft.variables??[]);},[kind,draft.id,JSON.stringify(draft.variables)]);
   const formulas=mathSources(notes);
   const header=kind==='compare'?'Сравнение':kind==='source'?'Источник':kind==='concept'?'Понятие':kind==='math'?'Формула':kind==='plot'?'График':'Доска задач';
@@ -180,7 +182,7 @@ export function FeatureCard({kind,value,editable,notes,boards,save,draftChange,c
     const board=boards.find(item=>item.id===value.id);
     return board?<TaskBoardView board={board} notes={notes} change={changeBoard} openNote={openNote} editable={editable}/>:<article className="note-feature-card"><strong>Доска задач недоступна</strong></article>;
   }
-  return <form className={`note-feature-card note-feature-${kind}-card`} onSubmit={event=>{event.preventDefault();save?.(draft);setSaved(true);}}>
+  return <form className={`note-feature-card note-feature-${kind}-card`} onSubmit={event=>event.preventDefault()} onBlur={event=>{if(editable&&!event.currentTarget.contains(event.relatedTarget as Node|null))save?.(draftRef.current);}}>
     <header><strong>{kind==='compare'?draft.title||header:kind==='source'?draft.title||header:kind==='concept'?draft.term||header:header}</strong>
       {!editable&&kind==='source'&&draft.url&&<button className="note-feature-open" type="button" onClick={()=>void openSourceLocation(draft.url).catch(error=>alert(error.message))}>Открыть источник</button>}
     </header>
@@ -189,7 +191,6 @@ export function FeatureCard({kind,value,editable,notes,boards,save,draftChange,c
     {kind==='concept'&&<ConceptEditor value={draft} editable={editable} change={update} notes={notes} openNote={openNote}/>}
     {kind==='math'&&<MathEditor value={draft} editable={editable} change={update}/>}
     {kind==='plot'&&<PlotEditor value={draft} editable={editable} change={update} formulas={formulas}/>}
-    {editable&&<footer><button type="submit">{saved?'Сохранено':'Сохранить'}</button></footer>}
   </form>;
 }
 
@@ -282,7 +283,7 @@ function PlotEditor({value,editable,change,formulas}:{value:FeatureValue;editabl
     const ctx=element.getContext('2d');if(!ctx)return;ctx.scale(ratio,ratio);ctx.clearRect(0,0,rect.width,rect.height);
     const x=(v:number)=>(v-range.minX)/(range.maxX-range.minX)*rect.width,y=(v:number)=>rect.height-(v-range.minY)/(range.maxY-range.minY)*rect.height;
     ctx.strokeStyle=getComputedStyle(element).getPropertyValue('--line').trim()||'#777';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y(0));ctx.lineTo(rect.width,y(0));ctx.moveTo(x(0),0);ctx.lineTo(x(0),rect.height);ctx.stroke();
-    expressions.filter(Boolean).forEach((source,index)=>{ctx.beginPath();ctx.strokeStyle=/^#[0-9a-f]{6}$/i.test(value.plotColor??'')?value.plotColor:`hsl(${(index*83+270)%360} 65% 58%)`;ctx.lineWidth=2;let open=false;
+    expressions.filter(Boolean).forEach((source,index)=>{ctx.beginPath();ctx.strokeStyle=/^#[0-9a-f]{6}$/i.test(value.plotColor??'')?value.plotColor:`hsl(${(index*83+210)%360} 18% 65%)`;ctx.lineWidth=2;let open=false;
       for(let px=0;px<=Math.min(1000,Math.ceil(rect.width));px++){const xv=range.minX+px/rect.width*(range.maxX-range.minX),yv=evaluateMath(source,{x:xv,...variables});if(yv===null||yv<range.minY-(range.maxY-range.minY)||yv>range.maxY+(range.maxY-range.minY)){open=false;continue;}const py=y(yv);if(open)ctx.lineTo(px,py);else{ctx.moveTo(px,py);open=true;}}
       ctx.stroke();
     });};

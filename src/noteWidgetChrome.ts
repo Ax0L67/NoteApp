@@ -78,6 +78,7 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
       return other.left<=own.left&&other.right>=own.right&&other.top<edge&&other.bottom>edge;
     };
     for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){
+      if(items[i].classList.contains('visual-table-host')||items[j].classList.contains('visual-table-host')||items[i].classList.contains('reading-table-widget')||items[j].classList.contains('reading-table-widget'))continue;
       const a=items[i].getBoundingClientRect(),b=items[j].getBoundingClientRect(),tolerance=Math.max(1,2*scale);
       const overlapX=Math.min(a.right,b.right)-Math.max(a.left,b.left),overlapY=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top);
       const contains=(outer:DOMRect,inner:DOMRect)=>outer.left<=inner.left&&outer.top<=inner.top&&outer.right>=inner.right&&outer.bottom>=inner.bottom;
@@ -164,16 +165,18 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
   const viewport=document.createElement('div');viewport.className='note-widget-body widget-fit-viewport';
   const body=document.createElement('div');body.className='widget-fit-content';viewport.append(body);
   const {menu,actions,move,remove}=noteInsertMenu(`Действия: ${label}`,false);move.hidden=true;
-  host.classList.add('floating-note-text','note-feature-widget');host.contentEditable='false';host.append(viewport,menu);
+  const heading=document.createElement('div');heading.className='note-widget-heading';heading.textContent=label;
+  host.classList.add('floating-note-text','note-feature-widget');host.contentEditable='false';host.append(heading,viewport,menu);
   const dispose=fitWidgetContent(viewport,body,baseWidth,()=>position.scale??1);
   widgetSizeControls(actions,()=>position,size=>savePosition({...position,...size}));
   widgetBorderControls(actions,()=>position.borderWidth,borderWidth=>savePosition({...position,borderWidth}));
   const scaleLabel=document.createElement('label');scaleLabel.className='note-widget-scale';scaleLabel.append('Масштаб содержимого');
   const scaleOutput=document.createElement('output');
-  const scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='50';scaleInput.max='150';scaleInput.step='10';scaleInput.value=String(Math.round((position.scale??1)*100));
+  const scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='0';scaleInput.max='300';scaleInput.step='5';scaleInput.value=String(Math.round((position.scale??1)*100));
   scaleOutput.textContent=scaleInput.value+'%';scaleLabel.append(scaleOutput,scaleInput);actions.append(scaleLabel);
   scaleInput.oninput=()=>{position={...position,scale:Number(scaleInput.value)/100};scaleOutput.textContent=scaleInput.value+'%';refreshWidgetFit(viewport);};
   scaleInput.onchange=()=>savePosition(position);
+  if(label==='Таблица')scaleLabel.remove();
   const colorAction=(labelText:string,key:'color'|'fill',fallback:string)=>{
     const label=document.createElement('label');label.className='note-widget-color';label.append(labelText);
     const input=document.createElement('input');input.type='color';input.value=position[key]??fallback;input.setAttribute('aria-label',labelText);label.append(input);actions.append(label);
@@ -181,17 +184,17 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
     input.onchange=()=>savePosition(position);
     if(key==='color'){
       const reset=document.createElement('button');reset.type='button';reset.textContent='Вернуть обычный цвет рамки';
-      reset.onclick=()=>{position={...position,color:undefined};input.value='#cba6ed';place(position);savePosition(position);};actions.append(reset);
+      reset.onclick=()=>{position={...position,color:undefined};input.value='#b0b0b0';place(position);savePosition(position);};actions.append(reset);
     }
   };
-  colorAction('Цвет окантовки','color','#cba6ed');colorAction('Цвет фона','fill','#39343f');
+  colorAction('Цвет окантовки','color','#b0b0b0');colorAction('Цвет фона','fill','#2c2c2c');
   remove.onclick=()=>{if(confirm('Удалить этот виджет?'))removeWidget();};
   const handles=(['n','e','s','w','ne','nw','se','sw'] as const).map(edge=>{
     const handle=document.createElement('div');handle.className=`floating-note-resize floating-note-resize-${edge}`;handle.setAttribute('role','separator');handle.setAttribute('aria-label',edge.length===2?'Изменить размер виджета':edge==='e'||edge==='w'?'Изменить ширину виджета':'Изменить высоту виджета');handle.tabIndex=editable?0:-1;handle.hidden=!editable;host.append(handle);return {edge,handle};
   });
   function place(next:NoteWidgetPosition) {
     const bounded=constrainNoteWidgetPosition(next,view.contentDOM,elementGridStep(view.contentDOM));
-    host.style.setProperty('--note-widget-border-width',widgetBorderWidth(bounded.borderWidth)+'px');host.style.left=bounded.x+'px';host.style.top=bounded.y+'px';host.style.width=bounded.width+'px';host.style.height=bounded.height+'px';host.style.setProperty('--note-layer',String(bounded.z));host.style.borderColor=bounded.color??'var(--edge)';host.style.background=bounded.fill??'var(--editor)';
+    host.style.setProperty('--note-widget-border-width',widgetBorderWidth(bounded.borderWidth)+'px');host.style.left=bounded.x+'px';host.style.top=bounded.y+'px';host.style.width=bounded.width+'px';host.style.height=bounded.height+'px';host.style.setProperty('--note-layer',String(bounded.z));host.style.borderColor=bounded.color??`color-mix(in srgb,${bounded.fill??'var(--panel)'} 72%,var(--base))`;host.style.background=bounded.fill??'var(--panel-fill)';
     applyTextureClass(host,next.texture);
     if(next.fill)host.style.setProperty('--accent',next.fill);else host.style.removeProperty('--accent');
     queueNoteWidgetJoinSync(view.contentDOM,elementGridStep(view.contentDOM));
@@ -217,7 +220,7 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
     handle.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();event.stopPropagation();const step=elementGridStep(view.contentDOM),dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;savePosition(resized(dx,dy));};
   }
   host.onpointerdown=event=>{
-    if(event.button!==0||!editable||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.floating-note-resize,.visual-table-column-resize,.plot-widget,button,input,select,textarea,a,[draggable="true"],.task-card')))return;
+    if(event.button!==0||!editable||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.floating-note-resize,.visual-table-column-resize,.visual-table-row-resize,.visual-table-cell,.plot-widget,button,input,select,textarea,a,[draggable="true"],.task-card')))return;
     event.preventDefault();
     const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM),step=elementGridStep(view.contentDOM),origin=constrainNoteWidgetPosition(position,view.contentDOM,step);let x=origin.x,y=origin.y,dragged=false;host.setPointerCapture(event.pointerId);
     host.onpointermove=pointer=>{if(pointer.pointerId!==event.pointerId)return;const dx=pointer.clientX-start.x,dy=pointer.clientY-start.y;if(!dragged&&Math.abs(dx)+Math.abs(dy)<4)return;dragged=true;host.dataset.dragging='';pointer.preventDefault();x=snapGridBounded(origin.x+dx/scale,Math.max(0,view.contentDOM.clientWidth-origin.width),step);y=snapGridBounded(origin.y+dy/scale,100000,step);const next=snapNoteWidgetPosition(host,{...origin,x,y},view.contentDOM,step);x=next.x;y=next.y;place(next);};
@@ -226,5 +229,5 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
   };
   host.ondragover=event=>{if(event.dataTransfer?.types.includes(paletteDragType)){event.preventDefault();event.dataTransfer.dropEffect='copy';}};
   host.ondrop=event=>{const transfer=event.dataTransfer;if(!transfer)return;const value=readPaletteDrop(transfer.getData(paletteDragType));if(!value)return;event.preventDefault();event.stopPropagation();if(textureById(value.palette)){savePosition({...position,texture:value.palette});return;}const color=getComputedStyle(host).getPropertyValue(`--palette-color-${value.palette}`).trim();if(color&&CSS.supports('color',color))savePosition({...position,fill:color,texture:undefined});};
-  return {body,actions,getPosition:()=>({...position}),place,dispose};
+  return {body,actions,getPosition:()=>({...position}),place,setPosition:(next:NoteWidgetPosition)=>{position=next;place(next);},dispose};
 }

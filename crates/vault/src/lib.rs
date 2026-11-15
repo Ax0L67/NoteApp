@@ -10,8 +10,17 @@ pub fn atomic_write(path:&Path,bytes:&[u8])->R<()> {
     fs::create_dir_all(parent).map_err(err)?;
     let mut temp=tempfile::NamedTempFile::new_in(parent).map_err(err)?;
     temp.write_all(bytes).map_err(err)?;temp.as_file().sync_all().map_err(err)?;
+    #[cfg(windows)] if let Ok(metadata)=fs::metadata(path){preserve_created(temp.as_file(),&metadata).map_err(err)?;}
     temp.persist(path).map_err(err)?;
     #[cfg(unix)] File::open(parent).and_then(|f|f.sync_all()).map_err(err)?;
+    Ok(())
+}
+#[cfg(windows)] fn preserve_created(file:&File,metadata:&fs::Metadata)->std::io::Result<()> {
+    use std::os::windows::{fs::MetadataExt,io::AsRawHandle};
+    #[repr(C)] struct FileTime {low:u32,high:u32}
+    #[link(name="kernel32")] extern "system" {fn SetFileTime(file:*mut std::ffi::c_void,created:*const FileTime,accessed:*const FileTime,modified:*const FileTime)->i32;}
+    let ticks=metadata.creation_time();let created=FileTime{low:ticks as u32,high:(ticks>>32) as u32};
+    if unsafe{SetFileTime(file.as_raw_handle(),&created,std::ptr::null(),std::ptr::null())}==0{return Err(std::io::Error::last_os_error())}
     Ok(())
 }
 fn hash(s:&str)->String {format!("{:x}",Sha256::digest(s.as_bytes()))}
@@ -80,14 +89,18 @@ impl Vault {
         Ok(p)
     }
     fn note_path(&self,rel:&str)->R<PathBuf>{
-        if rel.starts_with('.') || rel.split('/').any(|p|p.starts_with('.')) || !rel.to_lowercase().ends_with(".md"){return Err("Ожидается Markdown-файл внутри хранилища".into())} self.path(rel)
+        if rel.starts_with('.') || rel.split('/').any(|p|p.starts_with('.')) || !(rel.to_lowercase().ends_with(".md") || rel.to_lowercase().ends_with(".canvas")){return Err("Ожидается заметка или полотно внутри хранилища".into())} self.path(rel)
     }
     fn walk(&self,dir:&Path,out:&mut Vec<Value>)->R<()>{
         let mut entries=fs::read_dir(dir).map_err(err)?.collect::<Result<Vec<_>,_>>().map_err(err)?;entries.sort_by_key(|e|e.file_name());
         for entry in entries {let p=entry.path();let m=entry.file_type().map_err(err)?;
             if m.is_symlink() || entry.file_name().to_string_lossy().starts_with('.') {continue}
-            if m.is_dir(){self.walk(&p,out)?} else if p.extension().map(|s|s.eq_ignore_ascii_case("md")).unwrap_or(false){
-                let content=fs::read_to_string(&p).map_err(err)?;out.push(json!({"path":p.strip_prefix(&self.root).map_err(err)?.to_string_lossy().replace('\\',"/"),"content":content,"revision":hash(&content)}));
+            if m.is_dir(){self.walk(&p,out)?} else if p.extension().map(|s|s.eq_ignore_ascii_case("md")||s.eq_ignore_ascii_case("canvas")).unwrap_or(false){
+                let content=fs::read_to_string(&p).map_err(err)?;
+                let meta=entry.metadata().map_err(err)?;
+                let millis=|value:std::io::Result<std::time::SystemTime>|value.ok().and_then(|time|time.duration_since(std::time::UNIX_EPOCH).ok()).map(|duration|duration.as_millis() as u64);
+                let modified=millis(meta.modified());let created=millis(meta.created()).or(modified);
+                out.push(json!({"path":p.strip_prefix(&self.root).map_err(err)?.to_string_lossy().replace('\\',"/"),"content":content,"revision":hash(&content),"createdAt":created,"modifiedAt":modified}));
             }
         } Ok(())
     }
@@ -147,14 +160,14 @@ impl Vault {
         if dest.exists(){return Err("Заметка с таким именем уже существует".into())}
         let content=fs::read_to_string(&src).map_err(err)?;if hash(&content)!=revision{return Err("Заметка изменилась извне. Сначала обновите её.".into())}
         let old=Path::new(from).file_stem().unwrap().to_string_lossy().to_string();
-        let new=to.trim_end_matches(".md"); // Qualified targets remain unambiguous.
+        let new=to.trim_end_matches(".md").trim_end_matches(".canvas"); // Qualified targets remain unambiguous.
         let mut notes=vec![];self.walk(&self.root,&mut notes)?;
         let ambiguous=notes.iter().filter(|n|Path::new(n["path"].as_str().unwrap()).file_stem().unwrap().to_string_lossy()==old).count()>1;
         let reference = |path:&str| format!("](noteapp-note:{})",base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(path));
         let old_reference=reference(from);let new_reference=reference(to);
         let re=regex::Regex::new(r"\[\[([^\]|#]+)([^\]]*)\]\]").unwrap();let mut changes=vec![];
         for n in notes {let path=n["path"].as_str().unwrap();let before=n["content"].as_str().unwrap();
-            let after=re.replace_all(before,|c:&regex::Captures|{if c[1]==*from.trim_end_matches(".md")||(!ambiguous&&c[1]==old){format!("[[{}{}]]",new,&c[2])}else{c[0].to_string()}}).replace(old_reference.as_str(),&new_reference);
+            let after=re.replace_all(before,|c:&regex::Captures|{if c[1]==*from.trim_end_matches(".md").trim_end_matches(".canvas")||(!ambiguous&&c[1]==old){format!("[[{}{}]]",new,&c[2])}else{c[0].to_string()}}).replace(old_reference.as_str(),&new_reference);
             if path==from {let after=rebase_markdown(&after,from,to);changes.push(json!({"path":to,"before":null,"after":after}));changes.push(json!({"path":from,"before":before,"after":null}));}
             else if after!=before {changes.push(json!({"path":path,"before":before,"after":after}));}
         }
@@ -262,9 +275,21 @@ impl Vault {
             "restore"=>{let id=str_arg(&a,"id")?;if id.is_empty()||!id.chars().all(|c|c.is_ascii_digit()){return Err("Некорректный идентификатор".into())}
                 let meta=self.root.join(format!(".noteapp/trash/{id}.json"));let item:Value=serde_json::from_slice(&fs::read(&meta).map_err(err)?).map_err(err)?;
                 let orig=str_arg(&item,"path")?;if item["kind"]=="folder"{return self.restore_folder(meta,orig)}let mut dest=self.note_path(orig)?;
-                if dest.exists(){dest=self.note_path(&format!("{} (восстановлено {}).md",orig.trim_end_matches(".md"),stamp()))?}
+                if dest.exists(){let ext=if orig.ends_with(".canvas"){"canvas"}else{"md"};dest=self.note_path(&format!("{} (восстановлено {}).{}",orig.trim_end_matches(".md").trim_end_matches(".canvas"),stamp(),ext))?}
                 let data=self.root.join(format!(".noteapp/trash/{id}.md"));atomic_write(&dest,&fs::read(&data).map_err(err)?)?;fs::remove_file(meta).map_err(err)?;fs::remove_file(data).map_err(err)?;self.snapshot()},
             "settings"=>{atomic_write(&self.root.join(".noteapp/settings.json"),&serde_json::to_vec(&a).map_err(err)?)?;Ok(json!(true))},
+            "settings-patch"=>{
+                if a["root"].as_str()!=self.root.to_str(){return Err("Хранилище изменилось. Повторите изменение настроек.".into())}
+                let values=a["values"].as_object().ok_or("Неверные настройки")?;
+                let remove=a["remove"].as_array().ok_or("Неверный список настроек")?;
+                let path=self.root.join(".noteapp/settings.json");
+                let mut settings:Value=match fs::read(&path){Ok(bytes)=>serde_json::from_slice(&bytes).map_err(err)?,Err(e) if e.kind()==std::io::ErrorKind::NotFound=>json!({}),Err(e)=>return Err(err(e))};
+                let object=settings.as_object_mut().ok_or("Неверный формат настроек")?;
+                object.extend(values.clone());
+                for key in remove{object.remove(key.as_str().ok_or("Неверное имя настройки")?);}
+                atomic_write(&path,&serde_json::to_vec(&settings).map_err(err)?)?;
+                Ok(json!(true))
+            },
             "template"=>{let name=str_arg(&a,"name")?;if name.is_empty()||name.contains(['/', '\\', ':'])||name.starts_with('.') {return Err("Некорректное имя шаблона".into())}atomic_write(&self.root.join(format!(".noteapp/templates/{name}.md")),str_arg(&a,"content")?.as_bytes())?;self.snapshot()},
             "attachment"=>{let name=Path::new(str_arg(&a,"name")?).file_name().ok_or("Нет имени")?.to_string_lossy();if name.contains(['\\',':']){return Err("Некорректное имя".into())}let rel=format!("attachments/{}-{}",stamp(),name);let bytes=base64::engine::general_purpose::STANDARD.decode(str_arg(&a,"data")?).map_err(err)?;atomic_write(&self.path(&rel)?,&bytes)?;Ok(json!({"path":rel}))},
             "asset"=>{let rel=str_arg(&a,"path")?;let p=self.path(rel)?;let ext=p.extension().unwrap_or_default().to_string_lossy().to_lowercase();let mime=match ext.as_str(){"png"=>"image/png","jpg"|"jpeg"=>"image/jpeg","webp"=>"image/webp","gif"=>"image/gif","avif"=>"image/avif",_=>return Err("Формат изображения не поддерживается".into())};let bytes=fs::read(p).map_err(err)?;Ok(json!(format!("data:{mime};base64,{}",base64::engine::general_purpose::STANDARD.encode(bytes))))},
@@ -291,6 +316,16 @@ fn copy_tree(src:&Path,dst:&Path,metadata:bool)->R<()> {
 #[cfg(test)] mod tests {
     use super::*;
     fn vault()->(tempfile::TempDir,Vault){let d=tempfile::tempdir().unwrap();let v=Vault::open(d.path().join("vault")).unwrap();(d,v)}
+    #[test] fn settings_patch_preserves_other_windows() {
+        let (_d,v)=vault();
+        v.dispatch("settings",json!({"active":"A.md","palette":"slate"})).unwrap();
+        v.dispatch("settings-patch",json!({"root":v.root,"values":{"interfaceTheme":"paper"},"remove":[]})).unwrap();
+        v.dispatch("settings-patch",json!({"root":v.root,"values":{"uiScale":125},"remove":["palette"]})).unwrap();
+        let s=v.snapshot().unwrap();
+        assert_eq!(s["settings"],json!({"active":"A.md","interfaceTheme":"paper","uiScale":125}));
+        assert!(v.dispatch("settings-patch",json!({"root":"another-vault","values":{},"remove":[]})).is_err());
+    }
+    #[test] fn canvas_survives_rename_and_restart(){let (_d,v)=vault();let saved=v.save("Личное/Идеи.canvas",r#"{"strokes":[],"widgets":[]}"#,None).unwrap();let created=v.snapshot().unwrap()["notes"][0]["createdAt"].clone();let saved=v.save("Личное/Идеи.canvas",r#"{"strokes":[],"widgets":[{"type":"text"}]}"#,saved["revision"].as_str()).unwrap();assert_eq!(v.snapshot().unwrap()["notes"][0]["createdAt"],created);let root=v.root.clone();v.rename("Личное/Идеи.canvas","Личное/План.canvas",saved["revision"].as_str().unwrap()).unwrap();drop(v);let v=Vault::open(root).unwrap();let notes=v.snapshot().unwrap()["notes"].as_array().unwrap().clone();assert_eq!(notes[0]["path"],"Личное/План.canvas");assert!(notes[0]["content"].as_str().unwrap().contains("widgets"));assert!(notes[0]["createdAt"].as_u64().is_some());assert!(notes[0]["modifiedAt"].as_u64().is_some());}
     #[test] fn save_restart_conflict(){let (_d,v)=vault();let r=v.save("Заметка.md","# Текст",None).unwrap();assert!(v.save("Заметка.md","wrong",None).unwrap()["conflict"].as_bool().unwrap());let root=v.root.clone();drop(v);let v=Vault::open(root).unwrap();assert_eq!(v.snapshot().unwrap()["notes"][0]["content"],"# Текст");fs::write(v.root.join("Заметка.md"),"external").unwrap();assert_eq!(v.save("Заметка.md","edit",r["revision"].as_str()).unwrap()["content"],"external");}
     #[test] fn rename_links_and_restore(){let (_d,v)=vault();let r=v.save("A.md","hello",None).unwrap();v.save("B.md","[[A]] [[A|alias]] [[A#section]]",None).unwrap();v.rename("A.md","Папка/C.md",r["revision"].as_str().unwrap()).unwrap();assert_eq!(fs::read_to_string(v.root.join("B.md")).unwrap(),"[[Папка/C]] [[Папка/C|alias]] [[Папка/C#section]]");v.dispatch("trash",json!({"path":"Папка/C.md","revision":hash("hello")})).unwrap();let s=v.snapshot().unwrap();v.dispatch("restore",json!({"id":s["trash"][0]["id"]})).unwrap();assert_eq!(fs::read_to_string(v.root.join("Папка/C.md")).unwrap(),"hello");}
     #[test] fn refuses_traversal_and_duplicate(){let (_d,v)=vault();assert!(v.save("../bad.md","x",None).is_err());assert!(v.save(".noteapp/bad.md","x",None).is_err());let r=v.save("A.md","x",None).unwrap();v.save("B.md","y",None).unwrap();assert!(v.rename("A.md","B.md",r["revision"].as_str().unwrap()).is_err());}

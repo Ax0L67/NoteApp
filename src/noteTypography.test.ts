@@ -32,3 +32,11 @@ it('replaces the previous size when resizing the same text back',()=>{
  const view=editor('Example',0,7);applyNoteSize(view,48);applyNoteSize(view,16);
  expect(view.state.doc.toString()).toBe('<span data-note-size="16">Example</span>');
 });
+
+it('applies custom line height to selected text and subsequent typing',async()=>{
+ const {applyNoteLineHeight}=await import('./noteTextColor');
+ const view=editor('Text',0,4);applyNoteLineHeight(view,2.4);
+ expect(view.state.doc.toString()).toBe('<span data-note-line="2.4">Text</span>');
+ const cursor=editor('',0);applyNoteLineHeight(cursor,1.4);cursor.dispatch(cursor.state.replaceSelection('New'));
+ expect(cursor.state.doc.toString()).toBe('<span data-note-line="1.4">New</span>');
+});

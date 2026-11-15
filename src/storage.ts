@@ -1,7 +1,6 @@
 import {invoke,isTauri} from '@tauri-apps/api/core';
 import type {Note,Snapshot} from './types';
 import {folder} from './indexing';
-import {welcome} from './templates';
 import {remapNoteReference} from './noteReferences';
 export const desktop=isTauri();
 const key='noteapp-preview-v1';
@@ -34,13 +33,13 @@ function validFolderPath(path:string) {
   !/[<>:"|?*\x00-\x1f]/.test(part)&&!/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))&&
   path.split('/')[0].toLowerCase()!=='attachments';
 }
-function initial():Snapshot {return {root:'browser-preview',name:'Личное',notes:[{path:'Знания/Как устроена память.md',content:welcome,revision:revision(welcome)},{path:'Знания/Интервальное повторение.md',content:'# Интервальное повторение\n\nКак работает память и почему интервальные повторения эффективны: [[Как устроена память]].\n\n#обучение',revision:''},{path:'План развития.md',content:'# План развития\n\n- [ ] Изучить [[Как устроена память]]\n- [ ] Завести привычку записывать идеи\n\n#идеи',revision:''},{path:'Книги для чтения.md',content:'# Книги для чтения\n\n- [ ] Искусство учиться\n\n#книги',revision:''}],folders:['Знания','Дневник'],settings:{favorites:['План развития.md','Книги для чтения.md'],active:'Знания/Как устроена память.md'},trash:[],templates:[]};}
+function initial():Snapshot {return {root:'browser-preview',name:'Личное',notes:[],folders:[],settings:{projects:[]},trash:[],templates:[]};}
 export async function request<T=Snapshot>(op:string,args:Record<string,unknown>={}):Promise<T>{
  if(desktop)return invoke<T>('request',{op,args});
  const s:Snapshot & {removedFolders?: Record<string,{folders:string[];notes:Note[]}>}=JSON.parse(localStorage.getItem(key)||'null')||initial();let result:unknown=s;
  const path=args.path as string;
- if(op==='save'){const n=s.notes.find(n=>n.path===path);if((n?.revision??null)!==args.revision)return {conflict:true,content:n?.content??null,revision:n?.revision??null} as T;const next={path,content:args.content as string,revision:revision(args.content as string)};s.notes=s.notes.filter(n=>n.path!==path).concat(next);addPreviewFolder(s,folder(path));result={revision:next.revision};}
- if(op==='rename'){if(s.notes.some(n=>n.path===args.to))throw Error('Заметка уже существует');const old=path.replace(/\.md$/,'');const name=old.split('/').pop();s.notes=s.notes.map(n=>({...n,path:n.path===path?args.to as string:n.path,content:remapNoteReference(n.content.replace(/\[\[([^\]|#]+)([^\]]*)\]\]/g,(m,t,suffix)=>t===old||t===name?`[[${(args.to as string).replace(/\.md$/,'')}${suffix}]]`:m),path,args.to as string)}));s.notes.forEach(n=>n.revision=revision(n.content));}
+ if(op==='save'){const n=s.notes.find(n=>n.path===path);if((n?.revision??null)!==args.revision)return {conflict:true,content:n?.content??null,revision:n?.revision??null} as T;const next={path,content:args.content as string,revision:revision(args.content as string),createdAt:n?.createdAt??Date.now(),modifiedAt:Date.now()};s.notes=s.notes.filter(n=>n.path!==path).concat(next);addPreviewFolder(s,folder(path));result={revision:next.revision};}
+ if(op==='rename'){if(s.notes.some(n=>n.path===args.to))throw Error('Заметка уже существует');const old=path.replace(/\.(md|canvas)$/,'');const name=old.split('/').pop();s.notes=s.notes.map(n=>({...n,path:n.path===path?args.to as string:n.path,content:remapNoteReference(n.content.replace(/\[\[([^\]|#]+)([^\]]*)\]\]/g,(m,t,suffix)=>t===old||t===name?`[[${(args.to as string).replace(/\.(md|canvas)$/,'')}${suffix}]]`:m),path,args.to as string)}));s.notes.forEach(n=>n.revision=revision(n.content));}
  if(op==='trash'){const n=s.notes.find(n=>n.path===path)!;const id=String(Date.now());localStorage.setItem(`trash-${id}`,JSON.stringify(n));s.trash.push({id,path});s.notes=s.notes.filter(n=>n.path!==path);}
  if(op==='restore'){
   const item=s.trash.find(t=>t.id===args.id);
@@ -55,11 +54,12 @@ export async function request<T=Snapshot>(op:string,args:Record<string,unknown>=
    delete s.removedFolders![item.id];
   }else{
    const n=JSON.parse(localStorage.getItem(`trash-${args.id}`)||'null');
-   if(n){if(s.notes.some(x=>x.path===n.path))n.path=n.path.replace('.md',` (восстановлено ${Date.now()}).md`);s.notes.push(n);addPreviewFolder(s,folder(n.path));}
+   if(n){if(s.notes.some(x=>x.path===n.path))n.path=n.path.replace(/\.(md|canvas)$/,(_match:string,extension:string)=>` (восстановлено ${Date.now()}).${extension}`);s.notes.push(n);addPreviewFolder(s,folder(n.path));}
   }
   s.trash=s.trash.filter(t=>t.id!==args.id);
  }
  if(op==='settings')s.settings=args;
+ if(op==='settings-patch'){if(args.root!==s.root)throw Error('Хранилище изменилось. Повторите изменение настроек.');Object.assign(s.settings,args.values);for(const key of args.remove as (keyof typeof s.settings)[])delete s.settings[key];}
  if(op==='folder')addPreviewFolder(s,path);
  if(op==='move_folder'){
   let from=args.from as string;const to=args.to as string;

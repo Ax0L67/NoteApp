@@ -1,4 +1,10 @@
-import {useEffect,useRef,useState} from 'react';
+import CodeMirror from '@uiw/react-codemirror';
+import {markdown as markdownLanguage} from '@codemirror/lang-markdown';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {noteTextColor,remarkNoteColor} from './noteTextColor';
+import {noteFenceRanges} from './noteFenceRanges';
+import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {createRoot,type Root} from 'react-dom/client';
 import {StateField} from '@codemirror/state';
@@ -7,13 +13,22 @@ import {widgetBorderWidth,defaultNoteWidgetPosition,noteWidgetChrome,type NoteWi
 import {paletteDragType,palettes,readPaletteDrop} from './appearance';
 import {textureById} from './textures';
 
-type TableData={rows:string[][];align:('left'|'center'|'right')[];widths:number[];palettes?:(string|null)[]};
+const activeCells=new WeakMap<HTMLElement,EditorView>();
+export function activeTableEditor(root:HTMLElement|null) {const view=root?activeCells.get(root):undefined;return view&&root?.contains(view.dom)?view:undefined;}
+export function clearActiveTableEditor(root:HTMLElement|null) {if(root)activeCells.delete(root);}
+const tableCellExtensions=[markdownLanguage(),noteTextColor,EditorView.lineWrapping,EditorView.domEventHandlers({focus(_event,view){const root=view.dom.closest<HTMLElement>('.main-note-editor');if(root)activeCells.set(root,view);return false;}})];
+function TableCell({value,label,change,focus,paste}:{value:string;label:string;change:(value:string)=>void;focus:()=>void;paste:(event:ClipboardEvent)=>boolean}) {
+ const pasteRef=useRef(paste);pasteRef.current=paste;
+ const extensions=useMemo(()=>[...tableCellExtensions,EditorView.domEventHandlers({paste(event){return pasteRef.current(event);}})],[]);
+ return <CodeMirror className="visual-table-cell" value={value.replace(/<br\s*\/?\s*>/gi,'\n')} onChange={change} onFocus={focus} extensions={extensions} basicSetup={{lineNumbers:false,foldGutter:false,highlightActiveLine:false,highlightActiveLineGutter:false,autocompletion:false}} aria-label={label}/>;
+}
+type TableData={rows:string[][];align:('left'|'center'|'right')[];widths:number[];heights?:number[];palettes?:(string|null)[]};
 type TableRange={from:number;to:number;source:string;header:string;separator:string;body:string[];comment:string;widget?:NoteWidgetPosition};
 const tableComment=(line:string)=>/^<!-- noteapp-table(?:\s+[a-z]+=[^\s>]*)+\s+-->$/.test(line);
 function markerValues(comment:string){return Object.fromEntries([...comment.matchAll(/([a-z]+)=([^\s>]+)/g)].map(match=>[match[1],match[2]]));}
 function parseWidget(comment:string):NoteWidgetPosition|undefined {
   const values=markerValues(comment);if(!['x','y','w','h','z'].every(key=>Number.isFinite(Number(values[key]))))return;
-  return {borderWidth:values.bw===undefined?undefined:widgetBorderWidth(Number(values.bw)),x:Number(values.x),y:Number(values.y),width:Number(values.w),height:Number(values.h),z:Number(values.z),color:values.c?`#${values.c}`:undefined,fill:values.b?`#${values.b}`:undefined,texture:textureById(values.tx)?.id,scale:values.s?Math.max(.5,Math.min(2,Number(values.s)/100)):1};
+  return {borderWidth:values.bw===undefined?undefined:widgetBorderWidth(Number(values.bw)),x:Number(values.x),y:Number(values.y),width:Number(values.w),height:Number(values.h),z:Number(values.z),color:values.c?`#${values.c}`:undefined,fill:values.b?`#${values.b}`:undefined,texture:textureById(values.tx)?.id,scale:values.s?Math.max(0,Math.min(3,Number(values.s)/100)):1};
 }
 const roots=new WeakMap<HTMLElement,Root>();
 type TableWidgetContext={range:TableRange;position:NoteWidgetPosition;draft:TableData;content:string;root?:Root;actions?:HTMLElement;dispose?:()=>void;view:EditorView;render:(range:TableRange)=>void};
@@ -26,7 +41,8 @@ function parse(range:TableRange):TableData {
   const header=splitRow(range.header),body=range.body.map(splitRow),columns=header.length;
   const widths=markerValues(range.comment).widths?.split(',').map(Number)??Array(columns).fill(Math.floor(100/columns));
   const columnPalettes=markerValues(range.comment).palettes?.split(',')??[];
-  return {rows:[header,...body].map(row=>Array.from({length:columns},(_,i)=>row[i]??'')),align:splitRow(range.separator).map(alignment),widths:Array.from({length:columns},(_,i)=>widths[i]??Math.floor(100/columns)),palettes:Array.from({length:columns},(_,i)=>palettes.some(palette=>palette.id===columnPalettes[i])?columnPalettes[i]:null)};
+  const heights=markerValues(range.comment).heights?.split(',').map(Number).filter(Number.isFinite);
+  return {heights,rows:[header,...body].map(row=>Array.from({length:columns},(_,i)=>row[i]??'')),align:splitRow(range.separator).map(alignment),widths:Array.from({length:columns},(_,i)=>widths[i]??Math.floor(100/columns)),palettes:Array.from({length:columns},(_,i)=>palettes.some(palette=>palette.id===columnPalettes[i])?columnPalettes[i]:null)};
 }
 function safeCell(value:string){return value.replace(/\r?\n/g,'<br>').replace(/\|/g,'\\|')}
 function serialize(table:TableData,widget:NoteWidgetPosition) {
@@ -34,27 +50,34 @@ function serialize(table:TableData,widget:NoteWidgetPosition) {
   const header=`| ${table.rows[0].map(safeCell).join(' | ')} |`;
   const separator=`| ${Array.from({length:columns},(_,i)=>table.align[i]==='center'?':---:':table.align[i]==='right'?'---:':':---').join(' | ')} |`;
   const body=table.rows.slice(1).map(row=>`| ${Array.from({length:columns},(_,i)=>safeCell(row[i]??'')).join(' | ')} |`);
-  const comment=`<!-- noteapp-table widths=${table.widths.join(',')} palettes=${(table.palettes??[]).map(value=>value??'').join(',')} x=${widget.x} y=${widget.y} w=${widget.width} h=${widget.height} z=${widget.z}${widget.color?` c=${widget.color.replace('#','')}`:''}${widget.fill?` b=${widget.fill.replace('#','')}`:''}${textureById(widget.texture)?` tx=${widget.texture}`:''} s=${Math.round((widget.scale??1)*100)}${widget.borderWidth!==undefined?` bw=${widgetBorderWidth(widget.borderWidth)}`:''} -->\n`;
+  const comment=`<!-- noteapp-table widths=${table.widths.join(',')}${table.heights?.length?` heights=${table.heights.join(',')}`:''} palettes=${(table.palettes??[]).map(value=>value??'').join(',')} x=${widget.x} y=${widget.y} w=${widget.width} h=${widget.height} z=${widget.z}${widget.color?` c=${widget.color.replace('#','')}`:''}${widget.fill?` b=${widget.fill.replace('#','')}`:''}${textureById(widget.texture)?` tx=${widget.texture}`:''} s=${Math.round((widget.scale??1)*100)}${widget.borderWidth!==undefined?` bw=${widgetBorderWidth(widget.borderWidth)}`:''} -->\n`;
   return `${comment}${[header,separator,...body].join('\n')}`;
 }
 
 function MarkdownTable({table,source,update,markdown,draftChange,menuActions}:{table:TableData;source:string;update:(data:TableData)=>void;markdown:()=>void;draftChange:(data:TableData)=>void;menuActions:HTMLElement}) {
+  const [context,setContext]=useState<{x:number;y:number}|null>(null);
   const [draft,setDraft]=useState(table),[selection,setSelection]=useState({from:[0,0] as [number,number],to:[0,0] as [number,number]});
+  const tableRef=useRef<HTMLTableElement>(null),[rowBoundaries,setRowBoundaries]=useState<number[]>([]);
+  useLayoutEffect(()=>{const element=tableRef.current;if(!element)return;const measure=()=>setRowBoundaries(Array.from(element.rows,row=>row.offsetTop+row.offsetHeight));const observer=new ResizeObserver(measure);observer.observe(element);Array.from(element.rows,row=>observer.observe(row));measure();return()=>observer.disconnect();},[draft.rows.length]);
   useEffect(()=>setDraft(table),[source]);
   const resizing=useRef<{pointer:number;x:number;width:number;column:number;direction:number;widths:number[]}|null>(null);
+  const rowResize=useRef<{pointer:number;y:number;row:number;height:number}|null>(null);
   const draggingColumn=useRef<number|null>(null),rangeAnchor=useRef<[number,number]>([0,0]),extending=useRef(false);
-  const change=(next:TableData)=>{setDraft(next);draftChange(next)};
+  const saveTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+  useEffect(()=>()=>clearTimeout(saveTimer.current),[]);
+  const change=(next:TableData)=>{setDraft(next);draftChange(next);clearTimeout(saveTimer.current);saveTimer.current=setTimeout(()=>update(next),600);};
   const patchCell=(row:number,column:number,text:string)=>change({...draft,rows:draft.rows.map((cells,r)=>cells.map((cell,c)=>r===row&&c===column?text:cell))});
-  const paste=(event:React.ClipboardEvent<HTMLTextAreaElement>,row:number,column:number)=>{
-    const text=event.clipboardData.getData('text/plain');if(!text.includes('\t')&&!text.includes('\n'))return;
+  const paste=(event:ClipboardEvent,row:number,column:number)=>{
+    const text=event.clipboardData?.getData('text/plain')??'';if(!text.includes('\t'))return false;
     event.preventDefault();const values=text.replace(/\r/g,'').split('\n').filter((line,index,array)=>line||index<array.length-1).map(line=>line.split('\t'));
     const columns=Math.min(16,Math.max(draft.rows[0].length,column+Math.max(...values.map(line=>line.length))));
     const rows=draft.rows.map(cells=>Array.from({length:columns},(_,index)=>cells[index]??''));
     while(rows.length<row+values.length)rows.push(Array(columns).fill(''));
     values.forEach((line,r)=>line.forEach((value,c)=>{if(column+c<columns)rows[row+r][column+c]=value}));
-    change({...draft,rows,align:Array.from({length:columns},(_,index)=>draft.align[index]??'left'),widths:Array.from({length:columns},(_,index)=>draft.widths[index]??Math.max(5,Math.floor(100/columns))),palettes:Array.from({length:columns},(_,index)=>draft.palettes?.[index]??null)});
+    change({...draft,rows,align:Array.from({length:columns},(_,index)=>draft.align[index]??'left'),widths:Array.from({length:columns},(_,index)=>draft.widths[index]??Math.max(5,Math.floor(100/columns))),palettes:Array.from({length:columns},(_,index)=>draft.palettes?.[index]??null)});return true;
   };
   const reorder=(from:number,to:number)=>{if(from===to||from<0||to<0||from>=draft.rows[0].length||to>=draft.rows[0].length)return;const move=<T,>(items:T[])=>{const next=[...items],[item]=next.splice(from,1);next.splice(to,0,item);return next};change({...draft,rows:draft.rows.map(move),align:move(draft.align),widths:move(draft.widths),palettes:move(draft.palettes??Array(draft.rows[0].length).fill(null))});setSelection({from:[selection.from[0],to],to:[selection.to[0],to]});};
+  const animateColumns=(from:number,to:number,element:HTMLElement)=>{const table=element.closest('table');if(!table||from===to)return;const rows=Array.from(table.rows);for(const row of rows){const a=row.cells[from],b=row.cells[to];if(!a||!b)continue;const dx=b.getBoundingClientRect().left-a.getBoundingClientRect().left;a.animate([{transform:'translateX(0)'},{transform:`translateX(${dx}px)`}],{duration:180,easing:'ease-out'});b.animate([{transform:'translateX(0)'},{transform:`translateX(${-dx}px)`}],{duration:180,easing:'ease-out'});} };
   const selectedColumn=selection.to[1],selectedRow=Math.max(1,selection.to[0]);
   const cellSelection=(row:number,column:number)=>({onMouseDown:(event:React.MouseEvent<HTMLTextAreaElement>)=>{extending.current=event.shiftKey;if(!event.shiftKey)rangeAnchor.current=[row,column]},onFocus:()=>{if(!extending.current)setSelection({from:[row,column],to:[row,column]})},onClick:(event:React.MouseEvent<HTMLTextAreaElement>)=>{if(event.shiftKey)setSelection({from:rangeAnchor.current,to:[row,column]});else{rangeAnchor.current=[row,column];setSelection({from:[row,column],to:[row,column]})}extending.current=false}});
   const copyRange=async()=>{const [[r1,c1],[r2,c2]]=[selection.from,selection.to],rStart=Math.min(r1,r2),rEnd=Math.max(r1,r2),cStart=Math.min(c1,c2),cEnd=Math.max(c1,c2);const text=draft.rows.slice(rStart,rEnd+1).map(row=>row.slice(cStart,cEnd+1).join('\t')).join('\n');try{await navigator.clipboard.writeText(text)}catch{}}
@@ -63,26 +86,42 @@ function MarkdownTable({table,source,update,markdown,draftChange,menuActions}:{t
   const resizeEnd=(event:React.PointerEvent<HTMLSpanElement>)=>{if(resizing.current?.pointer===event.pointerId)resizing.current=null};
   const resizeKeyboard=(boundary:number,delta:number)=>{const count=draft.widths.length;if(count<2)return;const column=boundary===0?0:Math.min(boundary-1,count-2),direction=boundary===0||boundary===count?-1:1,total=draft.widths[column]+draft.widths[column+1],left=Math.max(5,Math.min(total-5,draft.widths[column]+delta*direction));change({...draft,widths:draft.widths.map((value,index)=>index===column?left:index===column+1?total-left:value)})};
   const dropPalette=(event:React.DragEvent<HTMLElement>,column:number)=>{if(!event.dataTransfer.types.includes(paletteDragType))return false;const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(!value)return false;event.preventDefault();event.stopPropagation();const columnPalettes=[...(draft.palettes??Array(draft.rows[0].length).fill(null))];columnPalettes[column]=value.palette;change({...draft,palettes:columnPalettes});return true;};
-  const addColumn=()=>{const count=draft.rows[0].length+1;change({...draft,rows:draft.rows.map(row=>[...row,'']),align:[...draft.align,'left'],widths:[...draft.widths,Math.max(5,100/count)],palettes:[...(draft.palettes??Array(draft.rows[0].length).fill(null)),null]})};
-  const removeColumn=()=>{if(draft.rows[0].length<2)return;change({...draft,rows:draft.rows.map(row=>row.filter((_,index)=>index!==selectedColumn)),align:draft.align.filter((_,index)=>index!==selectedColumn),widths:draft.widths.filter((_,index)=>index!==selectedColumn),palettes:(draft.palettes??[]).filter((_,index)=>index!==selectedColumn)})};
+  const addRow=(index=draft.rows.length)=>{const rows=[...draft.rows];rows.splice(index,0,Array(draft.rows[0].length).fill(''));const heights=draft.heights?[...draft.heights]:undefined;if(heights)heights.splice(index,0,32);change({...draft,rows,heights});};
+  const removeRow=()=>{if(draft.rows.length<2)return;change({...draft,rows:draft.rows.filter((_,index)=>index!==selectedRow),heights:draft.heights?.filter((_,index)=>index!==selectedRow)});setSelection({from:[0,selectedColumn],to:[0,selectedColumn]});};
+  const addColumn=(index=draft.rows[0].length)=>{const count=draft.rows[0].length+1,insert=<T,>(values:T[],value:T)=>{const next=[...values];next.splice(index,0,value);return next};change({...draft,rows:draft.rows.map(row=>insert(row,'')),align:insert(draft.align,'left'),widths:insert(draft.widths.map(width=>width*(count-1)/count),100/count),palettes:insert(draft.palettes??Array(count-1).fill(null),null)});};
+  const removeColumn=()=>{if(draft.rows[0].length<2)return;const widths=draft.widths.filter((_,index)=>index!==selectedColumn),total=widths.reduce((a,b)=>a+b,0);change({...draft,rows:draft.rows.map(row=>row.filter((_,index)=>index!==selectedColumn)),align:draft.align.filter((_,index)=>index!==selectedColumn),widths:widths.map(width=>total?width*100/total:100/widths.length),palettes:(draft.palettes??[]).filter((_,index)=>index!==selectedColumn)});const column=Math.min(selectedColumn,widths.length-1);setSelection({from:[0,column],to:[0,column]});};
   const menu=<div className="visual-table-actions">
-    <button type="button" onClick={markdown}>Markdown</button><button type="button" onClick={()=>change({...draft,rows:[...draft.rows,Array(draft.rows[0].length).fill('')]})}>Добавить строку</button>
-    <button type="button" onClick={()=>change({...draft,rows:[...draft.rows.slice(0,selectedRow),...draft.rows.slice(selectedRow+1)]})} disabled={draft.rows.length<2}>Удалить строку</button>
-    <button type="button" onClick={addColumn}>Добавить столбец</button><button type="button" onClick={removeColumn} disabled={draft.rows[0].length<2}>Удалить столбец</button>
+    <button type="button" onClick={()=>addRow()}>Добавить строку</button>
+    <button type="button" onClick={removeRow} disabled={draft.rows.length<2}>Удалить строку</button>
+    <button type="button" onClick={()=>addColumn()}>Добавить столбец</button><button type="button" onClick={removeColumn} disabled={draft.rows[0].length<2}>Удалить столбец</button>
     <label>Выравнивание<select value={draft.align[selectedColumn]??'left'} onChange={event=>change({...draft,align:draft.align.map((value,index)=>index===selectedColumn?event.target.value as TableData['align'][number]:value)})}><option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option></select></label>
-    <button type="button" onClick={()=>void copyRange()}>Копировать диапазон</button><button type="button" className="primary" onClick={()=>update(draft)}>Сохранить</button>
+    <button type="button" onClick={()=>void copyRange()}>Копировать диапазон</button>
   </div>;
-  return <section className="visual-table-widget" aria-label="Визуальный редактор таблицы" onContextMenu={event=>{event.preventDefault();event.stopPropagation();const menu=event.currentTarget.closest<HTMLElement>('.floating-note-text')?.querySelector<HTMLDetailsElement>('.note-insert-menu');if(menu)menu.open=true}}>
+  return <section className="visual-table-widget" aria-label="Визуальный редактор таблицы" onContextMenu={event=>{event.preventDefault();event.stopPropagation();const cell=(event.target as HTMLElement).closest<HTMLTableCellElement>('td,th');if(cell){const row=cell.parentElement as HTMLTableRowElement;setSelection({from:[row.rowIndex,cell.cellIndex],to:[row.rowIndex,cell.cellIndex]});}setContext({x:Math.min(event.clientX,window.innerWidth-245),y:Math.min(event.clientY,window.innerHeight-390)});}}>
     {createPortal(menu,menuActions)}
-    <div className="visual-table-overflow"><table><colgroup>{draft.widths.map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup><thead><tr>{draft.rows[0].map((cell,column)=>{
+    {context&&createPortal(<><div className="note-context-dismiss" onMouseDown={()=>setContext(null)}/><div className="note-context-menu" style={{left:context.x,top:context.y}} role="menu" onMouseDown={e=>e.preventDefault()}>
+      <button onClick={()=>{addRow(selection.to[0]+1);setContext(null);}}>Добавить строку снизу</button>
+      <button onClick={()=>{removeRow();setContext(null);}}>Удалить строку</button>
+      <button onClick={()=>{addColumn(selectedColumn+1);setContext(null);}}>Добавить столбец справа</button>
+      <button onClick={()=>{removeColumn();setContext(null);}}>Удалить столбец</button>
+      <button disabled={selectedColumn===0} onClick={()=>{reorder(selectedColumn,selectedColumn-1);setContext(null);}}>Переместить столбец влево</button>
+      <button disabled={selectedColumn>=draft.widths.length-1} onClick={()=>{reorder(selectedColumn,selectedColumn+1);setContext(null);}}>Переместить столбец вправо</button>
+      {(['left','center','right'] as const).map((align,i)=><button key={align} onClick={()=>{change({...draft,align:draft.align.map((v,j)=>j===selectedColumn?align:v)});setContext(null);}}>{['Выровнять по левому краю','Выровнять по центру','Выровнять по правому краю'][i]}</button>)}
+      <button onClick={()=>{setContext(null);void copyRange();}}>Копировать выделение</button>
+      <button onClick={()=>{setContext(null);const details=menuActions.closest('details');if(details)details.open=true;}}>Настройки таблицы</button>
+    </div></>,document.querySelector('.app')??document.body)}
+    <div className="visual-table-overflow"><table ref={tableRef}><colgroup>{draft.widths.map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup><thead><tr style={{height:draft.heights?.[0]}}>{draft.rows[0].map((cell,column)=>{
       const palette=draft.palettes?.[column]??null,paint=palette?`palette-${palette}`:undefined;
-      return <th key={column} className={paint} data-column-palette={palette||undefined} onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType)||draggingColumn.current!==null)event.preventDefault()}} onDrop={event=>{if(dropPalette(event,column))return;event.preventDefault();if(draggingColumn.current!==null)reorder(draggingColumn.current,column);draggingColumn.current=null}}>
-        <span className="visual-table-column-drag" draggable aria-label={`Переместить столбец ${column+1}`} onDragStart={event=>{draggingColumn.current=column;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(column))}} onDragEnd={()=>{draggingColumn.current=null}}>⠿</span>
-        <textarea aria-label={`Заголовок столбца ${column+1}`} rows={1} value={cell} onChange={event=>patchCell(0,column,event.target.value)} {...cellSelection(0,column)} onPaste={event=>paste(event,0,column)}/>
+      return <th key={column} className={paint} data-column-palette={palette||undefined} onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType)||draggingColumn.current!==null){event.preventDefault();event.stopPropagation();}}} onDrop={event=>{if(dropPalette(event,column))return;event.preventDefault();event.stopPropagation();if(draggingColumn.current!==null){animateColumns(draggingColumn.current,column,event.currentTarget);reorder(draggingColumn.current,column);}draggingColumn.current=null}}>
+        <button type="button" className="visual-table-column-drag" draggable title="Переместить столбец" aria-label={`Переместить столбец ${column+1}`} onDragStart={event=>{event.stopPropagation();draggingColumn.current=column;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(column));}} onDragEnd={()=>{draggingColumn.current=null}}>⠿</button>
+        <TableCell label={`Заголовок столбца ${column+1}`} value={cell} change={value=>patchCell(0,column,value)} focus={()=>setSelection({from:[0,column],to:[0,column]})} paste={event=>paste(event,0,column)}/>
       </th>})}</tr></thead>
-    <tbody>{draft.rows.slice(1).map((row,rowIndex)=><tr key={rowIndex}>{row.map((cell,column)=>{const palette=draft.palettes?.[column]??null;return <td key={column} className={palette?`palette-${palette}`:undefined} data-column-palette={palette||undefined} style={{textAlign:draft.align[column]??'left'}} onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault()}} onDrop={event=>{dropPalette(event,column)}}><textarea aria-label={`Строка ${rowIndex+1}, столбец ${column+1}`} value={cell} onChange={event=>patchCell(rowIndex+1,column,event.target.value)} {...cellSelection(rowIndex+1,column)} onPaste={event=>paste(event,rowIndex+1,column)}/></td>})}</tr>)}</tbody></table>
+    <tbody>{draft.rows.slice(1).map((row,rowIndex)=><tr key={rowIndex} style={{height:draft.heights?.[rowIndex+1]}}>{row.map((cell,column)=>{const palette=draft.palettes?.[column]??null;return <td key={column} className={palette?`palette-${palette}`:undefined} data-column-palette={palette||undefined} style={{textAlign:draft.align[column]??'left'}} onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType)||draggingColumn.current!==null){event.preventDefault();event.stopPropagation();}}} onDrop={event=>{if(dropPalette(event,column))return;if(draggingColumn.current!==null){event.preventDefault();event.stopPropagation();reorder(draggingColumn.current,column);draggingColumn.current=null;}}}><TableCell label={`Строка ${rowIndex+1}, столбец ${column+1}`} value={cell} change={value=>patchCell(rowIndex+1,column,value)} focus={()=>setSelection({from:[rowIndex+1,column],to:[rowIndex+1,column]})} paste={event=>paste(event,rowIndex+1,column)}/></td>})}</tr>)}</tbody></table>
     {Array.from({length:draft.widths.length+1},(_,boundary)=>{const left=draft.widths.slice(0,boundary).reduce((sum,value)=>sum+value,0),label=boundary===0?'левый край таблицы':boundary===draft.widths.length?'правый край таблицы':`между столбцами ${boundary} и ${boundary+1}`;return <span key={boundary} className="visual-table-column-resize" style={{left:`calc(${left}% - 6px)`}} role="separator" aria-orientation="vertical" aria-label={`Изменить ширину у границы: ${label}`} tabIndex={0} onPointerDown={event=>resizeStart(event,boundary)} onPointerMove={resizeMove} onPointerUp={resizeEnd} onPointerCancel={resizeEnd} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();resizeKeyboard(boundary,event.key==='ArrowLeft'?-2:2)}}}/>})}
+    {draft.rows.map((_,row)=><span key={'row-'+row} className="visual-table-row-resize" role="separator" aria-orientation="horizontal" aria-label={`Изменить высоту строки ${row+1}`} style={{top:rowBoundaries[row]??0}} onPointerDown={event=>{event.preventDefault();event.stopPropagation();const tr=tableRef.current?.rows[row];if(!tr)return;rowResize.current={pointer:event.pointerId,y:event.clientY,row,height:tr.offsetHeight};event.currentTarget.setPointerCapture(event.pointerId);}} onPointerMove={event=>{const r=rowResize.current,element=tableRef.current;if(!r||r.pointer!==event.pointerId||!element)return;const scale=element.getBoundingClientRect().width/element.offsetWidth||1,heights=Array.from(element.rows,tr=>tr.offsetHeight);heights[row]=Math.max(32,r.height+(event.clientY-r.y)/scale);change({...draft,heights});}} onPointerUp={()=>{rowResize.current=null;}} onPointerCancel={()=>{rowResize.current=null;}}/>)}
     </div>
+    <button type="button" className="visual-table-add-row" title="Добавить строку снизу" aria-label="Добавить строку снизу" onClick={()=>addRow()}>+</button>
+    <button type="button" className="visual-table-add-column" title="Добавить столбец справа" aria-label="Добавить столбец справа" onClick={()=>addColumn()}>+</button>
   </section>;
 }
 
@@ -102,13 +141,18 @@ export function readingWidgetTables(source:string) {
     if(token){if(!fence)fence=token;else if(token[0]===fence[0]&&token.length>=fence.length)fence='';result.push(lines[i]);continue;}
     const widget=!fence&&tableComment(lines[i])?parseWidget(lines[i]):undefined;
     if(!widget||i+2>=lines.length||!pipeLine(lines[i+1])||!pipeLine(lines[i+2])||!splitRow(lines[i+2]).every(cell=>/^:?-+:?$/.test(cell))){result.push(lines[i]);continue;}
-    const body=[lines[++i],lines[++i]];while(i+1<lines.length&&pipeLine(lines[i+1]))body.push(lines[++i]);
+    const metadata=lines[i];const body=[lines[++i],lines[++i]];while(i+1<lines.length&&pipeLine(lines[i+1]))body.push(lines[++i]);
     const ticks='`'.repeat(Math.max(3,...[...body.join('\n').matchAll(/`+/g)].map(match=>match[0].length+1)));
     const n=(value:number)=>Math.max(0,Math.round(value));
-    const marker=`noteapp-widget-${n(widget.x)}-${n(widget.y)}-w${n(widget.width)}-h${n(widget.height)}-z${n(widget.z)}${widget.color?'-c'+widget.color.slice(1):''}${widget.fill?'-b'+widget.fill.slice(1):''}-tt${textureById(widget.texture)?'-p'+widget.texture!.slice(8):''}${widget.scale&&widget.scale!==1?'-s'+Math.round(widget.scale*100):''}${widget.borderWidth!==undefined?'-o'+Math.round(widgetBorderWidth(widget.borderWidth)*2):''}`;
-    result.push(`${ticks}${marker}`, ...body,ticks);
+    const marker=`noteapp-widget-${n(widget.x)}-${n(widget.y)}-w${n(widget.width)}-h${n(widget.height)}-z${n(widget.z)}${widget.color?'-c'+widget.color.slice(1):''}${widget.fill?'-b'+widget.fill.slice(1):''}-tt${textureById(widget.texture)?'-p'+widget.texture!.slice(8):''}${widget.scale!==undefined&&widget.scale!==1?'-s'+Math.round(widget.scale*100):''}${widget.borderWidth!==undefined?'-o'+Math.round(widgetBorderWidth(widget.borderWidth)*2):''}`;
+    result.push(`${ticks}${marker}`, metadata,...body,ticks);
   }
   return result.join('\n');
+}
+
+export function ReadingTable({source}:{source:string}) {
+ const table=standaloneMapTable(source);if(!table)return null;
+ return <div className="visual-table-widget reading-table"><div className="visual-table-overflow"><table><colgroup>{table.widths.map((width,i)=><col key={i} style={{width:`${width}%`}}/>)}</colgroup><tbody>{table.rows.map((row,r)=><tr key={r} style={{height:table.heights?.[r]}}>{row.map((cell,c)=><td key={c} style={{textAlign:table.align[c]??'left'}}><ReactMarkdown remarkPlugins={[remarkGfm,remarkNoteColor]}>{cell.replace(/<br\s*\/?\s*>/gi,'\n')}</ReactMarkdown></td>)}</tr>)}</tbody></table></div></div>;
 }
 
 export function MapTable({source,save,markdown}:{source:string;save:(source:string)=>void;markdown:()=>void}) {
@@ -134,7 +178,7 @@ class TableWidget extends WidgetType {
     const chrome=noteWidgetChrome(host,view,context.position,'Таблица',next=>{context.position=next;write();},()=>{const range=context.range;if(view.state.sliceDoc(range.from,range.to)===range.source)view.dispatch({changes:{from:range.from,to:range.to},userEvent:'delete.markdown-table'});},true,668);
     context.dispose=chrome.dispose;
     const root=createRoot(chrome.body);roots.set(host,root);context.root=root;context.actions=chrome.actions;
-    const update=(table:TableData)=>{context.draft=table;write();};
+    const update=(table:TableData)=>{context.draft=table;const grid=host.querySelector<HTMLElement>('.visual-table-overflow table');if(grid){const naturalHeight=grid.scrollHeight;const height=Math.min(1200,Math.max(context.position.height,naturalHeight));if(height>context.position.height){context.position={...context.position,height};chrome.setPosition(context.position);}}write();};
     const markdown=()=>{const range=context.range;if(view.state.sliceDoc(range.from,range.to)!==range.source)return;const insert=serialize(context.draft,context.position),header=range.from+insert.indexOf('\n')+1;view.dispatch({changes:{from:range.from,to:range.to,insert},selection:{anchor:header+1},scrollIntoView:true,userEvent:'select.markdown-table'});view.focus();};
     context.render=range=>{
       context.range=range;context.position=range.widget??context.position;
@@ -149,13 +193,14 @@ class TableWidget extends WidgetType {
 
 export function markdownTables(){
   const decorate=(state:EditorView['state']):DecorationSet=>{
+    const fences=noteFenceRanges(state.doc.toString());
     const lines=Array.from({length:state.doc.lines},(_,index)=>state.doc.line(index+1)),widgets=[];
     for(let i=0;i<lines.length-1;i++){
+      if(fences.some(range=>lines[i].from>=range.from&&lines[i].from<=range.to))continue;
       if(!pipeLine(lines[i].text)||!pipeLine(lines[i+1].text)||!splitRow(lines[i+1].text).every(cell=>/^:?-+:?$/.test(cell)))continue;
       const start=i>0&&tableComment(lines[i-1].text)?i-1:i;
       let end=i+1;while(end+1<lines.length&&pipeLine(lines[end+1].text))end++;
       const from=lines[start].from,to=lines[end].to,source=state.doc.sliceString(from,to),header=lines[i].text,separator=lines[i+1].text,body=lines.slice(i+2,end+1).map(line=>line.text),comment=start<i?lines[start].text:'';
-      if(state.selection.ranges.some(range=>range.from>=from&&range.from<to||range.from<to&&range.to>from)){i=end;continue;}
       const table:TableRange={from,to,source,header,separator,body,comment,widget:parseWidget(comment)};widgets.push(Decoration.replace({block:true,widget:new TableWidget(table)}).range(from,to));i=end;
     }
     return Decoration.set(widgets,true);
