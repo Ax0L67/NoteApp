@@ -37,3 +37,10 @@ export function evaluateMath(source:string,variables:Record<string,number>={}):n
   const expression=():number=>{let value=product();while(true){if(take('+'))value+=product();else if(take('-'))value-=product();else break;}return value;};
   try{const value=expression();return at===tokens.length&&Number.isFinite(value)?value:null;}catch{return null;}
 }
+
+export function evaluateMathVariables(source:string,variables:{name:string;value:number}[]) {
+  const values=Object.fromEntries(variables.map(variable=>[variable.name,Number(variable.value)]));
+  const names=[...new Set(Array.from(source.matchAll(/(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?|[a-zA-Z_]\w*/gi),match=>({name:match[0],end:match.index!+match[0].length})).filter(token=>/^[a-zA-Z_]/.test(token.name)&&token.name!=='pi'&&token.name!=='e'&&!source.slice(token.end).trimStart().startsWith('(')).map(token=>token.name))];
+  const result=evaluateMath(source,values);
+  return variables.map(variable=>{const target=names.length===1?names[0]:variable.name;return {target,result:names.length===1?evaluateMath(source,{...values,[target]:Number(variable.value)}):result};});
+}

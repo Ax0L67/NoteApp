@@ -230,7 +230,7 @@
 @media(max-width:800px){.central-desktop{padding:0 6px}}
 @media(prefers-reduced-motion:reduce){.central-window .selected-note-tab{animation:none}}
 .central-window .note-tab { transition:background 180ms var(--ease-ui),border-color 180ms var(--ease-ui),padding 180ms var(--ease-ui),transform 100ms ease-out,opacity 100ms ease-out; }
-.app.liquid-shell > .titlebar .brand-name { font-size:calc(var(--ui-font-scale, 1) * 20px); }
+.app.liquid-shell > .titlebar .brand-name { font-size:min(18px,calc(var(--ui-font-scale, 1) * 15px)); line-height:1; }
 
 .central-window-actions > .note-zoom-controls-titlebar { align-self:flex-end; transform:translateY(8px); border-radius:0 0 8px 8px; border-top:0; box-shadow:0 2px 0 var(--editor-fill); }
 
@@ -274,6 +274,7 @@
 .central-window .note-tabs { padding-inline:12px; gap:clamp(0px,calc((100% - var(--tab-count,1) * 40px) / var(--tab-count,1)),14px); }
 .central-window .note-tab { flex:1 1 216px; min-width:0; max-width:216px; }
 .storage-strip .vault-switch { width:216px; flex:0 0 216px; }
+.app.liquid-shell[data-simple-style] .storage-strip .vault-switch { width:var(--vault-tab-width,216px); flex-basis:var(--vault-tab-width,216px); }
 
 /* Note tabs use the same symmetric gutter as graph tabs. */
 .central-window:has(.note-zoom-controls-titlebar) > .note-tab-strip { padding-inline:16px; }
@@ -282,15 +283,19 @@
 .app.liquid-shell { padding-bottom:0; }
 .app .central-window .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border-bottom-left-radius:0; border-bottom-right-radius:0; }
 .app .central-window .statusbar { border-radius:0; }
+.app.liquid-shell .statusbar { height:21px; min-height:21px; }
+.app.liquid-shell .statusbar button { width:19px; height:19px; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right,.dock-zone-bottom) .dock-panel { border-bottom-left-radius:0; border-bottom-right-radius:0; }
 .app.liquid-shell .dock-zone-top .dock-panel { border-radius:12px; }
 .app[data-png-export] { pointer-events:none; }
-.app[data-png-export] :is(.note-insert-menu,.floating-note-resize,.graph-resize,.cm-cursorLayer,.cm-selectionLayer,.graph-selection-box) { visibility:hidden; }
+.app[data-png-export] :is(.note-insert-menu,.floating-note-resize,.canvas-widget-resize,.canvas-align-guide,.graph-resize,.cm-cursorLayer,.cm-selectionLayer,.graph-selection-box) { visibility:hidden; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .sidebar-top { padding-top:31px; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector { padding-top:16px; }
 /* Align the inspector with the storage strip and the editor ribbon. */
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) > .dock-panel-heading { min-height:44px; flex-basis:44px; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading { position:relative; border-bottom:0!important; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading::after { content:''; position:absolute; top:73px; left:0; right:0; border-bottom:1px solid var(--edge); pointer-events:none; }
+.app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading::after { border-color:#414141; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel:has(> .inspector-rings) > .dock-panel-body { border-top:0; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .explorer-sidebar-heading,
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .note-outline-header { margin-top:21px; }
@@ -306,3 +311,13 @@
 .app .central-window:has(.editor-pane:not([data-ribbon-hidden]) > .note-ribbon) .selected-note-tab { background:var(--tint-fill); }
 .app .central-window:has(.editor-pane:not([data-ribbon-hidden]) > .note-ribbon) .note-tab-strip { --joined-tab-fill:var(--tint-fill); }
 .app .central-window[data-tab-joined]:has(.editor-pane:not([data-ribbon-hidden]) > .note-ribbon) > .note-tab-strip .selected-note-tab { background:var(--tint-fill) calc(-1 * var(--tab-join-left)) 0 / var(--tab-join-width) 100% no-repeat; }
+
+.app.liquid-shell .central-window-actions,.app.liquid-shell .central-window:has(.project-graph) .central-window-actions { top:36px; right:20px; padding:0; }
+.app.liquid-shell[data-simple-style] .central-window-actions,.app.liquid-shell[data-simple-style] .central-window:has(.project-graph) .central-window-actions { right:19px; }
+.app.liquid-shell[data-simple-style] .central-window[data-mode="tiled"] .central-window-actions { right:20px; }
+.app.liquid-shell .central-window-actions > button,
+.app.liquid-shell .central-window-actions > .note-zoom-controls-titlebar { border:0; border-radius:var(--control-radius); background:transparent; box-shadow:none; }
+.app.liquid-shell .central-window-actions > button:hover { background:var(--glass-hover); }
+.app.liquid-shell .central-window-actions > .note-zoom-controls-titlebar::after,
+.app.liquid-shell .central-window:has(.project-graph) .central-window-actions > button::after { content:none; }
+.app.liquid-shell .central-window:has(.project-graph) .central-window-actions > button { height:30px; }

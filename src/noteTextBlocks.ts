@@ -224,7 +224,7 @@ class FloatingText extends WidgetType {
     };
     body.onblur=event=>{if(!card.contains(event.relatedTarget as Node|null))saveWidget(position);};
     card.onpointerdown=event=>{
-      if(event.button!==0||!this.getActions().editable||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.floating-note-resize,a,button,input')) )return;
+      if(event.button!==0||!this.getActions().editable||(event.target instanceof Element&&event.target.closest('.floating-note-copy,.note-insert-menu,.floating-note-resize,a,button,input')) )return;
       const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM),step=elementGridStep(view.contentDOM),origin=constrainNoteWidgetPosition({...position,width:position.width??320,height:position.height??160},view.contentDOM,step);
       let x=origin.x,y=origin.y,dragged=false;
       card.setPointerCapture(event.pointerId);

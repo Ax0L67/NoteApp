@@ -1,0 +1,43 @@
+.app[data-theme="github-reverse"], .theme-option[data-theme="github-reverse"] {
+  --surface-base: #16181b;
+  --surface-panel: #2c3035;
+  --surface-tint: #25292e;
+  --surface-editor: #1e2125;
+  --surface-popup: #24282d;
+  --surface-input: #383e45;
+  --ink: #e1e4e8;
+  --secondary-ink: #bdc4cc;
+  --quiet-ink: #aab2bc;
+  --line-base: #454d56;
+  --edge-base: #606a76;
+  --selection-base: #465462;
+  --dot-base: #39414a;
+  --theme-accent: #b3c7dc;
+  --success: #a6bdab;
+  --warning: #cab98d;
+  --danger: #d3a4a4;
+}
+.app.light[data-theme="github-reverse"], .app.light .theme-option[data-theme="github-reverse"] {
+  --surface-base: #d4d8dc;
+  --surface-panel: #f4f5f6;
+  --surface-tint: #e9ecef;
+  --surface-editor: #e2e5e8;
+  --surface-popup: #eaedf0;
+  --surface-input: #e0e4e8;
+  --ink: #30363d;
+  --secondary-ink: #525b65;
+  --quiet-ink: #616c77;
+  --line-base: #b4bcc5;
+  --edge-base: #929da8;
+  --selection-base: #cbd5df;
+  --dot-base: #afb8c2;
+  --theme-accent: #3c617f;
+  --success: #47664d;
+  --warning: #786127;
+  --danger: #975454;
+}
+.app.liquid-shell[data-theme="github-reverse"] { --storage-surface: #252a30; }
+.app.liquid-shell.light[data-theme="github-reverse"] { --storage-surface: #e8ebee; }
+.app.liquid-shell[data-theme="github-reverse"] .storage-strip {
+  background:linear-gradient(270deg in oklab, color-mix(in srgb,var(--palette-hue) var(--palette-mix),var(--storage-surface)), color-mix(in srgb,var(--palette-left-hue,var(--palette-hue)) var(--palette-left-mix,var(--palette-mix)),var(--storage-surface)));
+}

@@ -42,3 +42,17 @@ export async function nativeGraphPng(scroll:HTMLElement) {
  }finally{content.style.cssText=previous;}
  return canvasBlob(canvas);
 }
+
+export async function nativeCanvasPng(viewport:HTMLElement,bounds:{x:number;y:number;width:number;height:number}) {
+ const world=viewport.querySelector<HTMLElement>('.canvas-world');if(!world||!viewport.clientWidth||!viewport.clientHeight)throw Error('Откройте полотно перед экспортом.');
+ const canvas=pngCanvas(bounds.width,bounds.height),context=canvas.getContext('2d')!,previous=world.style.transform,previousViewport=viewport.style.cssText;
+ try{
+  for(let y=0;y<bounds.height;y+=viewport.clientHeight)for(let x=0;x<bounds.width;x+=viewport.clientWidth){
+   world.style.transform=`translate(${-bounds.x-x}px,${-bounds.y-y}px) scale(1)`;
+   viewport.style.setProperty('--canvas-grid-x',`${-bounds.x-x}px`);viewport.style.setProperty('--canvas-grid-y',`${-bounds.y-y}px`);viewport.style.setProperty('--canvas-grid-zoom','1');
+   const image=await tile(viewport),w=Math.min(viewport.clientWidth,bounds.width-x),h=Math.min(viewport.clientHeight,bounds.height-y);
+   context.drawImage(image,0,0,w*image.width/viewport.clientWidth,h*image.height/viewport.clientHeight,x,y,w,h);
+  }
+ }finally{world.style.transform=previous;viewport.style.cssText=previousViewport;}
+ return canvasBlob(canvas);
+}

@@ -571,10 +571,11 @@ html, body, #root { background-color: transparent; }
     color-mix(in srgb, color-mix(in srgb, var(--chrome-palette-hue) var(--chrome-palette-mix), var(--surface-panel)) var(--chrome-opacity), transparent),
     color-mix(in srgb, color-mix(in srgb, var(--chrome-palette-hue) var(--chrome-palette-mix), var(--surface-tint)) var(--chrome-opacity), transparent));
 }
-.app.liquid-shell > .titlebar { height: 32px; min-height: 32px; padding-inline: 10px; gap: 8px; }
+.app.liquid-shell > .titlebar { height: 22px; min-height: 22px; padding-inline: 10px; gap: 8px; }
 .app.liquid-shell > .titlebar .brand { flex: 0 0 calc(var(--left-width) - 111px); font-size: calc(var(--ui-font-scale, 1) * 15px); gap: 0; white-space: nowrap; }
 .app.liquid-shell > .titlebar .brand-name { font-size: calc(var(--ui-font-scale, 1) * 18px); }
-.app.liquid-shell > .titlebar .icon-button { width: 22px; height: 22px; }
+.app.liquid-shell > .titlebar .icon-button { width: 22px; height: 20px; }
+.app.liquid-shell > .titlebar .icon-button svg { width:16px; height:16px; }
 .app.liquid-shell .statusbar { height: 32px; min-height: 32px; padding-inline: 12px; border-top-width: 1px; font-size: calc(var(--ui-font-scale, 1) * 12px); }
 .app.liquid-shell .statusbar .status-right { font-size: calc(var(--ui-font-scale, 1) * 12px); padding-left: 8px; }
 .app.liquid-shell .statusbar button { width: 24px; height: 24px; }

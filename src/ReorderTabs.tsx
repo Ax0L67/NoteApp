@@ -53,16 +53,17 @@ export default function ReorderTabs({items,order,change,active,windowId,transfer
         const radius=Math.max(0,Math.min(12,(tabRect.x-panelRect.x)/2,(panelRect.x+panelRect.width-tabRect.x-tabRect.width)/2));
         workspace.style.setProperty('--tab-outline-radius',`${radius}px`);
         tabRect.height=panelRect.y-tabRect.y+1;
-        path.setAttribute('d',widgetOutline([panelRect,tabRect],radius,true));
+        path.setAttribute('d',widgetOutline([panelRect,tabRect],radius,true,!!workspace.closest('[data-simple-style]')));
       }
     };
     const observer=new ResizeObserver(measure);
+    const app=workspace.closest('.app'),modeObserver=new MutationObserver(measure);if(app)modeObserver.observe(app,{attributes:true,attributeFilter:['data-simple-style']});
     observer.observe(element);observer.observe(workspace);
     element.addEventListener('scroll',measure,{passive:true});
     measure();
     const pane=workspace.querySelector('.editor-layout > .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview)');
     if(pane)observer.observe(pane);
-    return()=>{observer.disconnect();element.removeEventListener('scroll',measure);workspace.removeAttribute('data-tab-joined');workspace.removeAttribute('data-tab-outline');outline.remove();};
+    return()=>{observer.disconnect();modeObserver.disconnect();element.removeEventListener('scroll',measure);workspace.removeAttribute('data-tab-joined');workspace.removeAttribute('data-tab-outline');outline.remove();};
   },[active,keys.join('\n')]);
 
   useLayoutEffect(()=>{

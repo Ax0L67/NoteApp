@@ -1,5 +1,5 @@
 import {invoke,isTauri} from '@tauri-apps/api/core';
-import {nativeNotePng,nativeGraphPng} from './nativePng';
+import {nativeNotePng,nativeGraphPng,nativeCanvasPng} from './nativePng';
 const nextPaint=()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
 function blobUrl(blob:Blob) {return new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});}
 export async function captureNotePng(area:HTMLElement,height:number):Promise<Blob> {
@@ -23,7 +23,7 @@ export async function captureNotePng(area:HTMLElement,height:number):Promise<Blo
   // HTML pseudo-elements cannot be inserted into SVG paths and clip paths.
   if(original instanceof HTMLElement)for(const pseudo of ['::before','::after']){const ps=getComputedStyle(original,pseudo);if(ps.content==='none'||ps.content==='normal')continue;const element=document.createElement('span');copyStyle(original,element,pseudo);element.style.backgroundImage=await inlineUrls(ps.backgroundImage);element.textContent=ps.content==='""'?'':ps.content.replace(/^"|"$/g,'');copy.append(element);}
  }));
- clone.querySelectorAll('.note-insert-menu,.floating-note-resize,.cm-cursorLayer,.cm-selectionLayer,.note-code-menu').forEach(node=>node.remove());
+ clone.querySelectorAll('.note-insert-menu,.floating-note-resize,.canvas-widget-resize,.cm-cursorLayer,.cm-selectionLayer,.note-code-menu,.canvas-align-guide').forEach(node=>node.remove());
  let background:Element|null=area;while(background){const color=getComputedStyle(background).backgroundColor;if(color!=='rgba(0, 0, 0, 0)'&&color!=='transparent'){clone.style.backgroundColor=color;break;}background=background.parentElement;}
  Object.assign(clone.style,{width:area.clientWidth+'px',height:height+'px',maxHeight:'none',position:'relative',inset:'auto',margin:'0',overflow:'hidden',flex:'none',transform:'none'});
  const scroll=clone.querySelector<HTMLElement>('.editor-scroll');if(scroll)Object.assign(scroll.style,{height:height+'px',maxHeight:'none',overflow:'visible',flex:'none'});
@@ -62,4 +62,28 @@ export async function saveGraphPng(windowElement:HTMLElement,name:string) {
  const area=windowElement.querySelector<HTMLElement>('.graph-scroll');if(!area)throw Error('Открой карту связей для экспорта.');
  await document.fonts.ready;await Promise.all([...area.querySelectorAll('img')].map(image=>image.decode().catch(()=>{})));
  const blob=await exporting(area,()=>isTauri()?nativeGraphPng(area):captureNotePng(area,area.clientHeight));await savePng(blob,name);
+}
+
+async function captureCanvas(windowElement:HTMLElement):Promise<Blob> {
+ const viewport=windowElement.querySelector<HTMLElement>('.canvas-viewport'),world=viewport?.querySelector<HTMLElement>('.canvas-world');
+ if(!viewport||!world)throw Error('Откройте полотно для экспорта.');
+ await document.fonts.ready;await Promise.all([...viewport.querySelectorAll('img')].map(image=>image.decode().catch(()=>{})));
+ const rects=[...world.querySelectorAll<HTMLElement>(':scope > .canvas-widget')].map(item=>({x:item.offsetLeft,y:item.offsetTop,width:item.offsetWidth,height:item.offsetHeight}));
+ for(const line of world.querySelectorAll<SVGGraphicsElement>('.canvas-strokes polyline')){const box=line.getBBox(),pad=(parseFloat(line.getAttribute('stroke-width')??'0')||0)/2;rects.push({x:box.x-pad,y:box.y-pad,width:box.width+pad*2,height:box.height+pad*2});}
+ const padding=24,minX=Math.floor(Math.min(...(rects.length?rects.map(r=>r.x):[0]))-padding),minY=Math.floor(Math.min(...(rects.length?rects.map(r=>r.y):[0]))-padding);
+ const bounds={x:minX,y:minY,width:Math.ceil(Math.max(...(rects.length?rects.map(r=>r.x+r.width):[viewport.clientWidth]))-minX+padding),height:Math.ceil(Math.max(...(rects.length?rects.map(r=>r.y+r.height):[viewport.clientHeight]))-minY+padding)};
+ if(bounds.width<1||bounds.height<1||bounds.width*bounds.height>64000000||bounds.width>32767||bounds.height>32767)throw Error('Полотно слишком большое для одного изображения.');
+ return exporting(viewport,async()=>{
+  if(isTauri())return nativeCanvasPng(viewport,bounds);
+  const previous=viewport.style.cssText,transform=world.style.transform;
+  try{Object.assign(viewport.style,{position:'fixed',left:'0',top:'0',width:bounds.width+'px',height:bounds.height+'px',maxWidth:'none',maxHeight:'none',flex:'none',zIndex:'10000'});world.style.transform=`translate(${-bounds.x}px,${-bounds.y}px) scale(1)`;viewport.style.setProperty('--canvas-grid-x',`${-bounds.x}px`);viewport.style.setProperty('--canvas-grid-y',`${-bounds.y}px`);viewport.style.setProperty('--canvas-grid-zoom','1');await nextPaint();return await captureNotePng(viewport,bounds.height);}
+  finally{viewport.style.cssText=previous;world.style.transform=transform;}
+ });
+}
+export async function saveCanvasPng(windowElement:HTMLElement,name:string){await savePng(await captureCanvas(windowElement),name)}
+export async function printCanvasPdf(windowElement:HTMLElement,name:string){
+ const blob=await captureCanvas(windowElement),url=URL.createObjectURL(blob),article=document.createElement('article'),img=document.createElement('img'),previous=document.title;
+ article.className='note-print';img.alt=name;img.src=url;article.append(img);document.body.append(article);
+ const finish=()=>{article.remove();URL.revokeObjectURL(url);document.title=previous;window.removeEventListener('afterprint',finish)};
+ try{await img.decode();document.title=name;window.addEventListener('afterprint',finish,{once:true});window.print()}catch(error){finish();throw error}
 }

@@ -12,7 +12,7 @@ export function readCentralWindows(value:unknown,fallback?:string):CentralWindow
     if(!tabs.length)tabs.push('home');
     const number=(key:string,defaultValue:number)=>typeof entry[key]==='number'&&Number.isFinite(entry[key])?entry[key]:defaultValue;
     result.push({id:typeof entry.id==='string'&&!result.some(item=>item.id===entry.id)?entry.id:crypto.randomUUID(),tabs,
-      active:tabs.includes(entry.active)?entry.active:tabs[0],x:number('x',result.length*28),y:Math.max(-52,number('y',result.length*28)),
+      active:tabs.includes(entry.active)?entry.active:tabs[0],x:number('x',result.length*28),y:Math.max(-512,number('y',result.length*28)),
       width:number('width',0)===0?0:Math.max(320,number('width',0)),height:number('height',0)===0?0:Math.max(240,number('height',0)),mode:entry.mode==='tiled'?'tiled':undefined,palette:typeof entry.palette==='string'?entry.palette:undefined,blend:typeof entry.blend==='string'?entry.blend:undefined,tilePath:typeof entry.tilePath==='string'&&/^[LRTB]*$/.test(entry.tilePath)?entry.tilePath:undefined,detached:entry.detached===true||undefined});
   }
   return result.length?ensureTilePaths(result):[{id:crypto.randomUUID(),tabs:[fallback||'home'],active:fallback||'home',x:0,y:0,width:0,height:0}];
@@ -30,10 +30,11 @@ export function removeTile(windows:CentralWindow[],id:string) {
   const parent=path.slice(0,-1),last=path.slice(-1),sibling=parent+({L:'R',R:'L',T:'B',B:'T'} as Record<string,string>)[last];
   return windows.filter(win=>win.id!==id).map(win=>win.mode==='tiled'&&win.tilePath?.startsWith(sibling)?{...win,tilePath:parent+win.tilePath.slice(sibling.length)}:win);
 }
-export function tileRect(path:string) {
+export function tileRect(path:string,compact=false) {
   let x=0,y=0,width=100,height=100;
   for(const side of path){if(side==='L'||side==='R'){width/=2;if(side==='R')x+=width;}else{height/=2;if(side==='B')y+=height;}}
-  return {left:`calc(${x}% + 4px)`,top:`calc(${y}% + 4px)`,width:`calc(${width}% - 8px)`,height:`calc(${height}% - ${y+height===100?4:8}px)`};
+  const inset=compact?0:4;
+  return {left:`calc(${x}% + ${inset}px)`,top:`calc(${y}% + ${inset}px)`,width:`calc(${width}% - ${inset*2}px)`,height:`calc(${height}% - ${y+height===100?inset:inset*2}px)`};
 }
 export function remapWindowLocation(location:Location,remap:(path:string)=>string,projectFor:(path:string)=>string):Location {
   if(location.kind==='note')return {...location,path:remap(location.path)};

@@ -52,6 +52,7 @@
 .math-render { overflow:auto; padding:14px; text-align:center; border-radius:8px; background:color-mix(in srgb,var(--editor) 55%,transparent); font-size:1.15em; }
 .math-variable { display:grid; grid-template-columns:100px minmax(80px,1fr) auto; align-items:center; gap:10px; }
 .math-variable input[type=range] { accent-color:var(--accent); }
+.math-variable-result { grid-column:1 / -1; color:var(--muted); font-variant-numeric:tabular-nums; }
 .math-result { justify-self:end; color:var(--accent); font-variant-numeric:tabular-nums; }
 .plot-widget { display:grid; gap:8px; }
 .plot-widget canvas { display:block; width:100%; height:260px; border:1px solid var(--edge); border-radius:9px; background:var(--editor-fill); touch-action:none; cursor:crosshair; }

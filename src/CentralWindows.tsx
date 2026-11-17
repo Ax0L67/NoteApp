@@ -1,7 +1,7 @@
 import {activeTableEditor,clearActiveTableEditor} from './noteTables';
 import {ALL_PROJECTS} from './allProjectsGraph';
-import {saveNotePng,saveGraphPng} from './notePng';
-import {forwardRef,useEffect,useImperativeHandle,useRef,useState,type ReactNode,type RefObject} from 'react';
+import {saveNotePng,saveGraphPng,saveCanvasPng,printCanvasPdf} from './notePng';
+import {forwardRef,useEffect,useLayoutEffect,useImperativeHandle,useRef,useState,type ReactNode,type RefObject} from 'react';
 import {createPortal} from 'react-dom';
 import {ArrowsIn,ArrowsOut,DotsThree,DotsSixVertical,FileText,Folder,Graph,House,Minus,Plus,Stack,X,Copy,Download,PencilSimple,Trash,ArrowsOutCardinal,CaretDown,ArrowUp,Star,Check} from '@phosphor-icons/react';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
@@ -64,6 +64,16 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const current=useRef(windows);current.current=windows;
   const active=useRef(activeId);active.current=activeId;
   const visibleWindows=props.detachedId?(tilePreview??windows).filter(win=>win.id===props.detachedId):(tilePreview??windows).filter(win=>!win.detached);
+  const activeTabs=visibleWindows.find(win=>win.id===activeId)?.tabs.join('\0')??'';
+  useLayoutEffect(()=>{
+    const desktop=stage.current?.closest<HTMLElement>('.central-desktop');
+    if(!desktop||!data.settings.simpleStyle||props.detachedId){desktop?.style.removeProperty('--vault-tab-width');return;}
+    const tab=stage.current?.querySelector<HTMLElement>('.central-window[data-active] .note-tabs > .note-tab');
+    if(!tab){desktop.style.removeProperty('--vault-tab-width');return;}
+    const sync=()=>{if(tab.offsetWidth)desktop.style.setProperty('--vault-tab-width',`${tab.offsetWidth}px`)};
+    const observer=new ResizeObserver(sync);observer.observe(tab);sync();
+    return()=>{observer.disconnect();desktop.style.removeProperty('--vault-tab-width')};
+  },[activeId,activeTabs,data.settings.simpleStyle,props.detachedId]);
   const noteViews=useRef(new Map<string,EditorView>());
   const gesture=useRef<{id:string;pointer:number;x:number;y:number;rect:CentralWindow;mode:string;fitBottom:boolean}|null>(null);
   const [moving,setMoving]=useState(false);
@@ -155,7 +165,8 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   function move(event:React.PointerEvent){
     const g=gesture.current;if(!g||g.pointer!==event.pointerId)return;
     const bounds=stage.current!.getBoundingClientRect(),dx=event.clientX-g.x,dy=event.clientY-g.y;
-    const appBounds=stage.current!.closest('.app')?.getBoundingClientRect()??bounds;
+    const app=stage.current!.closest<HTMLElement>('.app'),appBounds=app?.getBoundingClientRect()??bounds;
+    const topLimit=Math.min(0,(app?.querySelector<HTMLElement>(':scope > .titlebar')?.getBoundingClientRect().bottom??appBounds.top)+2-bounds.top);
     if(g.mode==='move'&&props.detach&&(event.clientX<appBounds.left-24||event.clientX>appBounds.right+24||event.clientY<appBounds.top-24||event.clientY>appBounds.bottom+24)){
       gesture.current=null;setMoving(false);props.detach(g.id,{x:event.screenX-420,y:event.screenY-20});return;
     }
@@ -168,10 +179,10 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
     }
     if(g.mode==='move'){
       x=Math.max(0,Math.min(Math.max(0,bounds.width-Math.min(width,320)),x));
-      y=Math.max(-52,Math.min(Math.max(0,bounds.height-(g.fitBottom?240:Math.min(height,36))),y));
+      y=Math.max(topLimit,Math.min(Math.max(0,bounds.height-(g.fitBottom?240:Math.min(height,36))),y));
       if(g.fitBottom)height=Math.max(240,bounds.height-y);
     }else{
-      x=Math.max(0,Math.min(Math.max(0,bounds.width-160),x));y=Math.max(0,Math.min(Math.max(0,bounds.height-80),y));
+      x=Math.max(0,Math.min(Math.max(0,bounds.width-160),x));y=Math.max(topLimit,Math.min(Math.max(0,bounds.height-80),y));
       width=Math.min(Math.max(320,bounds.width-x),width);height=Math.min(Math.max(240,bounds.height-y),height);
     }
     commit(current.current.map(win=>win.id===g.id?{...win,x,y,width,height:g.fitBottom?0:height}:win),false);
@@ -184,6 +195,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const selectedPath=selectedLocation.kind==='note'?selectedLocation.path.replace(/\.md$/,''):selectedLocation.kind==='folder'?selectedLocation.path:'';
   const parentPath=selectedLocation.kind==='note'?folder(selectedLocation.path):selectedLocation.kind==='folder'?folder(selectedLocation.path):projectRoot(selectedOwner);
   const hasTiles=visibleWindows.some(win=>win.mode==='tiled');
+  const tileTopLimit=()=>{const node=stage.current,app=node?.closest<HTMLElement>('.app');if(!node||!app)return 0;const top=app.querySelector<HTMLElement>(':scope > .titlebar')?.getBoundingClientRect().bottom??app.getBoundingClientRect().top;return Math.min(0,top+2-(node.getBoundingClientRect().top-tileOffset));};
   const covered=(hasTiles&&tileOffset<-24)||visibleWindows.some(win=>win.mode!=='tiled'&&win.y<-34&&(win.width===0||win.width>=(stage.current?.clientWidth??1000)*.8));
   return <div className="central-desktop" data-detached={props.detachedId||undefined} data-storage-covered={covered||undefined} data-moving={moving||undefined}>
     {!props.detachedId&&<nav className={`storage-strip project-workspace palette-${props.generalPalette}`} aria-label="Хранилище">
@@ -195,9 +207,9 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
     <div ref={stage} className="central-stage" data-tiled={hasTiles||undefined} style={hasTiles?{marginTop:tileOffset}:undefined}>
       {hasTiles&&<div className="tile-stage-resize" role="separator" tabIndex={0} aria-label="Переместить верхнюю границу центральной области" aria-orientation="horizontal"
         onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);tileResize.current={pointer:event.pointerId,y:event.clientY,offset:tileOffset};}}
-        onPointerMove={event=>{const drag=tileResize.current;if(drag?.pointer===event.pointerId)setTileOffset(Math.max(-32,Math.min(0,drag.offset+event.clientY-drag.y)));}}
+        onPointerMove={event=>{const drag=tileResize.current;if(drag?.pointer===event.pointerId)setTileOffset(Math.max(tileTopLimit(),Math.min(0,drag.offset+event.clientY-drag.y)));}}
         onPointerUp={()=>{tileResize.current=null;}} onPointerCancel={()=>{tileResize.current=null;}} onLostPointerCapture={()=>{tileResize.current=null;}}
-        onKeyDown={event=>{if(event.key==='ArrowUp'||event.key==='ArrowDown'){event.preventDefault();setTileOffset(value=>Math.max(-32,Math.min(0,value+(event.key==='ArrowUp'?-16:16))));}}}/>}
+        onKeyDown={event=>{if(event.key==='ArrowUp'||event.key==='ArrowDown'){event.preventDefault();const limit=tileTopLimit();setTileOffset(value=>Math.max(limit,Math.min(0,value+(event.key==='ArrowUp'?-16:16))));}}}/>}
       {visibleWindows.map((win,index)=>{
         const location=tabLocation(win.active)??{kind:'home' as const};
         const owner=location.kind==='home'?'':location.kind==='note'?projectFor(location.path):location.project;
@@ -210,7 +222,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
         const fillBottom=!maximized&&win.mode!=='tiled'&&(win.width===0||win.width>=(stage.current?.clientWidth??Number.POSITIVE_INFINITY)-2);
         const preview=splitPreview?.id===win.id?splitPreview.side:undefined;
         return <section key={win.id} className={`central-window workbench project-workspace palette-${palette}`} data-active={activeId===win.id||undefined} data-mode={win.mode??'floating'} data-maximized={maximized||undefined} data-palette-blend={blend??''} data-split-preview={preview} aria-label={`Центральное окно ${index+1}`}
-          style={win.mode==='tiled'&&!maximized?{...tileRect(win.tilePath??''),zIndex:activeId===win.id?20:index+1}:{left:maximized?0:win.x,top:maximized?0:win.y,width:maximized?'100%':win.width||'100%',height:maximized?'100%':fillBottom?undefined:win.height||'100%',bottom:fillBottom?0:undefined,zIndex:activeId===win.id?20:index+1}}
+          style={win.mode==='tiled'&&!maximized?{...tileRect(win.tilePath??'',data.settings.simpleStyle),zIndex:activeId===win.id?20:index+1}:{left:maximized?0:win.x,top:maximized?0:win.y,width:maximized?'100%':win.width||'100%',height:maximized?'100%':fillBottom?undefined:win.height||'100%',bottom:fillBottom?0:undefined,zIndex:activeId===win.id?20:index+1}}
           onDragOver={event=>{if(event.dataTransfer.types.includes('application/x-noteapp-window')){event.preventDefault();if(win.mode==='tiled'&&draggingWindow.current!==win.id){const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5,vertical=Math.abs(dy)>Math.abs(dx);const side: 'L'|'R'|'T'|'B'=vertical?(dy<0?'T':'B'):(dx<0?'L':'R'),key=`${draggingWindow.current}:${win.id}:${side}`;if(tilePreviewKey.current!==key){tilePreviewKey.current=key;setSplitPreview({id:win.id,side});const preview=tileMove(dragBase.current??current.current,draggingWindow.current!,win.id,side);if(preview)setTilePreview(preview)}}}else if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
           onDrop={event=>{setSplitPreview(null);const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(value){event.preventDefault();event.stopPropagation();commit(current.current.map(entry=>entry.id===win.id?{...entry,palette:value.palette,blend:value.blend}:entry));return;}const source=event.dataTransfer.getData('application/x-noteapp-window');if(!source)return;const destination=splitPreview?.id??win.id;if(source===destination||current.current.find(entry=>entry.id===destination)?.mode!=='tiled')return;event.preventDefault();const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5,vertical=Math.abs(dy)>Math.abs(dx),side: 'L'|'R'|'T'|'B'=splitPreview?.side??(vertical?(dy<0?'T':'B'):(dx<0?'L':'R')),next=tileMove(dragBase.current??current.current,source,destination,side);setTilePreview(null);tilePreviewKey.current='';dragBase.current=null;if(next)commit(next);}}
           onPointerDownCapture={()=>{if(active.current!==win.id)selectWindow(win.id);}} onPointerDown={event=>{if(win.mode!=='tiled'&&(event.target as Element).closest('.markdown-ribbon-tabs')&&!(event.target as Element).closest('button,input,select'))start(event,win.id,'move');}} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
@@ -226,8 +238,8 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
               {!note.path.endsWith('.canvas')&&<button onClick={()=>{setSourceWindow(win.id);setMenuId(null)}}><FileText/>Исходный код заметки</button>}
               {note.path.endsWith('.canvas')&&(['snapGrid','snapGuides'] as const).map(key=><button key={key} role="menuitemcheckbox" disabled={props.read} aria-checked={parseCanvas(note.content)?.[key]!==false} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-canvas-setting',{detail:{path:note.path,key}}))}><Check size={16} style={{visibility:parseCanvas(note.content)?.[key]!==false?'visible':'hidden'}}/>{key==='snapGrid'?'Привязка виджетов к сетке':'Привязка к другим элементам'}</button>)}
               <button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>
-              <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void (async()=>{try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await saveNotePng(win,title(note.path));}catch(error){alert(String(error));}})();}}><Download/>Сохранить заметку в PNG…</button>
-              <button onClick={()=>{props.pdf(note.path);setMenuId(null);}}><Download/>Печать / сохранить PDF…</button>
+              <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void (async()=>{try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await (note.path.endsWith('.canvas')?saveCanvasPng(win,title(note.path)):saveNotePng(win,title(note.path)));}catch(error){alert(String(error));}})();}}><Download/>{note.path.endsWith('.canvas')?'Сохранить полотно в PNG…':'Сохранить заметку в PNG…'}</button>
+              <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(note.path.endsWith('.canvas')){if(win)void printCanvasPdf(win,title(note.path)).catch(error=>alert(String(error)));}else props.pdf(note.path);}}><Download/>Печать / сохранить PDF…</button>
               <button onClick={props.toggleRead}><FileText/>{props.read?'Редактировать':'Режим чтения'}</button></>}
             {location.kind==='graph'&&<button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void saveGraphPng(win,owner===ALL_PROJECTS?'Общая карта связей':'Карта — '+owner).catch(error=>alert(String(error)));}}><Download/>Сохранить карту в PNG…</button>}
             {location.kind==='folder'&&<button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>}

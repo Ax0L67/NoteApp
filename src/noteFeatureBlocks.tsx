@@ -10,7 +10,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type {Note,TaskBoard} from './types';
 import {TaskBoardView} from './TaskBoards';
-import {evaluateMath} from './safeMath';
+import {evaluateMath,evaluateMathVariables} from './safeMath';
 import {chooseSourceLocation,openSourceLocation} from './storage';
 import {loadNoteImage} from './noteImages';
 import {defaultNoteWidgetPosition,initialNoteWidget,noteWidgetChrome,type NoteWidgetPosition} from './noteWidgetChrome';
@@ -258,11 +258,12 @@ function MathEditor({value,editable,change}:{value:FeatureValue;editable:boolean
   const values=Object.fromEntries(vars.map(variable=>[variable.name,Number(variable.value)]));
   const latex=String(value.latex??'').replace(/\{\{([a-zA-Z_]\w*)\}\}/g,(_,name:string)=>String(values[name]??0));
   let rendered='';try{rendered=katex.renderToString(latex,{throwOnError:false,trust:false,strict:'ignore'});}catch{rendered=katex.renderToString('\\text{Некорректная формула}',{throwOnError:false,trust:false});}
-  const result=evaluateMath(String(value.expression??''),values);
+  const expression=String(value.expression??''),result=evaluateMath(expression,values);
+  const variableResults=evaluateMathVariables(expression,vars);
   return <div className="math-block">
     {editable&&<><label>LaTeX<input value={value.latex??''} onChange={event=>change({latex:event.target.value})}/></label><label>Выражение для результата<input value={value.expression??''} onChange={event=>change({expression:event.target.value})}/></label></>}
     <div className="math-render" aria-label="Формула" dangerouslySetInnerHTML={{__html:rendered}}/>
-    {vars.map((variable,index)=><div className="math-variable" key={index}><label>{variable.name}<input type="number" value={variable.value} min={variable.min} max={variable.max} step={variable.step} onChange={event=>change({variables:vars.map((entry,i)=>i===index?{...entry,value:Number(event.target.value)}:entry)})}/></label><input aria-label={`Ползунок ${variable.name}`} type="range" value={variable.value} min={variable.min} max={variable.max} step={variable.step} onChange={event=>change({variables:vars.map((entry,i)=>i===index?{...entry,value:Number(event.target.value)}:entry)})}/>{editable&&<button type="button" onClick={()=>change({variables:vars.filter((_,i)=>i!==index)})}>×</button>}</div>)}
+    {vars.map((variable,index)=>{const {target,result:variableResult}=variableResults[index];return <div className="math-variable" key={index}><label>{variable.name}<input type="number" value={variable.value} min={variable.min} max={variable.max} step={variable.step} onChange={event=>change({variables:vars.map((entry,i)=>i===index?{...entry,value:Number(event.target.value)}:entry)})}/></label><input aria-label={`Ползунок ${variable.name}`} type="range" value={variable.value} min={variable.min} max={variable.max} step={variable.step} onChange={event=>change({variables:vars.map((entry,i)=>i===index?{...entry,value:Number(event.target.value)}:entry)})}/>{editable&&<button type="button" onClick={()=>change({variables:vars.filter((_,i)=>i!==index)})}>×</button>}<output className="math-variable-result">{target===variable.name?`При ${variable.name} = ${variable.value}`:`${target} = ${variable.value} (${variable.name})`}: {variableResult===null?'—':Number(variableResult.toPrecision(8))}</output></div>})}
     {editable&&<button type="button" onClick={()=>change({variables:[...vars,{name:`x${vars.length+1}`,min:0,max:10,step:1,value:1}]})}>+ Переменная</button>}
     <output className="math-result">Результат: {result===null?'—':Number(result.toPrecision(8))}</output>
   </div>;

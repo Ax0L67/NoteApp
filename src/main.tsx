@@ -10,6 +10,7 @@ import './centralWindows.css';
 import './noteFeatures.css';
 import './textures.css';
 import './themes.css';
+import './githubReverse.css';
 function StartupError({error}:{error:unknown}){
  const message=error instanceof Error?error.message:String(error);
  return <main role="alert" style={{height:'100vh',display:'grid',placeContent:'center',gap:10,padding:32,background:'#181818',color:'#dedede',fontFamily:'Segoe UI,sans-serif'}}>
