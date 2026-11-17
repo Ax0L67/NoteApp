@@ -431,13 +431,13 @@
   --danger: #955456;
 }
 
-.app[data-theme="stone"], .theme-option[data-theme="stone"] {
+.app[data-theme="coal"], .theme-option[data-theme="coal"] {
   --surface-base: #181818;
   --surface-panel: #2c2c2c;
-  --surface-tint: #232323;
+  --surface-tint: #222222;
   --surface-editor: #1e1e1e;
-  --surface-popup: #222222;
-  --surface-input: #2b2b2b;
+  --surface-popup: #202020;
+  --surface-input: #242424;
   --ink: #dedede;
   --secondary-ink: #b9b9b9;
   --quiet-ink: #a6a6a6;
@@ -450,13 +450,13 @@
   --warning: #c7b68f;
   --danger: #cca6a4;
 }
-.app.light[data-theme="stone"], .app.light .theme-option[data-theme="stone"] {
+.app.light[data-theme="coal"], .app.light .theme-option[data-theme="coal"] {
   --surface-base: #d2d2d2;
   --surface-panel: #eaeaea;
-  --surface-tint: #e3e3e3;
+  --surface-tint: #e4e4e4;
   --surface-editor: #dedede;
-  --surface-popup: #e5e5e5;
-  --surface-input: #e4e4e4;
+  --surface-popup: #dedede;
+  --surface-input: #d5d5d5;
   --ink: #333333;
   --secondary-ink: #595959;
   --quiet-ink: #676767;
@@ -469,19 +469,9 @@
   --warning: #76613b;
   --danger: #865752;
 }
-.app[data-theme="stone"] .central-window > .note-tab-strip { background:var(--tint-fill); }
-.app.liquid-shell[data-theme="stone"] .storage-strip { background-color:var(--tint-fill); }
-.app[data-theme="stone"] .central-window .note-tab-strip { --joined-tab-fill:var(--tint-fill); }
-.app[data-theme="stone"] .central-window .selected-note-tab,
-.app[data-theme="stone"] .central-window-actions > .note-zoom-controls-titlebar,
-.app[data-theme="stone"] .central-window-actions > .note-zoom-controls-titlebar::after { background:var(--tint-fill); }
-.app[data-theme="stone"] .central-window:has(.editor-pane[data-ribbon-hidden]) .selected-note-tab { background:var(--editor-fill); }
-.app[data-theme="stone"] .central-window:has(.editor-pane[data-ribbon-hidden]) .note-tab-strip { --joined-tab-fill:var(--editor-fill); }
-.app.liquid-shell[data-theme="stone"] .dock-workspace { padding:8px; gap:8px; }
-.app.liquid-shell[data-theme="stone"] .dock-resize { flex-basis:8px; }
-.app.liquid-shell[data-theme="stone"] .central-desktop { gap:8px; padding-inline:6px; }
-.app.liquid-shell[data-theme="stone"] .storage-strip { border-radius:12px; }
-.app.liquid-shell[data-theme="stone"] .central-window .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border-radius:12px 12px 0 0; }
+.app.liquid-shell[data-theme="coal"] .storage-strip { background:color-mix(in srgb,var(--base) 50%,var(--editor)); }
+.app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-panel[data-panel="navigation"] .dock-panel-heading > .icon-button,.inspector-note-mode .segmented button.on,.explorer-row.current-item,.inspector .outline button.current) { background:var(--input); color:var(--text); }
+.app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-panel-heading,.explorer-sidebar-heading,.bottom-actions,.inspector .backlinks,.inspector-bottom,.dock-panel:has(> .inspector-rings) > .dock-panel-body) { border-color:#414141; }
 
 /* Settings use the same theme tokens as the workspace. */
 .app.settings-window { min-height:0; border:0; border-radius:0; background:var(--base); }

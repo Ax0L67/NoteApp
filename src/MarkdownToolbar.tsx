@@ -70,7 +70,7 @@ export function applyFormat(view: EditorView, format: Format) {
   view.focus();
 }
 
-export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = disabled, typography, insertReference, createWidget,openTasks,insertBoard,taskBoards=[],insertMapFeature }: {
+export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = disabled, typography, insertReference, createWidget,openTasks,insertBoard,taskBoards=[],insertMapFeature,insertCode }: {
   runEdit: (action: (view: EditorView) => void) => void;
   disabled: boolean;
   colorDisabled?: boolean;
@@ -81,10 +81,11 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
   insertBoard?:(view:EditorView,id?:string)=>void;
   taskBoards?:TaskBoard[];
   insertMapFeature?:(kind:NoteFeature|'table', options?:{rows?:number;columns?:number;boardId?:string})=>void;
+  insertCode?:()=>void;
 }) {
   const [panel,setPanel]=useState<'format'|'insert'>('format');
   const [widgetMenu,setWidgetMenu]=useState(false);
-  const [tableMenu,setTableMenu]=useState(false),[tableRows,setTableRows]=useState(3),[tableColumns,setTableColumns]=useState(3);
+  const [tableMenu,setTableMenu]=useState(false),[tableRows,setTableRows]=useState(1),[tableColumns,setTableColumns]=useState(2);
   const [selectedBoard,setSelectedBoard]=useState('');
   const insertDisabled=disabled&&!insertMapFeature;
   const addFeature=(kind:NoteFeature)=>insertMapFeature?insertMapFeature(kind):runEdit(view=>insertFeature(view,kind));
@@ -142,7 +143,7 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('compare');}}>Сравнение</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('source');}}>Источник</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('concept');}}>Термин</button>
-              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);runEdit(view=>insertCodeWidget(view));}}>Код</button>
+              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);insertCode?insertCode():runEdit(view=>insertCodeWidget(view));}}>Код</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addTable();}}>Таблица</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('math');}}>Формула</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('plot');}}>График</button>

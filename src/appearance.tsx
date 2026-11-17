@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode, type MouseEvent } from 'react';
-import { CaretRight, Palette, Trash } from '@phosphor-icons/react';
+import { CaretRight, Palette, Trash, SquaresFour } from '@phosphor-icons/react';
 import { request } from './storage';
 import type { Settings } from './types';
 import {gridStyle} from './gridPatterns';
@@ -42,7 +42,7 @@ export function readPaletteDrop(value:string):{palette:string;blend?:string}|nul
   } catch {return null;}
 }
 
-export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, blend, customColor, changeCustomColor, textureColors, changeTextureColor, collapsible=false }: { value: string; choose: (id: string) => void; mix?:(id:string)=>void; disabled?:string; autoFocus?:boolean; blend?:string|null; customColor?:string; changeCustomColor?:(color:string)=>void; textureColors?:Record<string,string>; changeTextureColor?:(id:string,color:string|undefined)=>void; collapsible?:boolean }) {
+export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, blend, customColor, changeCustomColor, textureColors, changeTextureColor, savedColors, changeSavedColors, collapsible=false }: { value: string; choose: (id: string) => void; mix?:(id:string)=>void; disabled?:string; autoFocus?:boolean; blend?:string|null; customColor?:string; changeCustomColor?:(color:string)=>void; textureColors?:Record<string,string>; changeTextureColor?:(id:string,color:string|undefined)=>void; savedColors?:string[]; changeSavedColors?:(colors:string[])=>void; collapsible?:boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [showPalettes,setShowPalettes]=useState(!collapsible);
   const [showTextures,setShowTextures]=useState(false);
@@ -66,7 +66,7 @@ export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, 
   }
 
   return <>
-    {collapsible&&<button type="button" className="inspector-palette-toggle" aria-expanded={showPalettes} onClick={()=>{setShowPalettes(!showPalettes);setExpanded(true);}}>Палитры</button>}
+    {collapsible&&<button type="button" className="inspector-palette-toggle" aria-expanded={showPalettes} onClick={()=>{setShowPalettes(!showPalettes);setExpanded(true);}}><Palette size={16}/>Палитры</button>}
     <div hidden={!showPalettes}>
     <div className="swatches" role="group" aria-label="Основные палитры">
       {mainPalettes.map(swatch)}
@@ -84,13 +84,14 @@ export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, 
         if(!disabled&&value!=='custom')choose('custom');
       }}/>
     </label>}
+    {changeSavedColors&&<div className="saved-palette-colors"><button type="button" onClick={()=>{const color=validCustomColor(customColor);changeSavedColors([...new Set([...(savedColors??[]),color])])}}>Сохранить цвет</button>{savedColors?.map(color=><span key={color}><button type="button" className="palette-swatch" style={{background:color}} title={`Выбрать ${color}`} aria-label={`Выбрать ${color}`} onClick={()=>{changeCustomColor?.(color);choose('custom')}}/><button type="button" aria-label={`Удалить ${color}`} title={`Удалить ${color}`} onClick={()=>changeSavedColors(savedColors.filter(item=>item!==color))}><Trash size={14}/></button></span>)}</div>}
+    {mix&&<button type="button" className="palette-mix-action" onClick={()=>mix(value)}><Palette size={16}/>Смешать палитры</button>}
     </div>
-    {!disabled&&<button type="button" className="texture-picker-toggle" aria-expanded={showTextures} onClick={()=>setShowTextures(!showTextures)}>Текстуры</button>}
+    {!disabled&&<button type="button" className="texture-picker-toggle" aria-expanded={showTextures} onClick={()=>setShowTextures(!showTextures)}><SquaresFour size={16}/>Текстуры</button>}
     {showTextures&&<div className="texture-picker" role="group" aria-label="Текстуры">
       <div className="texture-swatches">{textures.map(item=><button type="button" key={item.id} className={`texture-swatch palette-${item.id}`} title={item.name} aria-label={item.name} aria-pressed={value===item.id} draggable onDragStart={event=>{event.dataTransfer.setData(paletteDragType,JSON.stringify({palette:item.id}));event.dataTransfer.effectAllowed='copy';}} onClick={()=>choose(item.id)}><span>{item.name}</span></button>)}</div>
       {texture&&changeTextureColor&&<div className="texture-color"><label>Цвет текстуры <input type="color" value={textureColors?.[texture.id]??texture.color} onChange={event=>changeTextureColor(texture.id,event.target.value)}/></label><button type="button" onClick={()=>changeTextureColor(texture.id,undefined)}>Исходный цвет</button></div>}
     </div>}
-    {mix&&<button type="button" className="palette-mix-action" onClick={()=>mix(value)}><Palette size={16}/>Смешать палитры</button>}
   </>;
 }
 

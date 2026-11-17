@@ -272,7 +272,8 @@ impl Vault {
                 atomic_write(&dir.join(format!("{id}.md")),content.as_bytes())?;
                 atomic_write(&dir.join(format!("{id}.json")),&serde_json::to_vec(&json!({"id":id,"path":path})).map_err(err)?)?;
                 fs::remove_file(p).map_err(err)?;self.snapshot()},
-            "restore"=>{let id=str_arg(&a,"id")?;if id.is_empty()||!id.chars().all(|c|c.is_ascii_digit()){return Err("Некорректный идентификатор".into())}
+             "empty_trash"=>{let dir=self.root.join(".noteapp/trash");if dir.exists(){for entry in fs::read_dir(&dir).map_err(err)?{let path=entry.map_err(err)?.path();if path.is_dir(){fs::remove_dir_all(path).map_err(err)?}else{fs::remove_file(path).map_err(err)?}}}self.snapshot()},
+             "restore"=>{let id=str_arg(&a,"id")?;if id.is_empty()||!id.chars().all(|c|c.is_ascii_digit()){return Err("Некорректный идентификатор".into())}
                 let meta=self.root.join(format!(".noteapp/trash/{id}.json"));let item:Value=serde_json::from_slice(&fs::read(&meta).map_err(err)?).map_err(err)?;
                 let orig=str_arg(&item,"path")?;if item["kind"]=="folder"{return self.restore_folder(meta,orig)}let mut dest=self.note_path(orig)?;
                 if dest.exists(){let ext=if orig.ends_with(".canvas"){"canvas"}else{"md"};dest=self.note_path(&format!("{} (восстановлено {}).{}",orig.trim_end_matches(".md").trim_end_matches(".canvas"),stamp(),ext))?}

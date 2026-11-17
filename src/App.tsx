@@ -1,5 +1,5 @@
 import {useState,useRef,useEffect,useCallback,useMemo,type CSSProperties,type ReactNode} from 'react';
-import {House,Minus,Square,CaretLeft,ArrowUp,Stack,Plus,MagnifyingGlass,Folder,FolderPlus,FileText,Trash, Gear,CaretDown,CaretRight,ArrowsOut,ArrowsOutCardinal,SidebarSimple,List,Link as LinkIcon,Image as ImageIcon,CalendarBlank,DotsThree,X,Check,ArrowCounterClockwise,Download,Upload,Copy,Sun,Moon,PencilSimple,Warning,FloppyDisk,Graph,Columns,NotePencil,SortAscending,SortDescending,ClockClockwise,ClockCounterClockwise,CalendarCheck,Eye,ArrowsIn,ArrowsOutSimple} from '@phosphor-icons/react';
+import {House,Minus,Square,CaretLeft,ArrowUp,Stack,Plus,MagnifyingGlass,Folder,FolderPlus,FileText,Trash, Gear,CaretDown,CaretRight,ArrowsOut,ArrowsOutCardinal,SidebarSimple,List,Link as LinkIcon,Image as ImageIcon,CalendarBlank,DotsThree,X,Check,ArrowCounterClockwise,Download,Upload,Copy,Sun,Moon,PencilSimple,Warning,FloppyDisk,Graph,Columns,NotePencil,SortAscending,SortDescending,ClockClockwise,ClockCounterClockwise,CalendarCheck,Eye,ArrowsIn,ArrowsOutSimple,Palette,GridFour,Star} from '@phosphor-icons/react';
 import type {EditorView} from '@codemirror/view';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import {request,desktop} from './storage';
@@ -15,6 +15,7 @@ import {ALL_PROJECTS,allProjectsRoot,allProjectsGraph} from './allProjectsGraph'
 import ProjectGrid from './ProjectGrid';
 import ReorderTabs from './ReorderTabs';
 import CentralWindows,{type CentralWindowsHandle} from './CentralWindows';
+import {parseCanvas} from './CanvasEditor';
 import PrintNote from './PrintNote';
 import SettingsPanel from './SettingsPanel';
 import {objectIcons,objectIconKey,ObjectIcon} from './ObjectIcon';
@@ -55,6 +56,7 @@ function IconButton({label,onClick,children,disabled=false,active=false}:{label:
 function Highlight({text,query}:{text:string;query:string}){const i=text.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());return !query||i<0?<>{text}</>:<>{text.slice(0,i)}<mark>{text.slice(i,i+query.length)}</mark>{text.slice(i+query.length)}</>}
 export default function App(){
  const settingsWindow=new URLSearchParams(window.location.search).has('settings');
+ const favoritesWindow=new URLSearchParams(window.location.search).has('favorites');
  const detachedCentralId=desktop?new URLSearchParams(window.location.search).get('centralWindow'):null;
  const [project,setProject]=useState('Личное');
  const [section,setSection]=useState('');
@@ -81,6 +83,8 @@ export default function App(){
  const [globalPalette,setGlobalPalette]=useState(()=>localStorage.getItem('noteapp-global-palette'));
  const [overview,setOverview]=useState(true);
  const [appearanceTab,setAppearanceTab]=useState<'palette'|'grid'>('palette');
+ const [showFavorites,setShowFavorites]=useState(false);
+ const [favoritesQuery,setFavoritesQuery]=useState('');
  const [blendRequest,setBlendRequest]=useState<{base:string;project:string;overview:boolean;global?:boolean}|null>(null);
  const [dailyNoteUrl,setDailyNoteUrl]=useState('');
  const [taskManagerProject,setTaskManagerProject]=useState<string|null>(null);
@@ -102,7 +106,7 @@ export default function App(){
  const visibleProjectOrder=orderedProjects.filter(name=>projects.includes(name));
  const font=validFont(settings.fontFamily);
  const projectFor = (path: string) => projectOf(path, dataRef.current.settings.projects ?? defaultProjects);
- const availableNotes = data.notes.filter(n => projects.includes(projectFor(n.path)));
+ const availableNotes = data.notes.filter(n => !projectFor(n.path)||projects.includes(projectFor(n.path)));
  const note = availableNotes.find(n => n.path === active);
 
  useEffect(()=>{localStorage.setItem('noteapp-read-mode',String(read))},[read]);
@@ -181,6 +185,8 @@ export default function App(){
  useEffect(()=>{const channel=new BroadcastChannel('noteapp-settings');settingsChannel.current=channel;channel.onmessage=({data:message})=>{if(message.root!==dataRef.current.root)return;accept({...dataRef.current,settings:{...dataRef.current.settings,...message.patch}});if('palette' in message.patch)setGlobalPalette(message.patch.palette??null);};return()=>{settingsChannel.current=null;channel.close();};},[]);
  function updateSettings(patch:Partial<Settings>){const root=dataRef.current.root;const next={...dataRef.current.settings,...patch};accept({...dataRef.current,settings:next});settingsQueue.current=settingsQueue.current.then(async()=>{await request('settings-patch',{root,values:patch,remove:Object.keys(patch).filter(key=>patch[key as keyof Settings]===undefined)});settingsChannel.current?.postMessage({root,patch});}).catch(report);}
  function openSettings(){if(!desktop){setModal('settings');return;}void (async()=>{await settingsQueue.current;const {WebviewWindow}=await import('@tauri-apps/api/webviewWindow');await focusOrCreateDetachedWindow(()=>WebviewWindow.getByLabel('settings'),()=>new WebviewWindow('settings',{url:'index.html?settings',title:'Настройки — NoteApp',width:940,height:740,minWidth:680,minHeight:480,decorations:true,center:true}));})().catch(report);}
+ function openFavorites(){if(!desktop){setShowFavorites(value=>!value);return}void (async()=>{const {WebviewWindow}=await import('@tauri-apps/api/webviewWindow');await focusOrCreateDetachedWindow(()=>WebviewWindow.getByLabel('favorites'),()=>new WebviewWindow('favorites',{url:'index.html?favorites',title:'Избранное — NoteApp',width:460,height:620,minWidth:350,minHeight:400,decorations:true,center:true}))})().catch(report)}
+ useEffect(()=>{if(favoritesWindow||detachedCentralId||settingsWindow)return;const channel=new BroadcastChannel('noteapp-favorites-open');channel.onmessage=({data:message})=>{if(message.root===dataRef.current.root)void go(message.path).catch(report)};return()=>channel.close()},[favoritesWindow,detachedCentralId,settingsWindow]);
  useEffect(()=>{if(settingsWindow&&!modal)setModal('settings');},[modal]);
  useEffect(()=>{const scale=Number.isFinite(settings.uiScale)?Math.max(75,Math.min(150,settings.uiScale!))/100:1;if(desktop){void import('@tauri-apps/api/webview').then(({getCurrentWebview})=>getCurrentWebview().setZoom(scale)).catch(report);}else{document.documentElement.style.zoom=String(scale);} },[settings.uiScale]);
  function detachCentralWindow(id:string,point?:{x:number;y:number}){
@@ -279,7 +285,7 @@ export default function App(){
  const openCentralItem=(item:ExplorerItem)=>act(()=>navigateCentral(itemLocation(item)));
  const openGraph = () => navigate({kind:'graph',project});
  function changeConnection(connection:ProjectConnection|null, previous?:ProjectConnection, structural=false,owner=project) {
-  if(owner===ALL_PROJECTS&&previous)structural=structural||allProjectsGraph(projects,dataRef.current.settings,childrenOf).inherited.some(link=>link.from===previous.from&&link.to===previous.to);
+  if(owner===ALL_PROJECTS&&previous)structural=structural||allProjectsGraph(projects,dataRef.current.settings,childrenOf,roots.filter(item=>item.kind==='note')).inherited.some(link=>link.from===previous.from&&link.to===previous.to);
   const {projectConnections:saved={},projectMaps:maps={}}=dataRef.current.settings;
   const links = Object.hasOwn(saved,owner) ? saved[owner] : [];
   const map = Object.hasOwn(maps,owner) ? maps[owner] : {};
@@ -380,7 +386,7 @@ export default function App(){
  function openNew() {
   const target = !overview && projects.includes(project) ? project : projects[0];
   if (!target) {setName('');setModal('project');return;}
-  openNewAt(!overview && target===project ? section : projectRoot(target));
+  openNewAt(currentLocation.current.kind==='folder'?currentLocation.current.path:'');
  }
  async function create(noteName: string, dir: string, content: string, kind:'note'|'canvas'='note') {
   const clean = noteName.trim().replace(/\.(md|canvas)$/i, '');
@@ -405,9 +411,7 @@ export default function App(){
   setDailyNoteUrl(path?referenceUrl({kind:'note',path}):'');setModal('daily-note');
  }
  async function daily(){
-  const attached=dataRef.current.settings.dailyNotes?.[dateString()];
-  if(attached){if(!availableNotes.some(note=>note.path===attached))throw Error('Прикреплённая заметка недоступна. Выберите другую заметку на сегодня.');return go(attached);}
-if(!projects.includes('Дневник'))throw Error('Сначала восстановите проект «Дневник» из корзины.');const path=`Дневник/${dateString()}.md`;if(data.notes.some(n=>n.path===path))return go(path);await create(dateString(),'Дневник',expand(builtins[2].content,dateString()))}
+  const path=`${dateString()}.md`;if(data.notes.some(n=>n.path===path))return go(path);await create(dateString(),'',expand(builtins[2].content,dateString()))}
  async function chooseVault(){if(!await flush())return;await settingsQueue.current;const s=await request('choose');if(s){drafts.current={};accept(s,true);setOpenTabs([]);setOpenGraphs([]);setOpenFolders([]);setTabOrder([]);setGraphOpen(false);setActive('');setProject('Личное');setSection('');setOverview(true);setHistory([{kind:'home'}]);setPosition(0);setExpanded([itemKey({kind:'project',project:'Личное',path:'',name:'Личное'})]);setModal(null);await flush()}}
  async function rename(targetPath=renameTarget,destination?:string) {
   if (!targetPath || !await flush()) return;
@@ -551,7 +555,7 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
   return (explorerSort.endsWith('desc')?1:-1)*(time(b)-time(a))||byName;
  });
  const childrenOf = (item: ExplorerItem) => sortItems(entriesIn(item.project,item.path,folders,availableNotes,projectFor));
- const roots: ExplorerItem[] = sortItems(projects.map(name=>({kind:'project',project:name,path:projectRoot(name),name})));
+ const roots: ExplorerItem[] = sortItems([...projects.map(name=>({kind:'project' as const,project:name,path:projectRoot(name),name})),...entriesIn('','',folders,availableNotes,projectFor).filter(item=>item.kind==='note')]);
  const revealActive=()=>{
   if(!active)return;
   const parent=folder(active),owner=projectFor(active);
@@ -640,10 +644,10 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
   await settingsQueue.current;
   const {kind,path,project:owner}=deleteTarget;
   const source=dataRef.current.notes.find(n=>n.path===path);
-  if(kind==='folder')accept(await request('trash_folder',{path}));
+  if(kind==='folder'){const snapshot=await request<Snapshot>('trash_folder',{path});for(const draftPath of Object.keys(drafts.current))if(draftPath.startsWith(path+'/'))delete drafts.current[draftPath];persistDrafts();accept(snapshot)}
   else {
    if(!source)throw Error('Заметка уже отсутствует в хранилище.');
-   accept(await request('trash',{path,revision:source.revision}));
+   const snapshot=await request<Snapshot>('trash',{path,revision:source.revision});delete drafts.current[path];persistDrafts();accept(snapshot);
   }
   const removedCurrent=kind==='folder' ? (section===path||section.startsWith(path+'/')) : active===path;
   if(!overview&&project===owner&&removedCurrent) await navigate({kind:'folder',project:owner,path:folder(path)});
@@ -806,46 +810,36 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
   open={openItem} toggle={toggleBranch} showMenu={showExplorerMenu}
   projectPalette={name=>paletteId(paletteForProject(name)??generalPalette)} icons={settings.objectIcons}/>
  <div className="sidebar-bottom">
-  <div className="bottom-actions"><button onClick={()=>setModal('trash')}><Trash size={21}/>Корзина</button><button onClick={openSettings}><Gear size={21}/>Настройки</button></div>
+  <div className="bottom-actions"><button aria-label="Корзина" title="Корзина" onClick={()=>setModal('trash')}><Trash size={21}/></button><button aria-label="Настройки" title="Настройки" onClick={openSettings}><Gear size={21}/></button></div>
  </div></aside>;
- const inspector=right&&!focus?<aside className="inspector glass-panel" data-decorative-rings={settings.decorativeRings&&!!note||undefined}>{overview?<div className="project-summary"><strong>Проекты</strong><p>Всего: {projects.length}</p></div>:<>{note&&<><section className="inspector-note-mode">{noteMode}</section>{outline.length>0&&<section><button className="inspector-title" onClick={()=>toggleSection('$outline')}><List size={22}/><strong>Оглавление</strong><CaretDown size={14}/></button>{!collapsed.includes('$outline')&&<div className="outline">{outline.map((h,i)=><button key={h.id} className={i===0?'current':''} style={{paddingLeft:16+Math.max(0,h.level-1)*12}} onClick={()=>jump(h.offset,h.id)}>{h.text}</button>)}</div>}</section>}{incoming.length>0&&<section className="backlinks"><button className="inspector-title" onClick={()=>toggleSection('$links')}><LinkIcon size={23}/><strong>Обратные ссылки</strong><span className="count">{incoming.length}</span><CaretDown size={14}/></button>{!collapsed.includes('$links')&&<div>{incoming.map(n=><button className="backlink" key={n.path} onClick={()=>act(()=>go(n.path))}><div><ObjectIcon item={{kind:'note',path:n.path}} icons={settings.objectIcons} size={20}/><strong>{title(n.path)}</strong></div><p>{n.path.endsWith('.canvas')?'Полотно':n.content.replace(/^#+\s+.*\n/,'').replace(/\n/g,' ').trim().slice(0,150)}</p></button>)}</div>}</section>}</>}
+ const canvasWidgets=note?.path.endsWith('.canvas')?(parseCanvas(note.content)?.widgets??[]):[];
+ const sortedCanvasWidgets=canvasWidgets.map((widget,index)=>({widget,index})).sort((a,b)=>explorerSort.startsWith('name')?(explorerSort==='name-desc'?-1:1)*(a.widget.text||a.widget.kind||'').localeCompare(b.widget.text||b.widget.kind||'','ru'):(explorerSort.endsWith('desc')?b.index-a.index:a.index-b.index));
+ const favoritesList=<div className="favorites-window-content"><header><Star size={20}/><strong>Избранное</strong></header><label className="favorites-search"><MagnifyingGlass size={18}/><input aria-label="Поиск в избранном" placeholder="Найти заметку или полотно" value={favoritesQuery} onChange={event=>setFavoritesQuery(event.target.value)}/></label><div className="favorites-items">{availableNotes.filter(item=>settings.favorites?.includes(item.path)&&title(item.path).toLocaleLowerCase().includes(favoritesQuery.toLocaleLowerCase())).map(item=><div key={item.path}><button onClick={()=>{if(favoritesWindow){const channel=new BroadcastChannel('noteapp-favorites-open');channel.postMessage({root:data.root,path:item.path});channel.close()}else{setShowFavorites(false);act(()=>go(item.path))}}}>{item.path.endsWith('.canvas')?<GridFour size={19}/>:<FileText size={19}/>}<span><strong>{title(item.path)}</strong><small>{item.path}</small></span></button><button className="favorites-remove" aria-label={`Убрать ${title(item.path)} из избранного`} title="Убрать из избранного" onClick={()=>updateSettings({favorites:settings.favorites?.filter(path=>path!==item.path)})}><X size={17}/></button></div>)}{!availableNotes.some(item=>settings.favorites?.includes(item.path)&&title(item.path).toLocaleLowerCase().includes(favoritesQuery.toLocaleLowerCase()))&&<p>В избранном ничего не найдено</p>}</div></div>;
+ const inspector=right&&!focus?<aside className="inspector glass-panel" data-decorative-rings={settings.decorativeRings&&!!note||undefined}>{overview?<div className="project-summary"><strong>Проекты</strong><p>Всего: {projects.length}</p></div>:<>{note&&<><section className="inspector-note-mode">{noteMode}</section>{note.path.endsWith('.canvas')?<section className="canvas-widget-outline"><button className="inspector-title" aria-expanded={!collapsed.includes('$widgets')} onClick={()=>toggleSection('$widgets')}><GridFour size={20}/><strong>Виджеты</strong><CaretDown size={14}/></button>{!collapsed.includes('$widgets')&&<><select aria-label="Сортировка виджетов" value={explorerSort} onChange={event=>setExplorerSort(event.target.value as ExplorerSort)}>{sortChoices.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><div className="canvas-widget-outline-list">{sortedCanvasWidgets.map(({widget})=><button key={widget.id} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-focus-widget',{detail:{path:note.path,id:widget.id}}))}><strong>{widget.kind==='table'?'Таблица':widget.kind==='code'?'Код':widget.kind==='image'?'Изображение':widget.kind==='text'?'Текст':widget.kind==='board'?'Доска задач':widget.kind==='plot'?'График':widget.kind==='link'?'Ссылка':widget.kind??'Текст'}</strong><span>{widget.text.replace(/\s+/g,' ').slice(0,90)||'Пустой виджет'}</span></button>)}{!canvasWidgets.length&&<p>Виджетов пока нет</p>}</div></>}</section>:outline.length>0&&<section><button className="inspector-title" onClick={()=>toggleSection('$outline')}><List size={22}/><strong>Оглавление</strong><CaretDown size={14}/></button>{!collapsed.includes('$outline')&&<div className="outline">{outline.map((h,i)=><button key={h.id} className={i===0?'current':''} style={{paddingLeft:16+Math.max(0,h.level-1)*12}} onClick={()=>jump(h.offset,h.id)}>{h.text}</button>)}</div>}</section>}{incoming.length>0&&<section className="backlinks"><button className="inspector-title" onClick={()=>toggleSection('$links')}><LinkIcon size={23}/><strong>Обратные ссылки</strong><span className="count">{incoming.length}</span><CaretDown size={14}/></button>{!collapsed.includes('$links')&&<div>{incoming.map(n=><button className="backlink" key={n.path} onClick={()=>act(()=>go(n.path))}><div><ObjectIcon item={{kind:'note',path:n.path}} icons={settings.objectIcons} size={20}/><strong>{title(n.path)}</strong></div><p>{n.path.endsWith('.canvas')?'Полотно':n.content.replace(/^#+\s+.*\n/,'').replace(/\n/g,' ').trim().slice(0,150)}</p></button>)}</div>}</section>}</>}
 </>}
- <details className="note-appearance"><summary>Оформление</summary><div className="appearance-menu">
-  <div className="appearance-tabs" role="tablist" aria-label="Оформление"
-   onKeyDown={event=>{
-    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
-    event.preventDefault();
-    const index=event.key==='Home'?0:event.key==='End'?1:appearanceTab==='palette'?1:0;
-    setAppearanceTab(index===0?'palette':'grid');
-    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index]?.focus();
-   }}>
-   <button type="button" role="tab" id="appearance-palette-tab" aria-selected={appearanceTab==='palette'} aria-controls="appearance-panel"
-    tabIndex={appearanceTab==='palette'?0:-1} onClick={()=>setAppearanceTab('palette')}>Палитра</button>
-   <button type="button" role="tab" id="appearance-grid-tab" aria-selected={appearanceTab==='grid'} aria-controls="appearance-panel"
-    tabIndex={appearanceTab==='grid'?0:-1} onClick={()=>setAppearanceTab('grid')}>Фоновая сетка</button>
-  </div>
-  <div id="appearance-panel" role="tabpanel" aria-labelledby={appearanceTab==='palette'?'appearance-palette-tab':'appearance-grid-tab'}>
-   {appearanceTab==='palette'?<>
-   <ProjectPalettePicker collapsible textureColors={settings.textureColors} changeTextureColor={changeTextureColor} customColor={settings.customPaletteColor} changeCustomColor={color=>updateSettings({customPaletteColor:color})} key={overview?'overview':project} value={overview?overviewPalette:currentPalette} blend={paletteBlend}
+ <details className="note-appearance"><summary><Palette size={16}/>Оформление</summary><div className="appearance-menu">
+  <div id="appearance-panel">
+   <ProjectPalettePicker collapsible textureColors={settings.textureColors} changeTextureColor={changeTextureColor} customColor={settings.customPaletteColor} changeCustomColor={color=>updateSettings({customPaletteColor:color})} savedColors={settings.savedPaletteColors} changeSavedColors={colors=>updateSettings({savedPaletteColors:colors})} key={overview?'overview':project} value={overview?overviewPalette:currentPalette} blend={paletteBlend}
     mix={base=>{setBlendRequest({base,project,overview});setModal('palette-blend');}}
     choose={id=>{windowsRef.current?.inheritProjectPalette();updateSettings(overview?{overviewPalette:id,overviewPaletteBlend:undefined}:{projectPalettes:{...dataRef.current.settings.projectPalettes,[project]:id},projectPaletteBlends:{...dataRef.current.settings.projectPaletteBlends,[project]:null}})}}/>
    {paletteBlend&&<button className="palette-mix-action" onClick={()=>{windowsRef.current?.inheritProjectPalette();updateSettings(overview?{overviewPaletteBlend:undefined}:{projectPaletteBlends:{...dataRef.current.settings.projectPaletteBlends,[project]:null}})}}>Убрать градиент</button>}
    <div className="appearance-actions">
     {!overview&&<><button className="inherit-palette" onClick={()=>projectBgInput.current?.click()}><ImageIcon size={16}/>Фон проекта</button>
     {projectBackground(project)&&<IconButton label="Убрать фон проекта" onClick={()=>updateSettings({projectBackgrounds:{...dataRef.current.settings.projectBackgrounds,[project]:null}})}><X size={18}/></IconButton>}</>}
-    <button className="inherit-palette" onClick={commonPalette}>Общая палитра</button>
+    <button className="inherit-palette" onClick={commonPalette}><X size={16}/>Общее оформление</button>
+    <button className="inherit-palette" onClick={()=>setAppearanceTab(value=>value==='grid'?'palette':'grid')}><GridFour size={16}/>Фоновая сетка</button>
    </div>
-   </>:<>
+   {appearanceTab==='grid'&&<>
    <div className="appearance-label">Фоновая сетка</div>
    <GridPicker value={pattern} opacity={gridOpacity} changeOpacity={value=>updateSettings(overview?{overviewGridOpacity:value}:{projectGridOpacity:{...dataRef.current.settings.projectGridOpacity,[project]:value}})} change={id=>updateSettings(overview?{overviewPattern:id}:{projectPatterns:{...dataRef.current.settings.projectPatterns,[project]:id}})}/>
    </>}
   </div>
  </div></details>
- {!overview&&<div className="inspector-bottom"><CalendarBlank size={16}/><button onClick={()=>act(daily)} onContextMenu={event=>{event.preventDefault();pickDailyNote();}}>Заметка на сегодня</button><IconButton label="Выбрать заметку на сегодня" onClick={pickDailyNote}><LinkIcon size={16}/></IconButton></div>}</aside>:null;
+ {!overview&&<div className="inspector-bottom"><button aria-label="Заметка на сегодня" title="Заметка на сегодня" onClick={()=>act(daily)}><CalendarBlank size={18}/></button><button aria-label="Избранное" title="Избранное" aria-expanded={showFavorites} onClick={openFavorites}><Star size={18}/></button>{showFavorites&&!desktop&&<div className="favorites-panel glass-panel">{favoritesList}</div>}</div>}</aside>:null;
  const centralWindowSurface=<CentralWindows key={data.root} ref={windowsRef} data={data} generalPalette={generalPalette} read={read} focus={focus} references={references}
   beforeNavigate={flush} onLocation={location=>act(()=>navigate(location,true,false,true))} save={centralWindows=>updateSettings({centralWindows})}
   edit={edit} openLink={link=>act(()=>fromLink(link))} showMenu={showExplorerMenu}
-  newNote={openNewAt} newFolder={openFolderDialog} move={openMove} rename={openRename} remove={removeItem}
+  newNote={openNewAt} newFolder={openFolderDialog} move={openMove} rename={openRename} remove={removeItem} toggleFavorite={path=>{const current=dataRef.current.settings.favorites??[];updateSettings({favorites:current.includes(path)?current.filter(item=>item!==path):[...current,path]})}}
   pdf={path=>act(async()=>{if(await flush())setPrintPath(path)})} toggleRead={()=>setRead(value=>!value)} toggleFocus={()=>setFocus(value=>!value)} chooseVault={()=>act(chooseVault)}
   typography={noteTypography} pickReference={(view,kind)=>pickEditorReference(view,undefined,kind)} attach={(files,position,path,target)=>act(()=>attach(files,position,path,target))}
   changeTaskBoard={changeTaskBoard} openTaskManager={owner=>setTaskManagerProject(owner)} insertBoard={insertTaskBoard} detachedId={detachedCentralId??undefined} detach={desktop?detachCentralWindow:undefined} returnToApp={returnCentralWindow}
@@ -853,7 +847,7 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
    <NoteBackdrop path={null} root={data.root} grid/><div className="project-overview-content"><div className="project-heading"><h1>Все проекты</h1><button className="primary" onClick={()=>{setName('');setModal('project')}}><Plus size={20}/>Новый проект</button></div>
    <ProjectGrid projects={visibleProjectOrder} saveOrder={saveProjectOrder} renderCard={name=><ProjectCard key={name} name={name} sections={entriesIn(name,projectRoot(name),folders,availableNotes,projectFor).filter(item=>item.kind==='folder').map(item=>item.name)} path={projectBackground(name)} root={data.root} palette={paletteId(paletteForProject(name)??generalPalette)} blend={blendForProject(name)} pattern={settings.projectPatterns?.[name]} gridOpacity={settings.projectGridOpacity?.[name]} open={()=>open({kind:'project',project:name,path:projectRoot(name),name})} showMenu={event=>showExplorerMenu(event,{kind:'project',project:name,path:projectRoot(name),name})} archive={()=>{setProjectToArchive(name);setModal('archive-project')}}/>}/></div>
   </section>}
-  renderGraph={(owner,open)=>{const all=owner===ALL_PROJECTS?allProjectsGraph(visibleProjectOrder,settings,childrenOf):undefined;return <section className="editor-pane project-graph" aria-label={owner===ALL_PROJECTS?'Общая карта связей':`Карта связей · ${owner}`}>
+  renderGraph={(owner,open)=>{const all=owner===ALL_PROJECTS?allProjectsGraph(visibleProjectOrder,settings,childrenOf,roots.filter(item=>item.kind==='note')):undefined;return <section className="editor-pane project-graph" aria-label={owner===ALL_PROJECTS?'Общая карта связей':`Карта связей · ${owner}`}>
    <ProjectGraph key={JSON.stringify([data.root,owner])} project={all?allProjectsRoot:{kind:'project',project:owner,path:projectRoot(owner),name:owner}} notes={all?availableNotes:availableNotes.filter(n=>projectFor(n.path)===owner)} childrenOf={item=>all&&item.project===ALL_PROJECTS?all.roots:childrenOf(item)} settings={settings} root={data.root} cover={projectBackground(owner)} connections={all?.connections??settings.projectConnections?.[owner]??[]} map={all?.map??projectMap(owner)} open={item=>item.project===ALL_PROJECTS?act(()=>navigate({kind:'home'})):open(item)} showMenu={(event,item)=>{if(item.project===ALL_PROJECTS){event.preventDefault();return;}showExplorerMenu(event,item)}}
     changeConnection={(next,previous,structural)=>changeConnection(next,previous,structural,owner)} updateCard={(id,patch)=>updateMapCard(id,patch,owner)} changeBlocks={edit=>changeMapBlocks(edit,owner)} changeAppearance={patch=>updateProjectMap(patch,owner)}
     openLink={link=>act(()=>fromLink(link))} references={references} pickReference={(kind,position)=>pickMapReference(kind,position,owner)} attach={(files,position)=>act(()=>attachMapImages(files,position,owner))}
@@ -910,7 +904,7 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
   <div className="modal-foot"><button onClick={()=>setModal(null)}>Отмена</button><button className="danger" onClick={()=>act(archiveProject)}>В корзину</button></div>
  </>}
  {modal==='delete'&&<><p>«{deleteTarget?.name}» можно будет восстановить из корзины.{deleteTarget?.kind==='folder'&&' Вложенные папки и заметки тоже попадут в корзину.'}</p><div className="modal-foot"><button onClick={()=>setModal(null)}>Отмена</button><button className="danger" onClick={()=>act(trash)}>В корзину</button></div></>}
- {modal==='trash'&&<><p className="subtle">Удалённые заметки сохраняются вместе с вложениями.</p><div className="trash-list">{settings.archivedProjects?.map(p=><div key={p}><Folder size={22}/><span><strong>{p}</strong><small>Проект</small></span><button onClick={()=>{updateSettings({archivedProjects:settings.archivedProjects?.filter(name=>name!==p)});setNotice('Проект восстановлен')}}><ArrowCounterClockwise/>Восстановить проект</button></div>)}{data.trash.map(t=><div key={t.id}>{t.kind==='folder'?<Folder size={22}/>:<FileText size={22}/>}<span><strong>{t.kind==='folder'?t.path.split('/').at(-1):title(t.path)}</strong><small>{t.path}</small></span><button onClick={()=>act(()=>restore(t.id))}><ArrowCounterClockwise/>Восстановить</button></div>)}{!data.trash.length&&!settings.archivedProjects?.length&&<div className="modal-empty"><Trash size={40}/><h3>Корзина пуста</h3><p>Здесь будут удалённые заметки.</p></div>}</div></>}
+ {modal==='trash'&&<><p className="subtle">Удалённые заметки сохраняются вместе с вложениями.</p>{data.trash.length>0&&<button type="button" onClick={()=>{if(window.confirm('Очистить корзину без возможности восстановления?'))act(async()=>{accept(await request('empty_trash'));setNotice('Корзина очищена')})}}><Trash size={18}/>Очистить корзину</button>}<div className="trash-list">{settings.archivedProjects?.map(p=><div key={p}><Folder size={22}/><span><strong>{p}</strong><small>Проект</small></span><button onClick={()=>{updateSettings({archivedProjects:settings.archivedProjects?.filter(name=>name!==p)});setNotice('Проект восстановлен')}}><ArrowCounterClockwise/>Восстановить проект</button></div>)}{data.trash.map(t=><div key={t.id}>{t.kind==='folder'?<Folder size={22}/>:<FileText size={22}/>}<span><strong>{t.kind==='folder'?t.path.split('/').at(-1):title(t.path)}</strong><small>{t.path}</small></span><button onClick={()=>act(()=>restore(t.id))}><ArrowCounterClockwise/>Восстановить</button></div>)}{!data.trash.length&&!settings.archivedProjects?.length&&<div className="modal-empty"><Trash size={40}/><h3>Корзина пуста</h3><p>Здесь будут удалённые заметки.</p></div>}</div></>}
  {modal==='move'&&moveTarget&&<form onSubmit={event=>{event.preventDefault();act(moveItem)}}><p className="subtle">Переместить «{moveTarget.name}»</p><label>Папка назначения<select autoFocus value={moveDestination} onChange={event=>setMoveDestination(event.target.value)}><option value="">Корень хранилища{moveTarget.kind!=='note'?' — сделать проектом':''}</option>{folders.filter(path=>path!==moveTarget.path&&!path.startsWith(moveTarget.path+'/')).map(path=><option key={path} value={path}>{path}</option>)}</select></label><p className="subtle">{moveTarget.kind==='project'?'При переносе внутрь другого проекта этот проект станет папкой. Содержимое и настройки сохранятся.':'Внутренние ссылки обновятся автоматически.'}</p><div className="modal-foot"><button type="button" onClick={()=>setModal(null)}>Отмена</button><button className="primary" type="submit">Переместить</button></div></form>}
  {modal==='templates'&&<><label>Открыть шаблон<select value="" onChange={e=>{const t=allTemplates.find(t=>t.name===e.target.value);if(t){setTemplateName(t.name);setTemplateBody(t.content)}}}><option value="">Выберите шаблон для редактирования</option>{allTemplates.map(t=><option key={t.name}>{t.name}</option>)}</select></label><label>Название<input autoFocus value={templateName} onChange={e=>setTemplateName(e.target.value)}/></label><label>Markdown<textarea rows={12} value={templateBody} onChange={e=>setTemplateBody(e.target.value)}/></label><p className="subtle">{'Переменные: {{title}} — название, {{date}} — текущая дата.'}</p><div className="modal-foot"><button className="primary" disabled={!templateName.trim()} onClick={()=>act(async()=>{accept(await request('template',{name:templateName.trim(),content:templateBody}));setNotice('Шаблон сохранён')})}><FloppyDisk/>Сохранить шаблон</button></div></>}
  {modal==='settings'&&<SettingsPanel settings={settings} update={updateSettings} appearance={<><p className="subtle">Настройки сохраняются отдельно для «{data.name}».</p><div className="setting-row"><span>Режим яркости</span><div className="segmented"><button className={settings.theme!=='light'?'on':''} onClick={()=>updateSettings({theme:'dark'})}><Moon/>Тёмная</button><button className={settings.theme==='light'?'on':''} onClick={()=>updateSettings({theme:'light'})}><Sun/>Светлая</button></div></div><div className="settings-palette"><div className="appearance-label">Общая палитра приложения</div>
@@ -925,9 +919,11 @@ if(!projects.includes('Дневник'))throw Error('Сначала восста
  </label>
 </>} storage={<><p className="vault-path">{data.root}</p><div className="settings-grid"><button onClick={()=>act(chooseVault)}><Folder/>Выбрать хранилище</button><button onClick={()=>act(()=>transfer('import'))}><Upload/>Импорт папки</button><button onClick={()=>act(()=>transfer('export'))}><Download/>Экспорт с вложениями</button><button onClick={()=>act(()=>transfer('backup'))}><Copy/>Резервная копия</button><button onClick={()=>act(chooseVault)}><ArrowCounterClockwise/>Открыть резервную копию</button><button onClick={()=>{setTemplateName('');setTemplateBody('');setModal('templates')}}><FileText/>Редактор шаблонов</button></div><p className="subtle">Копия — отдельная папка со всеми файлами, вложениями и настройками. Её можно открыть как хранилище или импортировать без перезаписи существующих заметок.</p></>}/>}
  </div></div>);
- if(settingsWindow)return <div className={`app settings-window liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} data-theme={settings.interfaceTheme??'graphite'} style={css} data-palette-blend={settings.paletteBlend??''}>{modalSurface}</div>;
- if(detachedCentralId)return <div className={`app detached-app liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} data-theme={settings.interfaceTheme??'graphite'} style={{...css,height:'100vh'}}>{centralWindowSurface}{taskManager}</div>;
- return <div className={`app liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} data-theme={settings.interfaceTheme??'graphite'} style={css} data-palette-blend={settings.paletteBlend??''} data-transparent={chromeTransparency(settings.appTransparency)>0||undefined}>
+ const interfaceTheme=settings.interfaceTheme==='stone'?'coal':settings.interfaceTheme??'graphite';
+ if(favoritesWindow)return <div className={`app favorites-window liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} data-theme={interfaceTheme} style={css}>{favoritesList}</div>;
+ if(settingsWindow)return <div className={`app settings-window liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} data-theme={interfaceTheme} style={css} data-palette-blend={settings.paletteBlend??''}>{modalSurface}</div>;
+ if(detachedCentralId)return <div className={`app detached-app liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} data-theme={interfaceTheme} style={{...css,height:'100vh'}}>{centralWindowSurface}{taskManager}</div>;
+ return <div className={`app liquid-shell palette-${generalPalette} ${settings.theme==='light'?'light':''}`} data-theme={interfaceTheme} style={css} data-palette-blend={settings.paletteBlend??''} data-transparent={chromeTransparency(settings.appTransparency)>0||undefined}>
  <header className="titlebar glass-panel" data-tauri-drag-region>
   <div className="brand"><span className="brand-name">NoteApp</span></div>
   <div className="toolbar-nav">

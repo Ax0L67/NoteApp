@@ -55,7 +55,9 @@
   gap: 8px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--edge);
+  cursor:grab;
 }
+.dock-panel-heading:active { cursor:grabbing; }
 .dock-panel-heading > .icon-button {
   flex: 0 0 44px;
   width: 44px;
@@ -106,6 +108,10 @@
 .dock-panel .sidebar-bottom { padding: 6px 0 0; }
 .dock-panel .bottom-actions { display: flex; flex-wrap: wrap; padding-top: 4px; }
 .dock-panel .bottom-actions > button { flex: 1; width: auto; min-height: 32px; height: auto; font-size: calc(var(--ui-font-scale, 1) * 14px); }
+:is(.dock-zone-left,.dock-zone-right) .dock-panel :is(.explorer-sidebar-heading,.bottom-actions,.inspector-bottom) { position:relative; border-top-color:transparent!important; }
+:is(.dock-zone-left,.dock-zone-right) .dock-panel :is(.explorer-sidebar-heading,.bottom-actions,.inspector-bottom)::before { content:""; position:absolute; top:-1px; left:-8px; right:-8px; border-top:1px solid var(--edge); pointer-events:none; }
+:is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-bottom::before { left:-16px; right:-16px; }
+.app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-zone-left,.dock-zone-right) .dock-panel :is(.explorer-sidebar-heading,.bottom-actions,.inspector-bottom)::before { border-color:#414141; }
 .dock-panel .vault-switch { padding-inline: 6px; }
 .dock-panel .vault-switch strong { overflow: hidden; text-overflow: ellipsis; }
 :is(.dock-zone-top,.dock-zone-bottom) .dock-panel-body > .sidebar {
@@ -140,7 +146,7 @@
 .dock-main-top-edge > .dock-resize::after { inset: 3px calc(50% - 20px); background: var(--edge); }
 .dock-resize {
   position: relative;
-  flex: 0 0 6px;
+  flex: 0 0 8px;
   touch-action: none;
   user-select: none;
 }
@@ -218,6 +224,9 @@
 .custom-palette-color { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; font-size: calc(var(--ui-font-scale, 1) * 13px); }
 .custom-palette-color output { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .custom-palette-color input[type="color"] { width: 40px; height: 32px; min-height: 32px; padding: 2px; border: 1px solid var(--edge); cursor: pointer; }
+.saved-palette-colors { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin:7px 0; }
+.saved-palette-colors > span { display:inline-flex; align-items:center; gap:2px; }
+.saved-palette-colors .palette-swatch { width:25px; height:25px; min-width:25px; }
 
 .app[data-transparent],
 .app[data-transparent] :is(.project-workspace,.project-card,.note-tab,.dock-panel) {

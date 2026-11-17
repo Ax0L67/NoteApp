@@ -2,6 +2,9 @@ import {describe,expect,it} from 'vitest';
 import {standaloneMapTable,readingWidgetTables} from './noteTables';
 
 describe('map table parsing',()=>{
+  it('accepts the new empty 2×2 grid',()=>{
+    expect(standaloneMapTable('|  |  |\n| :--- | :--- |\n|   |   |')?.rows).toEqual([['',''],['','']]);
+  });
   it('accepts a single-column table with saved metadata',()=>{
     const source='<!-- noteapp-table widths=100 palettes= x=0 y=0 w=720 h=320 z=2 -->\n| Name |\n| :--- |\n| Text |';
     expect(standaloneMapTable(source)?.rows).toEqual([['Name'],['Text']]);

@@ -3,7 +3,7 @@ import {ALL_PROJECTS} from './allProjectsGraph';
 import {saveNotePng,saveGraphPng} from './notePng';
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState,type ReactNode,type RefObject} from 'react';
 import {createPortal} from 'react-dom';
-import {ArrowsIn,ArrowsOut,DotsThree,DotsSixVertical,FileText,Folder,Graph,House,Minus,Plus,Stack,X,Copy,Download,PencilSimple,Trash,ArrowsOutCardinal,CaretDown,ArrowUp} from '@phosphor-icons/react';
+import {ArrowsIn,ArrowsOut,DotsThree,DotsSixVertical,FileText,Folder,Graph,House,Minus,Plus,Stack,X,Copy,Download,PencilSimple,Trash,ArrowsOutCardinal,CaretDown,ArrowUp,Star,Check} from '@phosphor-icons/react';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import type {EditorView} from '@codemirror/view';
 import type {ReferenceActions} from './ReferenceChip';
@@ -21,7 +21,7 @@ import {NoteBackdrop,paletteId,paletteDragType,readPaletteDrop} from './appearan
 import Editor from './Editor';
 import MarkdownToolbar from './MarkdownToolbar';
 import ReorderTabs from './ReorderTabs';
-import CanvasEditor from './CanvasEditor';
+import CanvasEditor,{parseCanvas} from './CanvasEditor';
 import {ObjectIcon} from './ObjectIcon';
 
 export interface CentralWindowsHandle {
@@ -39,7 +39,7 @@ interface Props {
   renderGraph:(project:string,open:(item:ExplorerItem)=>void)=>ReactNode;
   showMenu:(event:React.MouseEvent,item:ExplorerItem)=>void;
   newNote:(folder:string)=>void;newFolder:(item:ExplorerItem)=>void;move:(item:ExplorerItem)=>void;
-  rename:(path:string)=>void;remove:(item:ExplorerItem)=>void;pdf:(path:string)=>void;
+  rename:(path:string)=>void;remove:(item:ExplorerItem)=>void;pdf:(path:string)=>void;toggleFavorite:(path:string)=>void;
   toggleRead:()=>void;toggleFocus:()=>void;chooseVault:()=>void;
   typography:(path:string,getView?:()=>EditorView|undefined)=>ReactNode;
   pickReference:(view:EditorView,kind?:ReferenceKind)=>void;
@@ -54,11 +54,14 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const [activeId,setActiveId]=useState(()=>props.detachedId??windows[0].id);
   const [menuId,setMenuId]=useState<string|null>(null);
   const [splitPreview,setSplitPreview]=useState<{id:string;side:'L'|'R'|'T'|'B'}|null>(null);
+  const [tilePreview,setTilePreview]=useState<CentralWindow[]|null>(null);
   const draggingWindow=useRef<string|null>(null);
+  const dragBase=useRef<CentralWindow[]|null>(null);
+  const tilePreviewKey=useRef('');
   const stage=useRef<HTMLDivElement>(null);
   const current=useRef(windows);current.current=windows;
   const active=useRef(activeId);active.current=activeId;
-  const visibleWindows=props.detachedId?windows.filter(win=>win.id===props.detachedId):windows.filter(win=>!win.detached);
+  const visibleWindows=props.detachedId?(tilePreview??windows).filter(win=>win.id===props.detachedId):(tilePreview??windows).filter(win=>!win.detached);
   const splitWindowCount=visibleWindows.length;
   const noteViews=useRef(new Map<string,EditorView>());
   const gesture=useRef<{id:string;pointer:number;x:number;y:number;rect:CentralWindow;mode:string;fitBottom:boolean}|null>(null);
@@ -70,6 +73,12 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const projectFor=(path:string)=>projectOf(path,data.settings.projects??defaultProjects);
   const projects=(data.settings.projects??defaultProjects).filter(name=>!data.settings.archivedProjects?.includes(name));
   function commit(next:CentralWindow[],persist=true){current.current=next;setWindows(next);if(persist)props.save(next);}
+  function tileMove(base:CentralWindow[],source:string,destination:string,side:'L'|'R'|'T'|'B') {
+    const moved=base.find(entry=>entry.id===source),next=removeTile(base,source),target=next.find(entry=>entry.id===destination);
+    if(!moved||moved.mode!=='tiled'||!target||target.mode!=='tiled')return null;
+    const before=side==='L'||side==='T',first=side==='L'||side==='R'?'L':'T',second=first==='L'?'R':'B',path=target.tilePath??'';
+    return base.map(entry=>entry.id===source?{...moved,tilePath:path+(before?first:second)}:entry.id===destination?{...target,tilePath:path+(before?second:first)}:next.find(item=>item.id===entry.id)!);
+  }
   useEffect(()=>{const location=tabLocation(current.current.find(win=>win.id===props.detachedId)?.active??current.current[0].active);if(location)props.onLocation(location);},[]);
   useEffect(()=>{if(gesture.current)return;const next=readCentralWindows(data.settings.centralWindows,data.settings.active);current.current=next;setWindows(next);if(!next.some(win=>win.id===active.current)){active.current=next.find(win=>props.detachedId?win.id===props.detachedId:!win.detached)?.id??next[0].id;setActiveId(active.current);}},[data.settings.centralWindows]);
   async function open(location:Location,replace=false,notify=true,id=active.current){
@@ -198,9 +207,8 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
         const preview=splitPreview?.id===win.id?splitPreview.side:undefined;
         return <section key={win.id} className={`central-window workbench project-workspace palette-${palette}`} data-active={activeId===win.id||undefined} data-mode={win.mode??'floating'} data-maximized={maximized||undefined} data-palette-blend={blend??''} data-split-preview={preview} aria-label={`Центральное окно ${index+1}`}
           style={win.mode==='tiled'&&!maximized?{...tileRect(win.tilePath??''),zIndex:activeId===win.id?20:index+1}:{left:maximized?0:win.x,top:maximized?0:win.y,width:maximized?'100%':win.width||'100%',height:maximized?'100%':fillBottom?undefined:win.height||'100%',bottom:fillBottom?0:undefined,zIndex:activeId===win.id?20:index+1}}
-          onDragOver={event=>{if(event.dataTransfer.types.includes('application/x-noteapp-window')){event.preventDefault();if(win.mode==='tiled'&&draggingWindow.current!==win.id){const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5,vertical=Math.abs(dy)>Math.abs(dx);setSplitPreview({id:win.id,side:vertical?(dy<0?'T':'B'):(dx<0?'L':'R')});}}else if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
-          onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setSplitPreview(null);}}
-          onDrop={event=>{setSplitPreview(null);const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(value){event.preventDefault();event.stopPropagation();commit(current.current.map(entry=>entry.id===win.id?{...entry,palette:value.palette,blend:value.blend}:entry));return;}const source=event.dataTransfer.getData('application/x-noteapp-window');if(!source||source===win.id||win.mode!=='tiled')return;const moved=current.current.find(entry=>entry.id===source);if(!moved||moved.mode!=='tiled')return;event.preventDefault();const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5;const vertical=Math.abs(dy)>Math.abs(dx),before=vertical?dy<0:dx<0;const first=vertical?'T':'L',second=vertical?'B':'R';const next=removeTile(current.current,source),target=next.find(entry=>entry.id===win.id);if(!target)return;const path=target.tilePath??'';const updated=next.map(entry=>entry.id===win.id?{...entry,tilePath:path+(before?second:first)}:entry);commit(current.current.map(entry=>entry.id===source?{...moved,tilePath:path+(before?first:second)}:updated.find(item=>item.id===entry.id)!));}}
+          onDragOver={event=>{if(event.dataTransfer.types.includes('application/x-noteapp-window')){event.preventDefault();if(win.mode==='tiled'&&draggingWindow.current!==win.id){const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5,vertical=Math.abs(dy)>Math.abs(dx);const side: 'L'|'R'|'T'|'B'=vertical?(dy<0?'T':'B'):(dx<0?'L':'R'),key=`${draggingWindow.current}:${win.id}:${side}`;if(tilePreviewKey.current!==key){tilePreviewKey.current=key;setSplitPreview({id:win.id,side});const preview=tileMove(dragBase.current??current.current,draggingWindow.current!,win.id,side);if(preview)setTilePreview(preview)}}}else if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
+          onDrop={event=>{setSplitPreview(null);const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(value){event.preventDefault();event.stopPropagation();commit(current.current.map(entry=>entry.id===win.id?{...entry,palette:value.palette,blend:value.blend}:entry));return;}const source=event.dataTransfer.getData('application/x-noteapp-window');if(!source)return;const destination=splitPreview?.id??win.id;if(source===destination||current.current.find(entry=>entry.id===destination)?.mode!=='tiled')return;event.preventDefault();const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5,vertical=Math.abs(dy)>Math.abs(dx),side: 'L'|'R'|'T'|'B'=splitPreview?.side??(vertical?(dy<0?'T':'B'):(dx<0?'L':'R')),next=tileMove(dragBase.current??current.current,source,destination,side);setTilePreview(null);tilePreviewKey.current='';dragBase.current=null;if(next)commit(next);}}
           onPointerDownCapture={()=>{if(active.current!==win.id)selectWindow(win.id);}} onPointerDown={event=>{if(win.mode!=='tiled'&&(event.target as Element).closest('.markdown-ribbon-tabs')&&!(event.target as Element).closest('button,input,select'))start(event,win.id,'move');}} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
           {menuId===win.id&&<div className="dropdown central-window-menu" onKeyDown={event=>{if(event.key==='Escape')setMenuId(null);}}>
             <button onClick={()=>{void open({kind:'home'},false,true,win.id);setMenuId(null);}}><House/>Все проекты</button>
@@ -210,7 +218,8 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
             <button onClick={()=>{commit(current.current.map(entry=>entry.id===win.id?{...entry,x:0,y:0,width:0,height:0}:entry));setMenuId(null);}}><ArrowsOutCardinal/>Развернуть внутри приложения</button>
             {win.detached&&props.returnToApp&&<button onClick={()=>{setMenuId(null);props.returnToApp?.(win.id);}}><ArrowsIn/>Вернуть в приложение</button>}
             {!win.detached&&windows.length>1&&<button onClick={()=>{setMenuId(null);void closeWindow(win.id);}}><X/>Закрыть окно</button>}
-            {note&&<><button onClick={()=>{props.rename(note.path);setMenuId(null);}}><PencilSimple/>Переименовать</button>
+            {note&&<><button onClick={()=>props.toggleFavorite(note.path)}><Star/>{data.settings.favorites?.includes(note.path)?'Убрать из избранного':'В избранное'}{data.settings.favorites?.includes(note.path)&&<Check size={16}/>}</button><button onClick={()=>{props.rename(note.path);setMenuId(null);}}><PencilSimple/>Переименовать</button>
+              {note.path.endsWith('.canvas')&&(['snapGrid','snapGuides'] as const).map(key=><button key={key} role="menuitemcheckbox" disabled={props.read} aria-checked={parseCanvas(note.content)?.[key]!==false} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-canvas-setting',{detail:{path:note.path,key}}))}><Check size={16} style={{visibility:parseCanvas(note.content)?.[key]!==false?'visible':'hidden'}}/>{key==='snapGrid'?'Привязка виджетов к сетке':'Привязка к другим элементам'}</button>)}
               <button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>
               <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void (async()=>{try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await saveNotePng(win,title(note.path));}catch(error){alert(String(error));}})();}}><Download/>Сохранить заметку в PNG…</button>
               <button onClick={()=>{props.pdf(note.path);setMenuId(null);}}><Download/>Печать / сохранить PDF…</button>
@@ -224,7 +233,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
               <button className="note-tab-label" title={label} aria-pressed={key===win.active} onClick={()=>{if(tab)void open(tab,false,true,win.id);}}><ObjectIcon item={{kind:tab?.kind==='note'?'note':tab?.kind==='folder'?'folder':'project',path:tab?.kind==='note'||tab?.kind==='folder'?tab.path:tab?.kind==='graph'?tab.project:''}} icons={data.settings.objectIcons} size={17}/><strong>{label}</strong></button>
               <button className="icon-button" aria-label={`Закрыть вкладку «${label}»`} onClick={()=>void closeTab(win.id,key)}><X size={14}/></button></div>;})}/>
             <div className="central-window-actions">
-              <button className="central-move-handle" title="Переместить окно" aria-label="Переместить окно" draggable={win.mode==='tiled'} onDragStart={event=>{draggingWindow.current=win.id;setMoving(true);event.dataTransfer.setData('application/x-noteapp-window',win.id);event.dataTransfer.effectAllowed='move';}} onDragEnd={()=>{draggingWindow.current=null;setMoving(false);setSplitPreview(null);}} onPointerDown={event=>{if(win.mode!=='tiled')start(event,win.id,'move');}} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}><DotsSixVertical size={16}/></button>
+              <button className="central-move-handle" title="Переместить окно" aria-label="Переместить окно" draggable={win.mode==='tiled'} onDragStart={event=>{draggingWindow.current=win.id;dragBase.current=current.current;setMoving(true);event.dataTransfer.setData('application/x-noteapp-window',win.id);event.dataTransfer.effectAllowed='move';const windowNode=event.currentTarget.closest<HTMLElement>('.central-window');if(windowNode)event.dataTransfer.setDragImage(windowNode,30,20);}} onDragEnd={()=>{draggingWindow.current=null;dragBase.current=null;tilePreviewKey.current='';setMoving(false);setSplitPreview(null);setTilePreview(null);}} onPointerDown={event=>{if(win.mode!=='tiled')start(event,win.id,'move');}} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}><DotsSixVertical size={16}/></button>
               {!props.detachedId&&<button title="Фокус" aria-label="Фокус" aria-pressed={props.focus} onClick={props.toggleFocus}><ArrowsOut size={16}/></button>}
               <button title="Меню окна" aria-label="Меню окна" aria-expanded={menuId===win.id} onClick={()=>setMenuId(menuId===win.id?null:win.id)}><DotsThree size={20}/></button>
               {win.detached&&<button title="Вернуть в приложение" aria-label="Вернуть в приложение" onClick={()=>props.returnToApp?.(win.id)}><ArrowsIn size={16}/></button>}
@@ -261,7 +270,7 @@ function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
     <button type="button" aria-label={`Масштаб редактора ${Math.round(zoom*100)}%. Сбросить`} onClick={()=>setZoom(1)}>{Math.round(zoom*100)}%</button>
     <button type="button" aria-label="Увеличить масштаб" disabled={zoom>=2} onClick={()=>setZoom(value=>Math.min(2,Math.round((value+.1)*10)/10))}><Plus size={15}/></button>
   </div>;
-  if(note.path.endsWith('.canvas'))return <CanvasEditor key={note.path} note={note} notes={props.data.notes} root={props.data.root} background={props.data.settings.projectBackgrounds?.[owner]??null} pattern={props.data.settings.projectPatterns?.[owner]} gridOpacity={props.data.settings.projectGridOpacity?.[owner]??100} read={props.read} light={props.data.settings.theme==='light'} textStyle={style} save={content=>props.edit(note.path,content)} onLink={props.openLink} references={props.references} typography={getView=>props.typography(note.path,getView)} pickReference={props.pickReference} attach={(files,position,ref)=>props.attach(files,position,note.path,ref)} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard} openTasks={()=>props.openTaskManager(owner)} insertBoard={(view,id)=>props.insertBoard(view,owner,id)}/>;
+  if(note.path.endsWith('.canvas'))return <CanvasEditor key={note.path} note={note} notes={props.data.notes} project={owner} root={props.data.root} background={props.data.settings.projectBackgrounds?.[owner]??null} pattern={props.data.settings.projectPatterns?.[owner]} gridOpacity={props.data.settings.projectGridOpacity?.[owner]??100} read={props.read} light={props.data.settings.theme==='light'} textStyle={style} save={content=>props.edit(note.path,content)} onLink={props.openLink} references={props.references} typography={getView=>props.typography(note.path,getView)} pickReference={props.pickReference} attach={(files,position,ref)=>props.attach(files,position,note.path,ref)} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard} openTasks={()=>props.openTaskManager(owner)} insertBoard={(view,id)=>props.insertBoard(view,owner,id)}/>;
   return <>
   <main ref={main} className="editor-pane main-note-editor" data-ribbon-hidden={ribbonHidden||undefined}>
     {!ribbonHidden&&<div className="note-ribbon" inert={props.read}><MarkdownToolbar runEdit={format} disabled={props.read} typography={props.typography(note.path,activeView)}

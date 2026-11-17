@@ -7,8 +7,8 @@ import {layoutProjectGraph} from './ProjectGraph';
 // Colons cannot occur in project folder names on Windows.
 export const ALL_PROJECTS=':all-projects:';
 export const allProjectsRoot:ExplorerItem={kind:'project',project:ALL_PROJECTS,path:'',name:'Все проекты'};
-export function allProjectsGraph(projects:string[],settings:Settings,childrenOf:(item:ExplorerItem)=>ExplorerItem[]) {
- const roots:ExplorerItem[]=projects.map(owner=>({kind:'project',project:owner,path:projectRoot(owner),name:owner}));
+export function allProjectsGraph(projects:string[],settings:Settings,childrenOf:(item:ExplorerItem)=>ExplorerItem[],unbound:ExplorerItem[]=[] ) {
+ const roots:ExplorerItem[]=[...projects.map(owner=>({kind:'project' as const,project:owner,path:projectRoot(owner),name:owner})),...unbound];
  const cards:Record<string,MapCard>={},inherited:ProjectConnection[]=[],hidden:ProjectConnection[]=[];let x=48;
  const global=settings.projectMaps?.[ALL_PROJECTS]??{};
  const plain=(link:ProjectConnection)=>!link.from.startsWith('annotation:')&&!link.to.startsWith('annotation:');

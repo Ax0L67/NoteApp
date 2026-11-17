@@ -1,5 +1,4 @@
 import {useLayoutEffect,useRef,useState,type ReactNode} from 'react';
-import {DotsSixVertical} from '@phosphor-icons/react';
 import {animateLayout,captureLayout} from './layoutMotion';
 import {dockSides,readDockLayout,placeDockPanel,swapDockPanels,dockPanelWeight,type DockLayout,type DockPanel,type DockSide} from './dockLayout';
 import {paletteId,paletteDragType,readPaletteDrop} from './appearance';
@@ -62,7 +61,9 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
   const positions=useRef(new Map<string,DOMRect>());
   const resizeStart=useRef<DockLayout|null>(null);
   const lastTop=useRef(220);
-  const model=draft??readDockLayout(layout,leftWidth,rightWidth);
+  const saved=readDockLayout(layout,leftWidth,rightWidth);
+  const preview=dragging&&target?(target.swap?swapDockPanels(saved):placeDockPanel(saved,dragging,target.side,target.before)):null;
+  const model=draft??preview??saved;
   const panels={navigation:focus?null:navigation,inspector:focus?null:inspector};
   const groups=Object.fromEntries(dockSides.map(side=>[side,
     model.order.filter(id=>panels[id]&&model.sides[id]===side)])) as Record<DockSide,DockPanel[]>;
@@ -92,10 +93,15 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
     setDraft(null);
   }
   function finishDrop() {
-    if(dragging&&target)commit(target.swap?swapDockPanels(model):
-      placeDockPanel(model,dragging,target.side,target.before));
+    if(dragging&&target)commit(target.swap?swapDockPanels(saved):
+      placeDockPanel(saved,dragging,target.side,target.before));
     setDragging(null);
     setTarget(null);
+  }
+  function previewDrop(next:{side:DockSide;before?:DockPanel;swap?:DockPanel}) {
+    if(target?.side===next.side&&target.before===next.before&&target.swap===next.swap)return;
+    positions.current=captureLayout(root.current,'[data-dock-item]');
+    setTarget(next);
   }
   function toggleTop() {
     change({...model,sizes:{...model.sizes,top:model.sizes.top>0?0:lastTop.current}});
@@ -165,7 +171,7 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
               const rect=event.currentTarget.getBoundingClientRect();
               const fraction=side==='left'||side==='right'?(event.clientY-rect.top)/rect.height:(event.clientX-rect.left)/rect.width;
               const before=fraction<.5?id:groups[side][index+1];
-              setTarget(fraction>.33&&fraction<.67?{side,swap:id}:{side,before});
+              previewDrop(fraction>.33&&fraction<.67?{side,swap:id}:{side,before});
             }}
             onDropCapture={event=>{
               if(event.dataTransfer.types.includes(paletteDragType)){
@@ -175,31 +181,8 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
               }
             }}
             onDrop={event=>{if(dragging){event.preventDefault();event.stopPropagation();finishDrop();}}}>
-            <header className="dock-panel-heading">
+            <header className="dock-panel-heading" draggable tabIndex={0} role="button" aria-label={`Переместить панель «${labels[id]}»`} title={`Переместить панель «${labels[id]}»`} onDragStart={event=>{if((event.target as HTMLElement).closest('button,input,select,textarea')){event.preventDefault();return}event.dataTransfer.setData('application/x-noteapp-panel',id);event.dataTransfer.effectAllowed='move';const panel=event.currentTarget.closest<HTMLElement>('.dock-panel');if(panel)event.dataTransfer.setDragImage(panel,Math.min(30,panel.clientWidth/2),20);setDragging(id)}} onKeyDown={event=>{if(event.key==='Escape'){setDragging(null);setTarget(null)}else if(event.key===' '||event.key==='Enter'){event.preventDefault();if(dragging===id)finishDrop();else{setDragging(id);setTarget({side})}}else if(dragging===id){const destination=({ArrowLeft:'left',ArrowRight:'right',ArrowUp:'top',ArrowDown:'bottom'} as Record<string,DockSide>)[event.key];if(destination){event.preventDefault();setTarget({side:destination})}}}}>
               {id==='navigation'&&homeButton}
-              <button type="button" className="dock-drag-handle" draggable title="Перетащить панель. По краям другой панели — объединить, по центру — поменять местами. С клавиатуры: пробел, стрелка, Enter."
-                aria-label={`Переместить панель «${labels[id]}»`}
-                aria-pressed={dragging===id}
-                onKeyDown={event=>{
-                  if(event.key==='Escape'&&dragging===id){
-                    event.preventDefault();event.stopPropagation();setDragging(null);setTarget(null);return;
-                  }
-                  if(event.key===' '||event.key==='Enter'){
-                    event.preventDefault();
-                    if(dragging===id)finishDrop();
-                    else {setDragging(id);setTarget({side});}
-                    return;
-                  }
-                  if(dragging!==id)return;
-                  const direction:Record<string,DockSide>={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'top',ArrowDown:'bottom'};
-                  const destination=direction[event.key];
-                  if(destination){event.preventDefault();setTarget({side:destination});}
-                }}
-                onDragStart={event=>{
-                  event.dataTransfer.setData('application/x-noteapp-panel',id);
-                  event.dataTransfer.effectAllowed='move';
-                  setDragging(id);
-                }}><DotsSixVertical size={17}/><span>{labels[id]}</span></button>
             </header>
             {id==='inspector'&&decorativeRings&&<span className="inspector-rings" aria-hidden="true"><i/><i/><i/><i/></span>}
             <div className="dock-panel-body">{panels[id]}</div>
@@ -212,7 +195,7 @@ export default function WorkspaceLayout({navigation,homeButton,inspector,childre
       {dockSides.map(side=><div key={side} className={`dock-drop-edge dock-drop-${side}`} data-active={target?.side===side&&!target.swap||undefined}
         onDragOver={event=>{
           event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='move';
-          setTarget({side});
+          previewDrop({side});
         }}
         onDrop={event=>{event.preventDefault();event.stopPropagation();finishDrop();}}>
         {side==='bottom'?'Разместить снизу':sideLabels[side]}

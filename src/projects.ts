@@ -6,6 +6,7 @@ export const projectRoot = (project: string) => project === 'Личное' ? '' 
 const sameName = (a: string, b: string) => a.toLocaleLowerCase() === b.toLocaleLowerCase();
 
 export function projectOf(path: string, projects: string[]) {
+  if(!folder(path))return '';
   const root = folder(path).split('/')[0];
   return projects.find(project => sameName(project, root)) ?? 'Личное';
 }

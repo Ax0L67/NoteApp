@@ -272,7 +272,8 @@
 .central-window-actions > .note-zoom-controls-titlebar { order:-1; }
 
 .central-window .note-tabs { padding-inline:12px; gap:clamp(0px,calc((100% - var(--tab-count,1) * 40px) / var(--tab-count,1)),14px); }
-.central-window .note-tab { flex:1 1 120px; min-width:0; max-width:120px; }
+.central-window .note-tab { flex:1 1 216px; min-width:0; max-width:216px; }
+.storage-strip .vault-switch { width:216px; flex:0 0 216px; }
 
 /* Note tabs use the same symmetric gutter as graph tabs. */
 .central-window:has(.note-zoom-controls-titlebar) > .note-tab-strip { padding-inline:16px; }
@@ -286,9 +287,17 @@
 .app[data-png-export] { pointer-events:none; }
 .app[data-png-export] :is(.note-insert-menu,.floating-note-resize,.graph-resize,.cm-cursorLayer,.cm-selectionLayer,.graph-selection-box) { visibility:hidden; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .sidebar-top { padding-top:31px; }
-.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector { padding-top:39px; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector { padding-top:16px; }
+/* Align the inspector with the storage strip and the editor ribbon. */
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) > .dock-panel-heading { min-height:74px; flex-basis:74px; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) .inspector { padding-top:0; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-note-mode { position:absolute; top:5px; left:16px; right:16px; z-index:1; margin:0; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-note-mode + section > :is(.outline,.canvas-widget-outline-list) { margin-top:0; }
 
 .app .central-window .selected-note-tab { background:var(--editor-fill); }
 .app .central-window .note-tab-strip { --joined-tab-fill:var(--editor-fill); }
 
 .app .central-window[data-tab-joined] > .note-tab-strip .selected-note-tab { background:var(--editor-fill) calc(-1 * var(--tab-join-left)) 0 / var(--tab-join-width) 100% no-repeat; }
+.app .central-window:has(.editor-pane:not([data-ribbon-hidden]) > .note-ribbon) .selected-note-tab { background:var(--tint-fill); }
+.app .central-window:has(.editor-pane:not([data-ribbon-hidden]) > .note-ribbon) .note-tab-strip { --joined-tab-fill:var(--tint-fill); }
+.app .central-window[data-tab-joined]:has(.editor-pane:not([data-ribbon-hidden]) > .note-ribbon) > .note-tab-strip .selected-note-tab { background:var(--tint-fill) calc(-1 * var(--tab-join-left)) 0 / var(--tab-join-width) 100% no-repeat; }

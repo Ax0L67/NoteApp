@@ -56,11 +56,11 @@ export function insertFeature(view:EditorView,kind:NoteFeature) {
   insertText(view,markdownBlock(kind,value));
 }
 
-export function insertTable(view:EditorView,rows=3,columns=3) {
+export function insertTable(view:EditorView,rows=1,columns=2) {
   rows=Math.max(1,Math.min(30,Math.floor(rows)));columns=Math.max(1,Math.min(16,Math.floor(columns)));
-  const cells=Array.from({length:columns},(_,index)=>`Колонка ${index+1}`);
+  const cells=Array(columns).fill('');
   const source=[`| ${cells.join(' | ')} |`,`| ${cells.map(()=>':---').join(' | ')} |`,...Array.from({length:rows},()=>`| ${cells.map(()=> ' ').join(' | ')} |`)].join('\n');
-  const width=720,height=Math.min(760,180+rows*48),widget=initialNoteWidget(view,view.state.selection.main.from,width,height),widths=Array(columns).fill(Math.floor(100/columns));
+  const width=Math.max(180,columns*90),height=Math.min(760,Math.max(100,(rows+1)*50)),widget=initialNoteWidget(view,view.state.selection.main.from,width,height),widths=Array(columns).fill(Math.floor(100/columns));
   widths[columns-1]+=100-widths.reduce((sum,value)=>sum+value,0);
   insertText(view,`<!-- noteapp-table widths=${widths.join(',')} x=${widget.x} y=${widget.y} w=${widget.width} h=${widget.height} z=${widget.z} -->\n${source}`);
 }

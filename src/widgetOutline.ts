@@ -1,4 +1,17 @@
 export type WidgetRect={x:number;y:number;width:number;height:number};
+export function widgetJoinGroups(rects:WidgetRect[],step:number):number[][] {
+ const groups=rects.map((_,index)=>[index]);
+ const touches=(a:WidgetRect,b:WidgetRect)=>{
+  const x=Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x),y=Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y);
+  return x>=-2&&y>=-2&&(x>Math.min(step*.25,.1*Math.min(a.width,b.width))||y>Math.min(step*.25,.1*Math.min(a.height,b.height)));
+ };
+ for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++)if(touches(rects[i],rects[j])){
+  const a=groups.find(group=>group.includes(i))!,b=groups.find(group=>group.includes(j))!;
+  if(a!==b){a.push(...b);groups.splice(groups.indexOf(b),1);}
+ }
+ return groups.filter(group=>group.length>1);
+}
+
 export function widgetOutline(rects:WidgetRect[],radius=16,squareBottom=false):string {
  const normalize=(values:number[])=>{const stops:number[]=[];for(const value of values.sort((a,b)=>a-b))if(!stops.length||value-stops[stops.length-1]>2)stops.push(value);return (value:number)=>stops.find(stop=>Math.abs(value-stop)<=2)??value;};
  const nx=normalize(rects.flatMap(r=>[r.x,r.x+r.width])),ny=normalize(rects.flatMap(r=>[r.y,r.y+r.height]));

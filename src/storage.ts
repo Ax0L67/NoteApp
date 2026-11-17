@@ -41,6 +41,7 @@ export async function request<T=Snapshot>(op:string,args:Record<string,unknown>=
  if(op==='save'){const n=s.notes.find(n=>n.path===path);if((n?.revision??null)!==args.revision)return {conflict:true,content:n?.content??null,revision:n?.revision??null} as T;const next={path,content:args.content as string,revision:revision(args.content as string),createdAt:n?.createdAt??Date.now(),modifiedAt:Date.now()};s.notes=s.notes.filter(n=>n.path!==path).concat(next);addPreviewFolder(s,folder(path));result={revision:next.revision};}
  if(op==='rename'){if(s.notes.some(n=>n.path===args.to))throw Error('Заметка уже существует');const old=path.replace(/\.(md|canvas)$/,'');const name=old.split('/').pop();s.notes=s.notes.map(n=>({...n,path:n.path===path?args.to as string:n.path,content:remapNoteReference(n.content.replace(/\[\[([^\]|#]+)([^\]]*)\]\]/g,(m,t,suffix)=>t===old||t===name?`[[${(args.to as string).replace(/\.(md|canvas)$/,'')}${suffix}]]`:m),path,args.to as string)}));s.notes.forEach(n=>n.revision=revision(n.content));}
  if(op==='trash'){const n=s.notes.find(n=>n.path===path)!;const id=String(Date.now());localStorage.setItem(`trash-${id}`,JSON.stringify(n));s.trash.push({id,path});s.notes=s.notes.filter(n=>n.path!==path);}
+ if(op==='empty_trash'){for(const item of s.trash)localStorage.removeItem(`trash-${item.id}`);s.trash=[];s.removedFolders={};}
  if(op==='restore'){
   const item=s.trash.find(t=>t.id===args.id);
   if(item?.kind==='folder'){

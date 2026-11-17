@@ -15,8 +15,8 @@ import {CardFace,paletteDragType,readPaletteDrop} from './appearance';
 import {textureById} from './textures';
 import {FeatureCard,featureDefaults,featureFromMarkdown,featureBaseWidth,markdownBlock,type NoteFeature} from './noteFeatureBlocks';
 import {FittedWidget} from './widgetFit';
-import {queueNoteWidgetJoinSync,snapNoteWidgetPosition} from './noteWidgetChrome';
-import {MapTable,standaloneMapTable} from './noteTables';
+import {queueNoteWidgetJoinSync,snapNoteWidgetPosition,tableMinimumSize} from './noteWidgetChrome';
+import {MapTable,ReadingTable,standaloneMapTable} from './noteTables';
 import type {ExplorerItem} from './Explorer';
 import {ObjectIcon} from './ObjectIcon';
 import type {MapBlock, MapCard, MapPoint, Note, ProjectConnection, ProjectMap, Settings, TaskBoard} from './types';
@@ -109,7 +109,7 @@ const initialCamera: Camera = {x:0, y:0, zoom:1};
 const minZoom = .25, maxZoom = 2.5;
 
 const resizeEdges=['n','e','s','w','ne','nw','se','sw'] as const;
-function ResizeHandle({label,size,position,step,zoom,draft,save}:{label:string;size:Dimensions;position:MapPoint;step:number;zoom:number;draft:(value:{size:Dimensions;position:MapPoint}|null)=>void;save:(size:Dimensions,position:MapPoint)=>void}) {
+function ResizeHandle({label,size,position,step,zoom,draft,save,moveEdges}:{label:string;size:Dimensions;position:MapPoint;step:number;zoom:number;draft:(value:{size:Dimensions;position:MapPoint}|null)=>void;save:(size:Dimensions,position:MapPoint)=>void;moveEdges?:{start:(event:PointerEvent<HTMLButtonElement>)=>void;move:(event:PointerEvent<HTMLButtonElement>)=>void;end:(event:PointerEvent<HTMLButtonElement>)=>void;key:(dx:number,dy:number)=>void}}) {
   const gesture=useRef<{pointer:number;x:number;y:number;size:Dimensions;position:MapPoint;nextSize:Dimensions;nextPosition:MapPoint}|null>(null);
   const resize=(edge:string,dx:number,dy:number,originSize:Dimensions,originPosition:MapPoint)=>{
     const nextSize={...originSize},nextPosition={...originPosition},right=originPosition.x+originSize.width,bottom=originPosition.y+originSize.height;
@@ -122,12 +122,12 @@ function ResizeHandle({label,size,position,step,zoom,draft,save}:{label:string;s
   return <>{resizeEdges.map(edge=><button key={edge} type="button" className={`graph-resize graph-resize-${edge}`} role="separator"
     aria-orientation={edge==='e'||edge==='w'?'vertical':edge==='n'||edge==='s'?'horizontal':undefined}
     aria-label={`${label} ${edge.length===2?'по диагонали':edge==='e'||edge==='w'?'по ширине':'по высоте'}`} title="Изменить размер перетаскиванием"
-    onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.stopPropagation();gesture.current={pointer:event.pointerId,x:event.clientX,y:event.clientY,size,position,nextSize:size,nextPosition:position};event.currentTarget.setPointerCapture(event.pointerId);}}
-    onPointerMove={event=>{const current=gesture.current;if(!current||current.pointer!==event.pointerId)return;event.stopPropagation();const next=resize(edge,(event.clientX-current.x)/zoom,(event.clientY-current.y)/zoom,current.size,current.position);current.nextSize=next.size;current.nextPosition=next.position;draft(next);}}
-    onPointerUp={event=>{const current=gesture.current;if(!current||current.pointer!==event.pointerId)return;event.stopPropagation();gesture.current=null;draft(null);save(current.nextSize,current.nextPosition);}}
+    onPointerDown={event=>{if(event.button!==0)return;if(moveEdges&&edge.length===1){moveEdges.start(event);return}event.preventDefault();event.stopPropagation();gesture.current={pointer:event.pointerId,x:event.clientX,y:event.clientY,size,position,nextSize:size,nextPosition:position};event.currentTarget.setPointerCapture(event.pointerId);}}
+    onPointerMove={event=>{if(moveEdges&&edge.length===1){moveEdges.move(event);return}const current=gesture.current;if(!current||current.pointer!==event.pointerId)return;event.stopPropagation();const next=resize(edge,(event.clientX-current.x)/zoom,(event.clientY-current.y)/zoom,current.size,current.position);current.nextSize=next.size;current.nextPosition=next.position;draft(next);}}
+    onPointerUp={event=>{if(moveEdges&&edge.length===1){moveEdges.end(event);return}const current=gesture.current;if(!current||current.pointer!==event.pointerId)return;event.stopPropagation();gesture.current=null;draft(null);save(current.nextSize,current.nextPosition);}}
     onPointerCancel={()=>{gesture.current=null;draft(null);}}
     onLostPointerCapture={()=>{if(gesture.current){gesture.current=null;draft(null);}}}
-    onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();event.stopPropagation();const dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0,next=resize(edge,dx,dy,size,position);save(next.size,next.position)}}>
+    onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();event.stopPropagation();const dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;if(moveEdges&&edge.length===1){moveEdges.key(dx,dy);return}const next=resize(edge,dx,dy,size,position);save(next.size,next.position)}}>
     </button>)}</>;
 }
 
@@ -239,7 +239,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   }
   const visible=[...effective.values()];
   const geometry=JSON.stringify([...endpoints].map(([id,{x,y,width,height}])=>[id,x,y,width,height,nodes.get(id)?.depth]));
-  useLayoutEffect(()=>{if(canvas.current)queueNoteWidgetJoinSync(canvas.current,step);},[geometry,step]);
+  useLayoutEffect(()=>{if(canvas.current)queueNoteWidgetJoinSync(canvas.current,step);},[geometry,step,map]);
   const routeLinks=JSON.stringify(visible.map(link=>[link.from,link.to,structural.has(linkKey(link))]));
   const routes=useMemo(()=>{
     const boxes=[...endpoints.values()],route=createGraphRouter(boxes,step);
@@ -299,8 +299,8 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   function addMapFeature(kind:NoteFeature|'table',options?:{rows?:number;columns?:number;boardId?:string}) {
     let text:string;
     if(kind==='table'){
-      const rows=Math.max(1,Math.min(30,Math.floor(options?.rows??3))),columns=Math.max(1,Math.min(16,Math.floor(options?.columns??3)));
-      const cells=Array.from({length:columns},(_,i)=>`Столбец ${i+1}`);
+      const rows=Math.max(1,Math.min(30,Math.floor(options?.rows??1))),columns=Math.max(1,Math.min(16,Math.floor(options?.columns??2)));
+      const cells=Array(columns).fill('');
       text=[`| ${cells.join(' | ')} |`,`| ${cells.map(()=>':---').join(' | ')} |`,...Array.from({length:rows},()=>`| ${cells.map(()=>' ').join(' | ')} |`)].join('\n');
     }else{
       const value=featureDefaults(kind);
@@ -308,7 +308,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
       text=markdownBlock(kind,value);
     }
     const id=crypto.randomUUID(),position=insertionPoint();
-    changeBlocks(current=>[...current,{id,position,text,size:{width:kind==='table'||kind==='board'?704:kind==='plot'?660:528,height:kind==='plot'?484:kind==='board'?462:330}}]);
+    changeBlocks(current=>[...current,{id,position,text,size:{width:kind==='table'?Math.ceil(Math.max(180,(options?.columns??2)*90)/step)*step:kind==='board'?704:kind==='plot'?660:528,height:kind==='table'?Math.ceil(Math.max(100,((options?.rows??1)+1)*50)/step)*step:kind==='plot'?484:kind==='board'?462:330}}]);
     setActiveBlock(id);
   }
   function openEndpoint(id:string, endpoint:Endpoint) {
@@ -401,11 +401,11 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     return ()=>observer.disconnect();
   },[nodeIds]);
 
-  function startMove(event:PointerEvent<HTMLElement>, id:string, position:MapPoint) {
+  function startMove(event:PointerEvent<HTMLElement>, id:string, position:MapPoint,fromEdge=false) {
     suppressClick.current='';
     const target=event.target as Element;
     if(source||editing||pointer.current||pan.current||event.button!==0||
-      target.closest('.graph-card-title, .graph-card-actions, .graph-comment, .graph-resize'))return;
+      target.closest(fromEdge?'.graph-card-title, .graph-card-actions, .graph-comment':'.graph-card-title, .graph-card-actions, .graph-comment, .graph-resize'))return;
     if(event.ctrlKey||event.metaKey||event.shiftKey){
       event.preventDefault();event.stopPropagation();
       suppressClick.current=id;
@@ -753,7 +753,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
           const feature=/^`{3,}noteapp-(compare|source|concept|math|plot|board)\n([\s\S]*?)\n`{3,}\s*$/.exec(block.text);
           const featureValue=feature&&featureFromMarkdown(feature[1],feature[2]);
           const table=standaloneMapTable(block.text);
-          return <article key={block.id} className={`graph-annotation${featureValue||table?' note-feature-widget':''}${textureById(block.texture)?` palette-${block.texture}`:''}`} data-active={active||undefined} data-reference={!!position.reference||undefined}
+          return <article key={block.id} className={`graph-annotation${featureValue||table?' note-feature-widget':''}${table?' graph-table-annotation':''}${textureById(block.texture)?` palette-${block.texture}`:''}`} data-active={active||undefined} data-reference={!!position.reference||undefined}
             onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
             onDrop={event=>{const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(value&&textureById(value.palette)){event.preventDefault();event.stopPropagation();updateBlock(block.id,{texture:value.palette});}}}
             data-node-id={dragId} data-depth={maxDepth+1} tabIndex={-1} data-link-source={from===dragId||undefined}
@@ -807,12 +807,12 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
               ...textAppearanceStyle({lineHeight:block.lineHeight??map.lineHeight,textColor:block.textColor??map.textColor}),
               ...(font&&{'--body-font':fontStack(font)}),
             } as React.CSSProperties}>
-              {feature&&featureValue?<FittedWidget baseWidth={featureBaseWidth(feature[1] as NoteFeature)}><FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/></FittedWidget>:table&&rawMapTable!==block.id?<FittedWidget baseWidth={668}>{editCanvas?<MapTable source={block.text} save={text=>updateBlock(block.id,{text})} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:""}} notes={notes} read floatingText={false} light={settings.theme==="light"} editorRef={blockEditor} onChange={()=>{}} onLink={openLink}/>}</FittedWidget>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
+              {feature&&featureValue?<FittedWidget baseWidth={featureBaseWidth(feature[1] as NoteFeature)}><FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/></FittedWidget>:table&&rawMapTable!==block.id?editCanvas?<MapTable source={block.text} save={text=>{const host=Array.from(scroll.current?.querySelectorAll<HTMLElement>('.graph-annotation')??[]).find(node=>node.dataset.nodeId===dragId)??null,[minWidth,minHeight]=tableMinimumSize(host);updateBlock(block.id,{text,size:{width:Math.max(position.width,Math.ceil(minWidth/step)*step),height:Math.max(position.height,Math.ceil(minHeight/step)*step)}})}} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}}/>:<ReadingTable source={block.text}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
                 light={settings.theme==='light'} autoFocus={active} editorRef={blockEditor}
                 onChange={text=>updateBlock(block.id,{text})} onLink={openLink}/>}
               {!active&&!block.text&&<p className="subtle">Пустой блок</p>}
             </div>
-            <ResizeHandle label={`Размер блока «${position.name}»`} size={{width:position.width,height:position.height}} position={position} step={step} zoom={camera.zoom}
+            <ResizeHandle label={`Размер блока «${position.name}»`} size={{width:position.width,height:position.height}} position={position} step={step} zoom={camera.zoom} moveEdges={table?{start:event=>startMove(event,dragId,position,true),move,end:event=>endMove(event,savePositions),key:(dx,dy)=>updateBlock(block.id,{position:{x:position.x+dx,y:position.y+dy}})}:undefined}
               draft={value=>setSizing(value?{id:dragId,...value}:null)} save={(size,nextPosition)=>updateBlock(block.id,{size,position:nextPosition})}/>
           </article>;
         })}
