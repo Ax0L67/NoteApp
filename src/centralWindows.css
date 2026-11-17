@@ -289,8 +289,13 @@
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .sidebar-top { padding-top:31px; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector { padding-top:16px; }
 /* Align the inspector with the storage strip and the editor ribbon. */
-.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) > .dock-panel-heading { min-height:74px; flex-basis:74px; }
-.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) .inspector { padding-top:0; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) > .dock-panel-heading { min-height:44px; flex-basis:44px; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading { position:relative; border-bottom:0!important; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel:has(> .inspector-rings) > .dock-panel-body { border-top:0; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .explorer-sidebar-heading,
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .note-outline-header { margin-top:21px; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel:has(> .inspector-rings) .note-outline-header { margin-top:13px; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) .inspector { padding:8px; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-note-mode { position:absolute; top:5px; left:16px; right:16px; z-index:1; margin:0; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-note-mode + section > :is(.outline,.canvas-widget-outline-list) { margin-top:0; }
 

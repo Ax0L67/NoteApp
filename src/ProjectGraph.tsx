@@ -1,4 +1,4 @@
-import {useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent} from 'react';
+import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent} from 'react';
 import {ArrowRight, ArrowsClockwise, ArrowsIn, ArrowsOutCardinal, CaretDown, ChatText, Check, FileText, Folder, Link, Minus, NotePencil, PencilSimple, Plus, Stack, Trash, X} from '@phosphor-icons/react';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import Editor from './Editor';
@@ -169,6 +169,8 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const [rebuilding,setRebuilding]=useState(false);
   const [panning, setPanning] = useState(false);
   const [editCanvas, setEditCanvas] = useState(false);
+  useEffect(()=>{const change=(event:Event)=>{const detail=(event as CustomEvent<{project:string;edit:boolean}>).detail;if(detail.project!==project.project||!scroll.current?.closest('.central-window[data-active]'))return;setEditCanvas(detail.edit);setActiveBlock('');setPlacingText(false)};window.addEventListener('noteapp-graph-mode',change);return()=>window.removeEventListener('noteapp-graph-mode',change)},[project.project]);
+  useEffect(()=>{if(scroll.current?.closest('.central-window[data-active]'))window.dispatchEvent(new CustomEvent('noteapp-graph-mode-changed',{detail:{project:project.project,edit:editCanvas}}))},[project.project,editCanvas]);
   const [ribbonHidden,setRibbonHidden]=useState(false);
   const [placingText, setPlacingText] = useState(false);
   const [activeBlock, setActiveBlock] = useState('');
@@ -239,6 +241,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   }
   const visible=[...effective.values()];
   const geometry=JSON.stringify([...endpoints].map(([id,{x,y,width,height}])=>[id,x,y,width,height,nodes.get(id)?.depth]));
+  useLayoutEffect(()=>{const focus=(event:Event)=>{const detail=(event as CustomEvent<{project:string;id:string}>).detail;if(detail.project!==project.project||!scroll.current?.closest('.central-window[data-active]'))return;const endpoint=endpoints.get(detail.id),view=scroll.current;if(!endpoint||!view)return;setCamera(current=>({...current,x:view.clientWidth/2-(endpoint.x+endpoint.width/2)*current.zoom,y:view.clientHeight/2-(endpoint.y+endpoint.height/2)*current.zoom}));canvas.current?.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(detail.id)}"]`)?.focus({preventScroll:true})};window.addEventListener('noteapp-focus-map-item',focus);return()=>window.removeEventListener('noteapp-focus-map-item',focus)},[geometry,project.project]);
   useLayoutEffect(()=>{if(canvas.current)queueNoteWidgetJoinSync(canvas.current,step);},[geometry,step,map]);
   const routeLinks=JSON.stringify(visible.map(link=>[link.from,link.to,structural.has(linkKey(link))]));
   const routes=useMemo(()=>{

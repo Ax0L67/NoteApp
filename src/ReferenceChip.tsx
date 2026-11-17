@@ -12,6 +12,7 @@ export type ReferenceActions = {
   root: string;
   open: (url:string)=>void;
   edit: (view:EditorView,range:ReferenceRange)=>void;
+  insertCanvas?: (kind:import('./noteReferences').ReferenceKind,apply:(text:string)=>boolean)=>void;
 };
 
 function chipClass(target?:ReferenceTarget) {

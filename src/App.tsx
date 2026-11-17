@@ -1,10 +1,10 @@
 import {useState,useRef,useEffect,useCallback,useMemo,type CSSProperties,type ReactNode} from 'react';
-import {House,Minus,Square,CaretLeft,ArrowUp,Stack,Plus,MagnifyingGlass,Folder,FolderPlus,FileText,Trash, Gear,CaretDown,CaretRight,ArrowsOut,ArrowsOutCardinal,SidebarSimple,List,Link as LinkIcon,Image as ImageIcon,CalendarBlank,DotsThree,X,Check,ArrowCounterClockwise,Download,Upload,Copy,Sun,Moon,PencilSimple,Warning,FloppyDisk,Graph,Columns,NotePencil,SortAscending,SortDescending,ClockClockwise,ClockCounterClockwise,CalendarCheck,Eye,ArrowsIn,ArrowsOutSimple,Palette,GridFour,Star} from '@phosphor-icons/react';
+import {House,Minus,Square,CaretLeft,ArrowUp,Stack,Plus,MagnifyingGlass,Folder,FolderPlus,FileText,Trash, Gear,CaretDown,CaretRight,ArrowsOut,ArrowsOutCardinal,SidebarSimple,List,Link as LinkIcon,Image as ImageIcon,CalendarBlank,DotsThree,X,Check,ArrowCounterClockwise,Download,Upload,Copy,Sun,Moon,PencilSimple,BookOpen,Warning,FloppyDisk,Graph,Columns,NotePencil,SortAscending,SortDescending,ClockClockwise,ClockCounterClockwise,CalendarCheck,Eye,ArrowsIn,ArrowsOutSimple,Palette,GridFour,Star} from '@phosphor-icons/react';
 import type {EditorView} from '@codemirror/view';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import {request,desktop} from './storage';
 import type {Snapshot,Settings,NoteAppearance,Draft,SaveResult,ProjectConnection,ProjectMap,MapBlock,MapCard,MapPoint,TaskBoard} from './types';
-import {title,folder,headings,backlinks,resolveLink,target} from './indexing';
+import {title,folder,backlinks,resolveLink,target} from './indexing';
 import {search} from './search';
 import {GridPicker,gridStyle} from './gridPatterns';
 import {chromeStyle,chromeTransparency,customColor,resetActivePalette} from './appearanceSettings';
@@ -33,6 +33,9 @@ import MarkdownToolbar from './MarkdownToolbar';
 import FontPicker,{fontStack,validFont} from './FontPicker';
 import TextOptions,{textAppearanceStyle} from './TextOptions';
 import ReferencePicker from './ReferencePicker';
+import NoteOutline from './NoteOutline';
+import WidgetOutline,{graphOutlineItems} from './SidebarObjectList';
+import SortMenu from './SortMenu';
 import {floatNoteText} from './noteTextBlocks';
 import NoteTypography from './NoteTypography';
 import {referenceMarkdown,referenceUrl,remapNoteReference,type ReferenceKind,type ReferenceRange,type ReferenceTarget} from './noteReferences';
@@ -66,6 +69,8 @@ export default function App(){
  const [moveDestination,setMoveDestination]=useState('');
  const [printPath,setPrintPath]=useState('');
  const [graphOpen,setGraphOpen]=useState(false);
+ const [graphEditing,setGraphEditing]=useState(false);
+ useEffect(()=>{const changed=(event:Event)=>{const detail=(event as CustomEvent<{project:string;edit:boolean}>).detail;if(detail.project===project)setGraphEditing(detail.edit)};window.addEventListener('noteapp-graph-mode-changed',changed);return()=>window.removeEventListener('noteapp-graph-mode-changed',changed)},[project]);
  const [openGraphs,setOpenGraphs]=useState<string[]>([]);
  const [openFolders,setOpenFolders]=useState<FolderTab[]>([]);
  const [tabOrder,setTabOrder]=useState<string[]>([]);
@@ -73,6 +78,7 @@ export default function App(){
  const [explorerSort,setExplorerSort]=useState<ExplorerSort>('modified-desc');
  const [autoReveal,setAutoReveal]=useState(false);
  const [sortMenu,setSortMenu]=useState(false);
+ const explorerSortAnchor=useRef<HTMLDivElement>(null);
  const [explorerMenu,setExplorerMenu]=useState<ExplorerMenu|null>(null);
  const closeExplorerMenu=useCallback(()=>setExplorerMenu(null),[]);
  const [folderTarget,setFolderTarget]=useState<ExplorerItem|null>(null);
@@ -225,6 +231,7 @@ export default function App(){
   const names = s.settings.projects ?? defaultProjects;
   const next = location.kind==='note' ? projectFor(location.path) : location.kind==='home' ? '' : location.project;
   if(location.kind==='home'||location.kind==='graph'&&location.project===ALL_PROJECTS)return true;
+  if(location.kind==='note'&&!next)return s.notes.some(n=>n.path===location.path);
   if(!names.includes(next)||s.settings.archivedProjects?.includes(next))return false;
   if(location.kind==='note')return s.notes.some(n=>n.path===location.path);
   if(location.kind==='graph')return true;
@@ -266,7 +273,7 @@ export default function App(){
    if(location.kind==='note'){
     setOpenTabs(tabs=>tabs.includes(location.path)?tabs:[...tabs,location.path]);
     const s = dataRef.current.settings;
-    updateSettings({active:location.path,projectNotes:{...s.projectNotes,[next]:location.path}});
+    updateSettings(next?{active:location.path,projectNotes:{...s.projectNotes,[next]:location.path}}:{active:location.path});
     body.current?.scrollTo(0,0);
    }
   }
@@ -538,7 +545,7 @@ export default function App(){
   setOpenTabs([]);setOpenFolders([]);setOpenGraphs([]);setTabOrder([]);setModal(null);
   visibleTabKeys.current=[];windowsRef.current?.closeAll();
  }
- const outline=note?headings(note.content):[];const incoming=note?backlinks(note,availableNotes):[];
+ const incoming=note?backlinks(note,availableNotes):[];
  const allTemplates=[...builtins.filter(b=>!data.templates.some(t=>t.name===b.name)),...data.templates];
  function toggleSection(k:string){setCollapsed(c=>c.includes(k)?c.filter(x=>x!==k):[...c,k])}
  
@@ -650,7 +657,7 @@ export default function App(){
    const snapshot=await request<Snapshot>('trash',{path,revision:source.revision});delete drafts.current[path];persistDrafts();accept(snapshot);
   }
   const removedCurrent=kind==='folder' ? (section===path||section.startsWith(path+'/')) : active===path;
-  if(!overview&&project===owner&&removedCurrent) await navigate({kind:'folder',project:owner,path:folder(path)});
+  if(!overview&&project===owner&&removedCurrent) await navigate(owner?{kind:'folder',project:owner,path:folder(path)}:{kind:'home'});
   setModal(null);
   setNotice(kind==='folder'?'Папка перемещена в корзину':'Заметка перемещена в корзину');
  }
@@ -737,6 +744,7 @@ export default function App(){
    if(target)return target.kind==='note'?go(target.path):navigate({kind:'graph',project:target.path});
   }),
   edit:pickEditorReference,
+  insertCanvas:(kind:ReferenceKind,apply:(text:string)=>boolean)=>{setReferenceDialog({url:'',kind,apply});setModal('reference');},
  };
  function saveReference() {
   if(!referenceDialog)return;
@@ -790,19 +798,20 @@ export default function App(){
   return `note-tab palette-${palette} ${state}`;
  }
  const noteMode=<div className="segmented" aria-label="Режим заметки">
-  <button type="button" className={!read?'on':''} aria-pressed={!read} onClick={()=>{setRead(false);setMenu(false);}}>Правка</button>
-  <button type="button" className={read?'on':''} aria-pressed={read} onClick={()=>{setRead(true);setMenu(false);}}>Чтение</button>
+  <button type="button" title="Правка" aria-label="Правка" className={!read?'on':''} aria-pressed={!read} onClick={()=>{setRead(false);setMenu(false);}}><PencilSimple size={19}/></button>
+  <button type="button" title="Чтение" aria-label="Чтение" className={read?'on':''} aria-pressed={read} onClick={()=>{setRead(true);setMenu(false);}}><BookOpen size={19}/></button>
  </div>;
  const contrast=Math.max(70,Math.min(140,Number.isFinite(settings.contrast)?settings.contrast!:100));
  const css={...Object.fromEntries(textures.filter(item=>/^#[0-9a-f]{6}$/i.test(settings.textureColors?.[item.id]??'')).map(item=>[`--texture-tint-${item.id}`,settings.textureColors![item.id]])),...gridStyle(pattern,gridOpacity),...chromeStyle(settings.appTransparency),'--palette-color-custom':customColor(settings.customPaletteColor),'--left-width':`${settings.leftWidth||334}px`,'--right-width':`${settings.rightWidth||282}px`,'--ui-font-scale':(settings.uiFontSize??14)/16,'--editor-size':`${settings.fontSize||16}px`,'--text-width':`${settings.textWidth||810}px`,'--body-font':fontStack(font),
   '--border-visible':(settings.borderBrightness??20)>0?'100%':'0%','--border-strength':`${Math.max(0,Math.min(100,settings.borderBrightness??20))*2}%`,'--border-lighten':`${Math.max(0,(settings.borderBrightness??20)-50)}%`,'--contrast-boost':`${Math.max(0,contrast-100)/2}%`,'--contrast-fade':`${Math.max(0,100-contrast)}%`} as CSSProperties;
+ const favoritesList=<div className="favorites-window-content"><header><Star size={20}/><strong>Избранное</strong></header><label className="favorites-search"><MagnifyingGlass size={18}/><input aria-label="Поиск в избранном" placeholder="Найти заметку или полотно" value={favoritesQuery} onChange={event=>setFavoritesQuery(event.target.value)}/></label><div className="favorites-items">{availableNotes.filter(item=>settings.favorites?.includes(item.path)&&title(item.path).toLocaleLowerCase().includes(favoritesQuery.toLocaleLowerCase())).map(item=><div key={item.path}><button onClick={()=>{if(favoritesWindow){const channel=new BroadcastChannel('noteapp-favorites-open');channel.postMessage({root:data.root,path:item.path});channel.close()}else{setShowFavorites(false);act(()=>go(item.path))}}}>{item.path.endsWith('.canvas')?<GridFour size={19}/>:<FileText size={19}/>}<span><strong>{title(item.path)}</strong><small>{item.path}</small></span></button><button className="favorites-remove" aria-label={`Убрать ${title(item.path)} из избранного`} title="Убрать из избранного" onClick={()=>updateSettings({favorites:settings.favorites?.filter(path=>path!==item.path)})}><X size={17}/></button></div>)}{!availableNotes.some(item=>settings.favorites?.includes(item.path)&&title(item.path).toLocaleLowerCase().includes(favoritesQuery.toLocaleLowerCase()))&&<p>В избранном ничего не найдено</p>}</div></div>;
  const navigation=<aside className="sidebar glass-panel">
 
- <div className="sidebar-top"><button className="search-button" onClick={()=>{setQuery('');setModal('search')}}><MagnifyingGlass size={20}/><span>Поиск</span><kbd>Ctrl K</kbd></button></div>
  <div className="explorer-sidebar-heading explorer-tools">
   <IconButton label="Новая заметка в выбранной папке" onClick={openNew}><NotePencil size={19}/></IconButton>
+  <IconButton label="Поиск" onClick={()=>{setQuery('');setModal('search')}}><MagnifyingGlass size={19}/></IconButton>
   <IconButton label="Новый проект" onClick={()=>{setName('');setModal('project')}}><FolderPlus size={19}/></IconButton>
-  <div className="explorer-sort"><IconButton label="Порядок сортировки" active={sortMenu} onClick={()=>setSortMenu(value=>!value)}>{(()=>{const Icon=sortChoices.find(([value])=>value===explorerSort)![2];return <Icon size={19}/>})()}</IconButton>{sortMenu&&<div className="explorer-sort-menu glass-panel" role="menu">{sortChoices.map(([value,label,Icon],index)=><button key={value} className={index===2||index===4?'sort-divider':''} role="menuitemradio" aria-checked={explorerSort===value} onClick={()=>{setExplorerSort(value);setSortMenu(false)}}><Icon size={18}/><span>{label}</span>{explorerSort===value&&<Check size={16}/>}</button>)}</div>}</div>
+  <div className="explorer-sort" ref={explorerSortAnchor}><IconButton label="Порядок сортировки" active={sortMenu} onClick={()=>setSortMenu(value=>!value)}>{(()=>{const Icon=sortChoices.find(([value])=>value===explorerSort)![2];return <Icon size={19}/>})()}</IconButton>{sortMenu&&<SortMenu anchor={explorerSortAnchor} close={()=>setSortMenu(false)}>{sortChoices.map(([value,label,Icon],index)=><button key={value} className={index===2||index===4?'sort-divider':''} role="menuitemradio" aria-checked={explorerSort===value} onClick={()=>{setExplorerSort(value);setSortMenu(false)}}><Icon size={18}/><span>{label}</span>{explorerSort===value&&<Check size={16}/>}</button>)}</SortMenu>}</div>
   <IconButton label="Показывать открытый файл" active={autoReveal} onClick={()=>{setAutoReveal(value=>!value);if(!autoReveal)revealActive()}}><Eye size={19}/></IconButton>
   <IconButton label={allExpanded?'Свернуть всё':'Развернуть всё'} onClick={()=>setExpanded(allExpanded?[]:allBranchKeys())}>{allExpanded?<ArrowsIn size={19}/>:<ArrowsOutSimple size={19}/>}</IconButton>
  </div>
@@ -810,13 +819,16 @@ export default function App(){
   open={openItem} toggle={toggleBranch} showMenu={showExplorerMenu}
   projectPalette={name=>paletteId(paletteForProject(name)??generalPalette)} icons={settings.objectIcons}/>
  <div className="sidebar-bottom">
-  <div className="bottom-actions"><button aria-label="Корзина" title="Корзина" onClick={()=>setModal('trash')}><Trash size={21}/></button><button aria-label="Настройки" title="Настройки" onClick={openSettings}><Gear size={21}/></button></div>
+  <div className="bottom-actions"><button aria-label="Корзина" title="Корзина" onClick={()=>setModal('trash')}><Trash size={21}/></button><button aria-label="Настройки" title="Настройки" onClick={openSettings}><Gear size={21}/></button><button aria-label="Заметка на сегодня" title="Заметка на сегодня" onClick={()=>act(daily)}><CalendarBlank size={18}/></button><button aria-label="Избранное" title="Избранное" aria-expanded={showFavorites} onClick={openFavorites}><Star size={18}/></button>{showFavorites&&!desktop&&<div className="favorites-panel glass-panel">{favoritesList}</div>}</div>
  </div></aside>;
  const canvasWidgets=note?.path.endsWith('.canvas')?(parseCanvas(note.content)?.widgets??[]):[];
- const sortedCanvasWidgets=canvasWidgets.map((widget,index)=>({widget,index})).sort((a,b)=>explorerSort.startsWith('name')?(explorerSort==='name-desc'?-1:1)*(a.widget.text||a.widget.kind||'').localeCompare(b.widget.text||b.widget.kind||'','ru'):(explorerSort.endsWith('desc')?b.index-a.index:a.index-b.index));
- const favoritesList=<div className="favorites-window-content"><header><Star size={20}/><strong>Избранное</strong></header><label className="favorites-search"><MagnifyingGlass size={18}/><input aria-label="Поиск в избранном" placeholder="Найти заметку или полотно" value={favoritesQuery} onChange={event=>setFavoritesQuery(event.target.value)}/></label><div className="favorites-items">{availableNotes.filter(item=>settings.favorites?.includes(item.path)&&title(item.path).toLocaleLowerCase().includes(favoritesQuery.toLocaleLowerCase())).map(item=><div key={item.path}><button onClick={()=>{if(favoritesWindow){const channel=new BroadcastChannel('noteapp-favorites-open');channel.postMessage({root:data.root,path:item.path});channel.close()}else{setShowFavorites(false);act(()=>go(item.path))}}}>{item.path.endsWith('.canvas')?<GridFour size={19}/>:<FileText size={19}/>}<span><strong>{title(item.path)}</strong><small>{item.path}</small></span></button><button className="favorites-remove" aria-label={`Убрать ${title(item.path)} из избранного`} title="Убрать из избранного" onClick={()=>updateSettings({favorites:settings.favorites?.filter(path=>path!==item.path)})}><X size={17}/></button></div>)}{!availableNotes.some(item=>settings.favorites?.includes(item.path)&&title(item.path).toLocaleLowerCase().includes(favoritesQuery.toLocaleLowerCase()))&&<p>В избранном ничего не найдено</p>}</div></div>;
- const inspector=right&&!focus?<aside className="inspector glass-panel" data-decorative-rings={settings.decorativeRings&&!!note||undefined}>{overview?<div className="project-summary"><strong>Проекты</strong><p>Всего: {projects.length}</p></div>:<>{note&&<><section className="inspector-note-mode">{noteMode}</section>{note.path.endsWith('.canvas')?<section className="canvas-widget-outline"><button className="inspector-title" aria-expanded={!collapsed.includes('$widgets')} onClick={()=>toggleSection('$widgets')}><GridFour size={20}/><strong>Виджеты</strong><CaretDown size={14}/></button>{!collapsed.includes('$widgets')&&<><select aria-label="Сортировка виджетов" value={explorerSort} onChange={event=>setExplorerSort(event.target.value as ExplorerSort)}>{sortChoices.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><div className="canvas-widget-outline-list">{sortedCanvasWidgets.map(({widget})=><button key={widget.id} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-focus-widget',{detail:{path:note.path,id:widget.id}}))}><strong>{widget.kind==='table'?'Таблица':widget.kind==='code'?'Код':widget.kind==='image'?'Изображение':widget.kind==='text'?'Текст':widget.kind==='board'?'Доска задач':widget.kind==='plot'?'График':widget.kind==='link'?'Ссылка':widget.kind??'Текст'}</strong><span>{widget.text.replace(/\s+/g,' ').slice(0,90)||'Пустой виджет'}</span></button>)}{!canvasWidgets.length&&<p>Виджетов пока нет</p>}</div></>}</section>:outline.length>0&&<section><button className="inspector-title" onClick={()=>toggleSection('$outline')}><List size={22}/><strong>Оглавление</strong><CaretDown size={14}/></button>{!collapsed.includes('$outline')&&<div className="outline">{outline.map((h,i)=><button key={h.id} className={i===0?'current':''} style={{paddingLeft:16+Math.max(0,h.level-1)*12}} onClick={()=>jump(h.offset,h.id)}>{h.text}</button>)}</div>}</section>}{incoming.length>0&&<section className="backlinks"><button className="inspector-title" onClick={()=>toggleSection('$links')}><LinkIcon size={23}/><strong>Обратные ссылки</strong><span className="count">{incoming.length}</span><CaretDown size={14}/></button>{!collapsed.includes('$links')&&<div>{incoming.map(n=><button className="backlink" key={n.path} onClick={()=>act(()=>go(n.path))}><div><ObjectIcon item={{kind:'note',path:n.path}} icons={settings.objectIcons} size={20}/><strong>{title(n.path)}</strong></div><p>{n.path.endsWith('.canvas')?'Полотно':n.content.replace(/^#+\s+.*\n/,'').replace(/\n/g,' ').trim().slice(0,150)}</p></button>)}</div>}</section>}</>}
+ const graphAll=graphOpen&&project===ALL_PROJECTS?allProjectsGraph(visibleProjectOrder,settings,childrenOf,roots.filter(item=>item.kind==='note')):undefined;
+ const graphRoot=graphAll?allProjectsRoot:{kind:'project' as const,project,path:projectRoot(project),name:project};
+ const graphItems=graphOpen?graphOutlineItems(graphRoot,item=>graphAll&&item.project===ALL_PROJECTS?graphAll.roots:childrenOf(item),graphAll?.map??projectMap(project)):[];
+ const graphMode=<div className="segmented" aria-label="Режим карты"><button type="button" title="Правка" aria-label="Правка" className={graphEditing?'on':''} aria-pressed={graphEditing} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-graph-mode',{detail:{project,edit:true}}))}><PencilSimple size={19}/></button><button type="button" title="Чтение" aria-label="Чтение" className={!graphEditing?'on':''} aria-pressed={!graphEditing} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-graph-mode',{detail:{project,edit:false}}))}><BookOpen size={19}/></button></div>;
+ const inspector=right&&!focus?<aside className="inspector glass-panel" data-decorative-rings={settings.decorativeRings&&!!note||undefined}>{overview?<div className="project-summary"><strong>Проекты</strong><p>Всего: {projects.length}</p></div>:<>{note&&<><section className="inspector-note-mode">{noteMode}</section>{note.path.endsWith('.canvas')?<WidgetOutline key={note.path} items={canvasWidgets.map(widget=>({id:widget.id,label:({table:'Таблица',code:'Код',image:'Изображение',text:'Текст',board:'Доска задач',plot:'График',link:'Ссылка'} as Record<string,string>)[widget.kind??'text']??'Виджет',text:widget.text}))} onSelect={id=>window.dispatchEvent(new CustomEvent('noteapp-focus-widget',{detail:{path:note.path,id}}))}/>:<NoteOutline key={note.path} content={note.content} read={read} collapsed={collapsed.includes('$outline')} toggle={()=>toggleSection('$outline')} jump={jump}/>}{incoming.length>0&&<section className="backlinks"><button className="inspector-title" onClick={()=>toggleSection('$links')}><LinkIcon size={23}/><strong>Обратные ссылки</strong><span className="count">{incoming.length}</span><CaretDown size={14}/></button>{!collapsed.includes('$links')&&<div>{incoming.map(n=><button className="backlink" key={n.path} onClick={()=>act(()=>go(n.path))}><div><ObjectIcon item={{kind:'note',path:n.path}} icons={settings.objectIcons} size={20}/><strong>{title(n.path)}</strong></div><p>{n.path.endsWith('.canvas')?'Полотно':n.content.replace(/^#+\s+.*\n/,'').replace(/\n/g,' ').trim().slice(0,150)}</p></button>)}</div>}</section>}</>}
 </>}
+ {graphOpen&&<><section className="inspector-note-mode">{graphMode}</section><WidgetOutline key={project} title="Объекты карты" items={graphItems} onSelect={id=>window.dispatchEvent(new CustomEvent('noteapp-focus-map-item',{detail:{project,id}}))}/></>}
  <details className="note-appearance"><summary><Palette size={16}/>Оформление</summary><div className="appearance-menu">
   <div id="appearance-panel">
    <ProjectPalettePicker collapsible textureColors={settings.textureColors} changeTextureColor={changeTextureColor} customColor={settings.customPaletteColor} changeCustomColor={color=>updateSettings({customPaletteColor:color})} savedColors={settings.savedPaletteColors} changeSavedColors={colors=>updateSettings({savedPaletteColors:colors})} key={overview?'overview':project} value={overview?overviewPalette:currentPalette} blend={paletteBlend}
@@ -835,7 +847,7 @@ export default function App(){
    </>}
   </div>
  </div></details>
- {!overview&&<div className="inspector-bottom"><button aria-label="Заметка на сегодня" title="Заметка на сегодня" onClick={()=>act(daily)}><CalendarBlank size={18}/></button><button aria-label="Избранное" title="Избранное" aria-expanded={showFavorites} onClick={openFavorites}><Star size={18}/></button>{showFavorites&&!desktop&&<div className="favorites-panel glass-panel">{favoritesList}</div>}</div>}</aside>:null;
+ </aside>:null;
  const centralWindowSurface=<CentralWindows key={data.root} ref={windowsRef} data={data} generalPalette={generalPalette} read={read} focus={focus} references={references}
   beforeNavigate={flush} onLocation={location=>act(()=>navigate(location,true,false,true))} save={centralWindows=>updateSettings({centralWindows})}
   edit={edit} openLink={link=>act(()=>fromLink(link))} showMenu={showExplorerMenu}
@@ -958,6 +970,7 @@ export default function App(){
   }}/>
  {explorerMenu&&<ExplorerContextMenu menu={explorerMenu} close={closeExplorerMenu}
   openSeparate={()=>act(()=>navigate(itemLocation(explorerMenu.item)))}
+  openSplit={()=>act(async()=>{const windows=windowsRef.current;if(windows&&!await windows.openSplit(itemLocation(explorerMenu.item)))setNotice('Не удалось открыть окно: проверьте сохранение и ограничение количества окон')})}
   chooseIcon={()=>{setIconTarget(explorerMenu.item);setModal('icon')}} newNote={()=>openNewAt(explorerMenu.item.path)} newCanvas={()=>openNewAt(explorerMenu.item.path,'canvas')} newFolder={()=>openFolderDialog(explorerMenu.item)}
   rename={()=>openRename(explorerMenu.item.path)} move={()=>openMove(explorerMenu.item)} remove={()=>removeItem(explorerMenu.item)}/>}
  {notice&&<div className="toast" role="status"><Check size={20}/><span>{notice}</span><button aria-label="Закрыть уведомление" onClick={()=>setNotice('')}><X size={17}/></button></div>}

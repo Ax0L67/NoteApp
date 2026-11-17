@@ -95,9 +95,10 @@ export function FolderContents({ name, background, root, entries, open, showMenu
   </main>;
 }
 
-export function ExplorerContextMenu({ menu, close, newNote, newCanvas, newFolder, rename, move, remove, openSeparate, chooseIcon }: {
+export function ExplorerContextMenu({ menu, close, newNote, newCanvas, newFolder, rename, move, remove, openSeparate, openSplit, chooseIcon }: {
   menu: ExplorerMenu; close: () => void; newNote: () => void; newCanvas:()=>void; newFolder: () => void; rename: () => void; remove: () => void;chooseIcon:()=>void;
   openSeparate:()=>void;
+  openSplit:()=>void;
   move:()=>void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -131,6 +132,7 @@ export function ExplorerContextMenu({ menu, close, newNote, newCanvas, newFolder
       }
     }}>
     <button role="menuitem" onClick={()=>pick(openSeparate)}><SquaresFour size={19}/>Открыть в отдельной вкладке</button>
+    {menu.item.kind==='note'&&<button role="menuitem" onClick={()=>pick(openSplit)}><SquaresFour size={19}/>Открыть в разделённом окне</button>}
     <button role="menuitem" disabled={menu.item.kind==='project'&&!menu.item.path} onClick={()=>pick(move)}><Folder size={19}/>Переместить…</button>
     <button role="menuitem" onClick={()=>pick(chooseIcon)}><Stack size={19}/>Выбрать иконку…</button>
     {menu.item.kind !== 'note' ? <>

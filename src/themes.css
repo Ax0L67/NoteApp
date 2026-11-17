@@ -206,7 +206,7 @@
   --surface-base: #181818;
   --surface-panel: #1e1e1e;
   --surface-tint: #282828;
-  --surface-editor: #2c2c2c;
+  --surface-editor: #292929;
   --surface-popup: #222222;
   --surface-input: #2b2b2b;
   --ink: #dedede;
@@ -433,7 +433,7 @@
 
 .app[data-theme="coal"], .theme-option[data-theme="coal"] {
   --surface-base: #181818;
-  --surface-panel: #2c2c2c;
+  --surface-panel: #292929;
   --surface-tint: #222222;
   --surface-editor: #1e1e1e;
   --surface-popup: #202020;
@@ -472,6 +472,12 @@
 .app.liquid-shell[data-theme="coal"] .storage-strip { background:color-mix(in srgb,var(--base) 50%,var(--editor)); }
 .app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-panel[data-panel="navigation"] .dock-panel-heading > .icon-button,.inspector-note-mode .segmented button.on,.explorer-row.current-item,.inspector .outline button.current) { background:var(--input); color:var(--text); }
 .app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-panel-heading,.explorer-sidebar-heading,.bottom-actions,.inspector .backlinks,.inspector-bottom,.dock-panel:has(> .inspector-rings) > .dock-panel-body) { border-color:#414141; }
+
+.app :is(.sidebar,.inspector) { color:color-mix(in srgb,var(--text) 88%,var(--panel)); }
+.app :is(.sidebar,.inspector) :is(button,summary,strong) { color:inherit; }
+.app :is(button,button strong,summary,.note-tab strong,.modal h2,.inspector-title strong,.explorer-row strong) { font-weight:400; }
+.note-source-view { display:flex; flex-direction:column; width:min(760px,90vw); height:min(70vh,700px); }
+.note-source-view > textarea { flex:1; width:100%; min-height:0; resize:none; font-family:Consolas,monospace; white-space:pre; }
 
 /* Settings use the same theme tokens as the workspace. */
 .app.settings-window { min-height:0; border:0; border-radius:0; background:var(--base); }

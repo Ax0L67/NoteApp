@@ -487,7 +487,7 @@
 .graph-annotation[data-reference] { width: 340px; min-width: 240px; max-width: 640px; }
 .graph-annotation[data-reference] > header { justify-content: flex-end; padding: 4px 8px 0; border-bottom: 0; background: transparent; }
 .graph-annotation[data-reference] .graph-annotation-handle { flex: 0 0 28px; }
-.graph-annotation[data-reference] .reference-chip { display: flex; width: 100%; min-height: 76px; margin: 0; font-size: 20px; line-height: 1.35; border: 0; background: transparent; }
+.graph-annotation[data-reference] .reference-chip { display: flex; width: 100%; min-height: 76px; margin: 0; font-size: inherit; line-height: 1.35; border: 0; background: transparent; }
 .graph-annotation[data-reference] .reference-label { padding: 8px; font-weight: 600; }
 .graph-annotation[data-reference] .reading p { margin: 0; }
 .graph-annotation > header {

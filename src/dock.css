@@ -107,10 +107,13 @@
 .dock-panel .explorer-tree { flex: 1; min-height: 0; overflow: auto; }
 .dock-panel .sidebar-bottom { padding: 6px 0 0; }
 .dock-panel .bottom-actions { display: flex; flex-wrap: wrap; padding-top: 4px; }
+.dock-panel .bottom-actions { position:relative; }
 .dock-panel .bottom-actions > button { flex: 1; width: auto; min-height: 32px; height: auto; font-size: calc(var(--ui-font-scale, 1) * 14px); }
 :is(.dock-zone-left,.dock-zone-right) .dock-panel :is(.explorer-sidebar-heading,.bottom-actions,.inspector-bottom) { position:relative; border-top-color:transparent!important; }
 :is(.dock-zone-left,.dock-zone-right) .dock-panel :is(.explorer-sidebar-heading,.bottom-actions,.inspector-bottom)::before { content:""; position:absolute; top:-1px; left:-8px; right:-8px; border-top:1px solid var(--edge); pointer-events:none; }
 :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-bottom::before { left:-16px; right:-16px; }
+:is(.dock-zone-left,.dock-zone-right) .dock-panel .explorer-sidebar-heading { border-top:0!important; }
+:is(.dock-zone-left,.dock-zone-right) .dock-panel .explorer-sidebar-heading::before { content:none; }
 .app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-zone-left,.dock-zone-right) .dock-panel :is(.explorer-sidebar-heading,.bottom-actions,.inspector-bottom)::before { border-color:#414141; }
 .dock-panel .vault-switch { padding-inline: 6px; }
 .dock-panel .vault-switch strong { overflow: hidden; text-overflow: ellipsis; }

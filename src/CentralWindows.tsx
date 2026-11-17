@@ -26,6 +26,7 @@ import {ObjectIcon} from './ObjectIcon';
 
 export interface CentralWindowsHandle {
   open:(location:Location,replace?:boolean,notify?:boolean)=>Promise<boolean>;
+  openSplit:(location:Location)=>Promise<boolean>;
   closeAll:()=>void;
   remap:(map:(location:Location)=>Location)=>void;
   jump:(offset:number,id:string)=>boolean;
@@ -53,6 +54,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
 
   const [activeId,setActiveId]=useState(()=>props.detachedId??windows[0].id);
   const [menuId,setMenuId]=useState<string|null>(null);
+  const [sourceWindow,setSourceWindow]=useState<string|null>(null);
   const [splitPreview,setSplitPreview]=useState<{id:string;side:'L'|'R'|'T'|'B'}|null>(null);
   const [tilePreview,setTilePreview]=useState<CentralWindow[]|null>(null);
   const draggingWindow=useRef<string|null>(null);
@@ -62,7 +64,6 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const current=useRef(windows);current.current=windows;
   const active=useRef(activeId);active.current=activeId;
   const visibleWindows=props.detachedId?(tilePreview??windows).filter(win=>win.id===props.detachedId):(tilePreview??windows).filter(win=>!win.detached);
-  const splitWindowCount=visibleWindows.length;
   const noteViews=useRef(new Map<string,EditorView>());
   const gesture=useRef<{id:string;pointer:number;x:number;y:number;rect:CentralWindow;mode:string;fitBottom:boolean}|null>(null);
   const [moving,setMoving]=useState(false);
@@ -87,7 +88,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
     commit(current.current.map(win=>win.id===id?{...win,active:key,tabs:replace?replaceTab(win.tabs,win.active,key):[...new Set([...win.tabs,key])]}:win));
     setActiveId(id);active.current=id;if(notify)props.onLocation(location);return true;
   }
-  useImperativeHandle(ref,()=>({open,closeAll(){commit(current.current.map(win=>win.id===active.current?{...win,tabs:['home'],active:'home'}:win));},
+  useImperativeHandle(ref,()=>({open,async openSplit(location){if(!await props.beforeNavigate())return false;return duplicate(active.current,'tiled',location);},closeAll(){commit(current.current.map(win=>win.id===active.current?{...win,tabs:['home'],active:'home'}:win));},
     remap(map){commit(mapWindowKeys(current.current,map));},
     jump(offset,id){
       const window=current.current.find(entry=>entry.id===active.current),location=window&&tabLocation(window.active);
@@ -106,12 +107,13 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
       if(window&&(window.palette!==undefined||window.blend!==undefined))commit(current.current.map(entry=>entry.id===window.id?{...entry,palette:undefined,blend:undefined}:entry));
     }}));
   function selectWindow(id:string){setActiveId(id);active.current=id;const win=current.current.find(win=>win.id===id);const location=win&&tabLocation(win.active);if(location)props.onLocation(location);}
-  function duplicate(id:string,mode:'floating'|'tiled'='floating'){
-    if((mode==='tiled'?current.current.filter(win=>props.detachedId?win.id===props.detachedId:!win.detached).length:current.current.length)>=windowLimit)return;
-    const source=current.current.find(win=>win.id===id);if(!source)return;
+  function duplicate(id:string,mode:'floating'|'tiled'='floating',location?:Location):boolean{
+    if(current.current.length>=windowLimit)return false;
+    const source=current.current.find(win=>win.id===id);if(!source)return false;
     const bounds=stage.current!.getBoundingClientRect();
     const separate=mode==='floating'&&!!props.detach;
-    const copy={...source,id:crypto.randomUUID(),tabs:[...source.tabs],x:Math.min(source.x+28,Math.max(0,bounds.width-360)),y:Math.min(source.y+28,Math.max(0,bounds.height-260)),width:source.width||Math.max(360,bounds.width*.8),height:source.height||Math.max(260,bounds.height*.85),mode:mode==='tiled'?'tiled' as const:undefined,detached:separate?true:mode==='tiled'?undefined:source.detached};
+    const key=location&&locationTabKey(location);
+    const copy={...source,id:crypto.randomUUID(),tabs:key?[...new Set([...source.tabs,key])]:[...source.tabs],active:key??source.active,x:Math.min(source.x+28,Math.max(0,bounds.width-360)),y:Math.min(source.y+28,Math.max(0,bounds.height-260)),width:source.width||Math.max(360,bounds.width*.8),height:source.height||Math.max(260,bounds.height*.85),mode:mode==='tiled'?'tiled' as const:undefined,detached:separate?true:mode==='tiled'?undefined:source.detached};
     if(mode==='tiled'){
       let next=ensureTilePaths(current.current);
       if(source.mode!=='tiled'){
@@ -121,8 +123,10 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
       const path=next.find(win=>win.id===id)!.tilePath??'';
       commit([...next.map(win=>win.id===id?{...win,tilePath:path+'L'}:win),{...copy,tilePath:path+'R'}]);
     }else commit([...current.current,{...copy,tilePath:undefined}]);
-    if(separate){setMenuId(null);props.detach?.(copy.id);return;}
+    if(separate){setMenuId(null);props.detach?.(copy.id);return true;}
     setActiveId(copy.id);active.current=copy.id;setMenuId(null);
+    if(location)props.onLocation(location);
+    return true;
   }
   async function closeWindow(id:string){if(current.current.length<2||!await props.beforeNavigate())return;const next=removeTile(current.current,id);commit(next);if(active.current===id)selectWindow(next.at(-1)!.id);}
   async function closeTab(id:string,key:string){
@@ -214,11 +218,12 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
             <button onClick={()=>{void open({kind:'home'},false,true,win.id);setMenuId(null);}}><House/>Все проекты</button>
             {!win.detached&&props.detach&&<button onClick={()=>{setMenuId(null);props.detach?.(win.id);}}><ArrowsOut/>Открыть отдельным окном</button>}
             <button disabled={windows.length>=windowLimit} onClick={()=>duplicate(win.id)}><Copy/>Новое отдельное окно <small>{windows.length}/{windowLimit}</small></button>
-            <button disabled={splitWindowCount>=windowLimit} onClick={()=>duplicate(win.id,'tiled')}><ArrowsOutCardinal/>Разделить центральную область <small>{splitWindowCount}/{windowLimit}</small></button>
+            <button disabled={windows.length>=windowLimit} onClick={()=>duplicate(win.id,'tiled')}><ArrowsOutCardinal/>Разделить центральную область <small>{windows.length}/{windowLimit}</small></button>
             <button onClick={()=>{commit(current.current.map(entry=>entry.id===win.id?{...entry,x:0,y:0,width:0,height:0}:entry));setMenuId(null);}}><ArrowsOutCardinal/>Развернуть внутри приложения</button>
             {win.detached&&props.returnToApp&&<button onClick={()=>{setMenuId(null);props.returnToApp?.(win.id);}}><ArrowsIn/>Вернуть в приложение</button>}
             {!win.detached&&windows.length>1&&<button onClick={()=>{setMenuId(null);void closeWindow(win.id);}}><X/>Закрыть окно</button>}
             {note&&<><button onClick={()=>props.toggleFavorite(note.path)}><Star/>{data.settings.favorites?.includes(note.path)?'Убрать из избранного':'В избранное'}{data.settings.favorites?.includes(note.path)&&<Check size={16}/>}</button><button onClick={()=>{props.rename(note.path);setMenuId(null);}}><PencilSimple/>Переименовать</button>
+              {!note.path.endsWith('.canvas')&&<button onClick={()=>{setSourceWindow(win.id);setMenuId(null)}}><FileText/>Исходный код заметки</button>}
               {note.path.endsWith('.canvas')&&(['snapGrid','snapGuides'] as const).map(key=><button key={key} role="menuitemcheckbox" disabled={props.read} aria-checked={parseCanvas(note.content)?.[key]!==false} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-canvas-setting',{detail:{path:note.path,key}}))}><Check size={16} style={{visibility:parseCanvas(note.content)?.[key]!==false?'visible':'hidden'}}/>{key==='snapGrid'?'Привязка виджетов к сетке':'Привязка к другим элементам'}</button>)}
               <button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>
               <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void (async()=>{try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await saveNotePng(win,title(note.path));}catch(error){alert(String(error));}})();}}><Download/>Сохранить заметку в PNG…</button>
@@ -239,6 +244,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
               {win.detached&&<button title="Вернуть в приложение" aria-label="Вернуть в приложение" onClick={()=>props.returnToApp?.(win.id)}><ArrowsIn size={16}/></button>}
               {!win.detached&&windows.length>1&&<button title="Закрыть окно" aria-label="Закрыть окно" onClick={()=>void closeWindow(win.id)}><X size={16}/></button>}
             </div></div>
+          {sourceWindow===win.id&&note&&!note.path.endsWith('.canvas')&&<div className="modal-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)setSourceWindow(null)}}><section className="modal note-source-view" role="dialog" aria-modal="true" aria-label="Исходный код заметки" onKeyDown={event=>{if(event.key==='Escape')setSourceWindow(null)}}><header><h2>Исходный код заметки</h2><button aria-label="Закрыть" onClick={()=>setSourceWindow(null)}><X size={20}/></button></header><textarea readOnly value={note.content} aria-label="Исходный текст заметки"/></section></div>}
           <div className="editor-layout"><div className="tabbed-workspace">
             {location.kind==='home'?props.renderHome(openItem):location.kind==='graph'&&(owner===ALL_PROJECTS||projects.includes(owner))?props.renderGraph(owner,openItem):location.kind==='folder'?<FolderContents icons={data.settings.objectIcons} root={data.root} background={data.settings.projectBackgrounds?.[owner]??null} name={item.name} entries={entriesIn(owner,item.path,vaultFolders(data),data.notes,projectFor)} open={openItem} showMenu={props.showMenu}
               actions={<div className="folder-actions"><button className="primary" onClick={()=>props.newNote(item.path)}><Plus size={18}/>Новая заметка</button><button onClick={()=>props.newFolder(item)}><Folder size={18}/>Новая папка</button></div>}/>:note?<NoteWindow key={note.path} {...props} path={note.path} onView={view=>noteViews.current.set(win.id,view)}/>:<div className="editor-pane editor-empty"><p>Этот объект больше недоступен.</p><button onClick={()=>void open({kind:'home'},false,true,win.id)}>Все проекты</button></div>}

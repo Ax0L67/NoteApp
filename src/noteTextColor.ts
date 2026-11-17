@@ -118,7 +118,7 @@ export function remarkNoteColor() {
         }
         if('children' in node)visit(node);
         const style=Object.assign({},...styles),css=[style.color&&`color:${style.color}`,style.fontSize&&`font-size:${style.fontSize}px`,style.fontFamily&&`font-family:${style.fontFamily}`,style.lineHeight&&`line-height:${style.lineHeight}`].filter(Boolean).join(';');
-        if(css&&(node.type==='text'||node.type==='inlineCode'))return [{
+        if(css&&(node.type==='text'||node.type==='inlineCode'||node.type==='link'))return [{
           type:'emphasis',data:{hName:'span',hProperties:{style:css}},children:[node],
         }];
         return [node];

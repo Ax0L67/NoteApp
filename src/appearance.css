@@ -34,7 +34,7 @@
   --surface-base: #181818;
   --surface-panel: #1e1e1e;
   --surface-tint: #282828;
-  --surface-editor: #2c2c2c;
+  --surface-editor: #292929;
   --surface-popup: #222222;
   --surface-input: #2b2b2b;
   --ink: #dedede;
@@ -298,10 +298,10 @@
   max-width: 100%;
   min-height: 1.5em;
   margin-inline: .12em;
-  border: 1px solid var(--edge);
+  border: 1px solid color-mix(in srgb,var(--text) 42%,var(--edge));
   border-radius: .4em;
   background: var(--editor);
-  font-size: .86em;
+  font-size: 1em;
   line-height: 1.2;
 }
 .reference-chip:has(.note-insert-menu[open]) { z-index: 4; }
