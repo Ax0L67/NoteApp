@@ -1,43 +1,5 @@
-/* Adapted from Nord, Gruvbox, Everforest, Solarized and Catppuccin.
+/* Adapted from Gruvbox, Everforest, Solarized and Catppuccin.
    Themes supply base tokens; appearance.css applies palette tinting afterward. */
-.app[data-theme="nord"], .theme-option[data-theme="nord"] {
-  --surface-base: #242933;
-  --surface-panel: #2e3440;
-  --surface-tint: #384448;
-  --surface-editor: #303a40;
-  --surface-popup: #343c4b;
-  --surface-input: #434c5e;
-  --ink: #eceff4;
-  --secondary-ink: #d8dee9;
-  --quiet-ink: #bcc6d7;
-  --line-base: #4c566a;
-  --edge-base: #67758c;
-  --selection-base: #465d70;
-  --dot-base: #59677b;
-  --theme-accent: #88c0d0;
-  --success: #a3be8c;
-  --warning: #ebcb8b;
-  --danger: #e5a0a7;
-}
-.app.light[data-theme="nord"], .app.light .theme-option[data-theme="nord"] {
-  --surface-base: #c8d0dd;
-  --surface-panel: #d8dee9;
-  --surface-tint: #e5e9f0;
-  --surface-editor: #eceff4;
-  --surface-popup: #e5e9f0;
-  --surface-input: #d8dee9;
-  --ink: #2e3440;
-  --secondary-ink: #434c5e;
-  --quiet-ink: #4c566a;
-  --line-base: #a7b3c6;
-  --edge-base: #8493ab;
-  --selection-base: #bdcddb;
-  --dot-base: #9eafc4;
-  --theme-accent: #356579;
-  --success: #426337;
-  --warning: #785b22;
-  --danger: #974c59;
-}
 .app[data-theme="gruvbox"], .theme-option[data-theme="gruvbox"] {
   --surface-base: #1d2021;
   --surface-panel: #282c26;
@@ -435,45 +397,6 @@
 .theme-menu .theme-picker { margin:12px 0; }
 @media(prefers-reduced-motion:reduce) { .theme-menu > summary::after { transition:none; } }
 
-.app[data-theme="classic"], .theme-option[data-theme="classic"] {
-  --surface-base: #17191c;
-  --surface-panel: #202329;
-  --surface-tint: #282d34;
-  --surface-editor: #2c3035;
-  --surface-popup: #252a31;
-  --surface-input: #343b45;
-  --ink: #e0e3e7;
-  --secondary-ink: #b9c1ca;
-  --quiet-ink: #a4adb9;
-  --line-base: #414a56;
-  --edge-base: #5c6c80;
-  --selection-base: #34475e;
-  --dot-base: #414a56;
-  --theme-accent: #a5bfde;
-  --success: #a5bfa9;
-  --warning: #c9bb94;
-  --danger: #d0a2a2;
-}
-.app.light[data-theme="classic"], .app.light .theme-option[data-theme="classic"] {
-  --surface-base: #cdd2d8;
-  --surface-panel: #dce1e7;
-  --surface-tint: #e5e9ee;
-  --surface-editor: #f0f1f3;
-  --surface-popup: #e7eaee;
-  --surface-input: #d7dee7;
-  --ink: #293440;
-  --secondary-ink: #4e5c6c;
-  --quiet-ink: #606d7d;
-  --line-base: #b2beca;
-  --edge-base: #8b9bae;
-  --selection-base: #c7d5e6;
-  --dot-base: #b2beca;
-  --theme-accent: #3f6084;
-  --success: #45664d;
-  --warning: #7c652e;
-  --danger: #955456;
-}
-
 .app[data-theme="coal"], .theme-option[data-theme="coal"] {
   --surface-base: #181818;
   --surface-panel: #292929;
@@ -559,3 +482,124 @@
 
 .modal-settings .settings-category-content .settings-ring-toggle { flex-direction:row; align-items:center; margin:0; padding:18px 0; border-bottom:1px solid var(--line); }
 .modal-settings .settings-ring-toggle input { margin-left:auto; min-height:22px; height:22px; }
+
+/* Palette-based interface themes. */
+.app[data-theme="neon"], .theme-option[data-theme="neon"] { --theme-deep:#af09d9; --theme-mid:#c31ced; --theme-bright:#0ffccd; --theme-pale:#e4c4f2; }
+.app[data-theme="earth"], .theme-option[data-theme="earth"] { --theme-deep:#6c584c; --theme-mid:#a98467; --theme-bright:#adc178; --theme-pale:#f0ead2; }
+.app[data-theme="lagoon"], .theme-option[data-theme="lagoon"] { --theme-deep:#184e77; --theme-mid:#168aad; --theme-bright:#76c893; --theme-pale:#d9ed92; }
+.app[data-theme="ember"], .theme-option[data-theme="ember"] { --theme-deep:#240046; --theme-mid:#7b2cbf; --theme-bright:#ff9e00; --theme-pale:#f6d0ae; }
+.app[data-theme="atlantic"], .theme-option[data-theme="atlantic"] { --theme-deep:#1d3557; --theme-mid:#457b9d; --theme-bright:#a8dadc; --theme-pale:#f1faee; }
+:is(.app,.theme-option)[data-theme="neon"], :is(.app,.theme-option)[data-theme="earth"], :is(.app,.theme-option)[data-theme="lagoon"], :is(.app,.theme-option)[data-theme="ember"], :is(.app,.theme-option)[data-theme="atlantic"] {
+  --ink:color-mix(in srgb,var(--theme-pale) 55%,white);
+  --secondary-ink:color-mix(in srgb,var(--theme-pale) 70%,#aaa);
+  --quiet-ink:color-mix(in srgb,var(--theme-pale) 50%,#999);
+  --line-base:color-mix(in srgb,var(--theme-mid) 30%,#444);
+  --edge-base:color-mix(in srgb,var(--theme-mid) 35%,#666);
+  --dot-base:color-mix(in srgb,var(--theme-mid) 30%,#555);
+  --theme-accent:var(--theme-bright);
+  --success:#a8c995; --warning:#e1c27c; --danger:#e9a2a3;
+}
+.app.light:is([data-theme="neon"],[data-theme="earth"],[data-theme="lagoon"],[data-theme="ember"],[data-theme="atlantic"]),
+.app.light .theme-option:is([data-theme="neon"],[data-theme="earth"],[data-theme="lagoon"],[data-theme="ember"],[data-theme="atlantic"]) {
+  --ink:color-mix(in srgb,var(--theme-deep) 45%,#222);
+  --secondary-ink:color-mix(in srgb,var(--theme-deep) 35%,#444);
+  --quiet-ink:color-mix(in srgb,var(--theme-deep) 25%,#555);
+  --line-base:color-mix(in srgb,var(--theme-mid) 25%,#aaa);
+  --edge-base:color-mix(in srgb,var(--theme-mid) 28%,#888);
+  --dot-base:color-mix(in srgb,var(--theme-mid) 25%,#aaa);
+  --theme-accent:color-mix(in srgb,var(--theme-deep) 70%,#222);
+  --success:#456c4a; --warning:#805f20; --danger:#994c50;
+}
+
+/* Distinct palette colors for the main surfaces of each interface theme. */
+:is(.app,.theme-option)[data-theme="neon"] {
+  --surface-base:color-mix(in srgb,#af09d9 28%,#111);
+  --surface-panel:color-mix(in srgb,#05e3b6 22%,#111);
+  --surface-tint:color-mix(in srgb,#c31ced 32%,#1a1a1a);
+  --surface-editor:color-mix(in srgb,#d232fa 18%,#161616);
+  --surface-popup:color-mix(in srgb,#05e3b6 16%,#202020);
+  --surface-input:color-mix(in srgb,#0ffccd 22%,#252525);
+  --selection-base:color-mix(in srgb,#05e3b6 32%,#222);
+}
+:is(.app,.theme-option)[data-theme="earth"] {
+  --surface-base:color-mix(in srgb,#6c584c 55%,#111);
+  --surface-panel:color-mix(in srgb,#adc178 25%,#171717);
+  --surface-tint:color-mix(in srgb,#a98467 40%,#1a1a1a);
+  --surface-editor:color-mix(in srgb,#f0ead2 12%,#1b1b1b);
+  --surface-popup:color-mix(in srgb,#6c584c 50%,#202020);
+  --surface-input:color-mix(in srgb,#adc178 24%,#292929);
+  --selection-base:color-mix(in srgb,#adc178 35%,#292929);
+}
+:is(.app,.theme-option)[data-theme="lagoon"] {
+  --surface-base:color-mix(in srgb,#184e77 55%,#101820);
+  --surface-panel:color-mix(in srgb,#168aad 34%,#111b20);
+  --surface-tint:color-mix(in srgb,#52b69a 25%,#18221e);
+  --surface-editor:color-mix(in srgb,#1a759f 30%,#171d20);
+  --surface-popup:color-mix(in srgb,#34a0a4 25%,#192222);
+  --surface-input:color-mix(in srgb,#76c893 24%,#202a24);
+  --selection-base:color-mix(in srgb,#52b69a 40%,#20302c);
+  --theme-accent:#d9ed92;
+}
+:is(.app,.theme-option)[data-theme="ember"] {
+  --surface-base:color-mix(in srgb,#240046 80%,#111);
+  --surface-panel:color-mix(in srgb,#5a189a 40%,#17121d);
+  --surface-tint:color-mix(in srgb,#ff8500 22%,#22151c);
+  --surface-editor:color-mix(in srgb,#7b2cbf 30%,#17151c);
+  --surface-popup:color-mix(in srgb,#3c096c 60%,#202020);
+  --surface-input:color-mix(in srgb,#ff9e00 20%,#2a2020);
+  --selection-base:color-mix(in srgb,#ff9100 32%,#30202a);
+}
+:is(.app,.theme-option)[data-theme="atlantic"] {
+  --surface-base:color-mix(in srgb,#1d3557 65%,#111820);
+  --surface-panel:color-mix(in srgb,#457b9d 38%,#131b22);
+  --surface-tint:color-mix(in srgb,#e63946 22%,#21191e);
+  --surface-editor:color-mix(in srgb,#a8dadc 14%,#161e23);
+  --surface-popup:color-mix(in srgb,#457b9d 35%,#1c242a);
+  --surface-input:color-mix(in srgb,#a8dadc 20%,#202a2d);
+  --selection-base:color-mix(in srgb,#e63946 32%,#30232a);
+}
+.app.light[data-theme="neon"], .app.light .theme-option[data-theme="neon"] {
+  --surface-base:color-mix(in srgb,#c31ced 18%,#eee);
+  --surface-panel:color-mix(in srgb,#d232fa 23%,#f4eef8);
+  --surface-tint:color-mix(in srgb,#05e3b6 29%,#f3f7f5);
+  --surface-editor:color-mix(in srgb,#d232fa 10%,white);
+  --surface-popup:color-mix(in srgb,#0ffccd 20%,white);
+  --surface-input:color-mix(in srgb,#05e3b6 24%,#edf5f3);
+  --selection-base:color-mix(in srgb,#05e3b6 32%,#eee);
+}
+.app.light[data-theme="earth"], .app.light .theme-option[data-theme="earth"] {
+  --surface-base:color-mix(in srgb,#a98467 30%,#eee8d7);
+  --surface-panel:color-mix(in srgb,#adc178 38%,#eee9d8);
+  --surface-tint:color-mix(in srgb,#a98467 28%,#f0ead2);
+  --surface-editor:color-mix(in srgb,#f0ead2 75%,white);
+  --surface-popup:color-mix(in srgb,#dde5b6 65%,white);
+  --surface-input:color-mix(in srgb,#adc178 30%,#f0ead2);
+  --selection-base:color-mix(in srgb,#adc178 45%,#f0ead2);
+}
+.app.light[data-theme="lagoon"], .app.light .theme-option[data-theme="lagoon"] {
+  --surface-base:color-mix(in srgb,#168aad 24%,#e4f1e5);
+  --surface-panel:color-mix(in srgb,#34a0a4 28%,#edf7ed);
+  --surface-tint:color-mix(in srgb,#99d98c 40%,#f4faec);
+  --surface-editor:color-mix(in srgb,#d9ed92 26%,white);
+  --surface-popup:color-mix(in srgb,#76c893 30%,white);
+  --surface-input:color-mix(in srgb,#52b69a 24%,#eef8f1);
+  --selection-base:color-mix(in srgb,#76c893 45%,#e7f6e9);
+}
+.app.light[data-theme="ember"], .app.light .theme-option[data-theme="ember"] {
+  --surface-base:color-mix(in srgb,#7b2cbf 18%,#eee7f3);
+  --surface-panel:color-mix(in srgb,#9d4edd 25%,#f4ecf6);
+  --surface-tint:color-mix(in srgb,#ff9e00 34%,#fff4e5);
+  --surface-editor:color-mix(in srgb,#9d4edd 10%,white);
+  --surface-popup:color-mix(in srgb,#ff9100 20%,white);
+  --surface-input:color-mix(in srgb,#ff8500 22%,#fff2e9);
+  --selection-base:color-mix(in srgb,#ff9e00 36%,#f4e6ee);
+}
+.app.light[data-theme="atlantic"], .app.light .theme-option[data-theme="atlantic"] {
+  --surface-base:color-mix(in srgb,#457b9d 26%,#e9f2f0);
+  --surface-panel:color-mix(in srgb,#a8dadc 54%,#f1faee);
+  --surface-tint:color-mix(in srgb,#e63946 18%,#f1faee);
+  --surface-editor:color-mix(in srgb,#a8dadc 27%,white);
+  --surface-popup:color-mix(in srgb,#457b9d 20%,#f1faee);
+  --surface-input:color-mix(in srgb,#a8dadc 48%,#f1faee);
+  --selection-base:color-mix(in srgb,#e63946 22%,#f1faee);
+}

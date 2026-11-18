@@ -17,13 +17,13 @@ export async function captureNotePng(area:HTMLElement,height:number):Promise<Blo
   const copy=copies[index],style=copyStyle(original,copy);style.fontFamily.split(',').forEach(name=>families.add(name.trim().replace(/["']/g,'').toLowerCase()));
   if(original instanceof HTMLImageElement&&original.currentSrc){(copy as HTMLImageElement).src=await embed(original.currentSrc);copy.removeAttribute('srcset');copy.removeAttribute('loading');}
   if(original instanceof HTMLTextAreaElement)copy.textContent=original.value;
-  if(original instanceof HTMLInputElement)(copy as HTMLInputElement).setAttribute('value',original.value);
+  if(original instanceof HTMLInputElement){(copy as HTMLInputElement).setAttribute('value',original.value);if(original.type==='checkbox'||original.type==='radio')(copy as HTMLInputElement).toggleAttribute('checked',original.checked);}
   if(original instanceof HTMLCanvasElement){const img=document.createElement('img');img.src=original.toDataURL();copyStyle(original,img);copy.replaceWith(img);return;}
   (copy as HTMLElement).style.backgroundImage=await inlineUrls(style.backgroundImage);
   // HTML pseudo-elements cannot be inserted into SVG paths and clip paths.
   if(original instanceof HTMLElement)for(const pseudo of ['::before','::after']){const ps=getComputedStyle(original,pseudo);if(ps.content==='none'||ps.content==='normal')continue;const element=document.createElement('span');copyStyle(original,element,pseudo);element.style.backgroundImage=await inlineUrls(ps.backgroundImage);element.textContent=ps.content==='""'?'':ps.content.replace(/^"|"$/g,'');copy.append(element);}
  }));
- clone.querySelectorAll('.note-insert-menu,.floating-note-resize,.canvas-widget-resize,.cm-cursorLayer,.cm-selectionLayer,.note-code-menu,.canvas-align-guide').forEach(node=>node.remove());
+ clone.querySelectorAll('.note-insert-menu,.floating-note-resize,.canvas-widget-resize,.cm-cursorLayer,.cm-selectionLayer,.note-code-menu,.canvas-align-guide,.task-card-drag,.task-card-move,.task-column-drag').forEach(node=>node.remove());
  let background:Element|null=area;while(background){const color=getComputedStyle(background).backgroundColor;if(color!=='rgba(0, 0, 0, 0)'&&color!=='transparent'){clone.style.backgroundColor=color;break;}background=background.parentElement;}
  Object.assign(clone.style,{width:area.clientWidth+'px',height:height+'px',maxHeight:'none',position:'relative',inset:'auto',margin:'0',overflow:'hidden',flex:'none',transform:'none'});
  const scroll=clone.querySelector<HTMLElement>('.editor-scroll');if(scroll)Object.assign(scroll.style,{height:height+'px',maxHeight:'none',overflow:'visible',flex:'none'});
@@ -37,6 +37,8 @@ export async function captureNotePng(area:HTMLElement,height:number):Promise<Blo
  return new Promise<Blob>((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Не удалось создать PNG')),'image/png'));
 }
 export async function saveNotePng(windowElement:HTMLElement,name:string) {
+ const kanban=windowElement.querySelector<HTMLElement>('.kanban-note');
+ if(kanban){await saveKanbanPng(kanban,name);return;}
  const area=windowElement.querySelector<HTMLElement>('.note-editor-area');if(!area)throw Error('Открой заметку для экспорта');await document.fonts.ready;
  await Promise.all([...area.querySelectorAll('img')].map(image=>image.decode().catch(()=>{})));
  const scroll=area.querySelector<HTMLElement>('.editor-scroll'),content=area.querySelector<HTMLElement>('.note-zoom-content');
@@ -45,6 +47,31 @@ export async function saveNotePng(windowElement:HTMLElement,name:string) {
  if(isTauri()&&scroll){await savePng(await exporting(area,()=>nativeNotePng(scroll)),name);return;}
  const previousArea=area.style.cssText,previous=scroll?.style.cssText,top=scroll?.scrollTop??0;let blob:Blob;
  try{Object.assign(area.style,{height:height+'px',minHeight:height+'px',flex:'none'});if(scroll){Object.assign(scroll.style,{height:height+'px',maxHeight:'none',overflow:'visible',flex:'none'});scroll.scrollTop=0;}await nextPaint();blob=await captureNotePng(area,height);}finally{area.style.cssText=previousArea;if(scroll){scroll.style.cssText=previous??'';scroll.scrollTop=top;}}
+ await savePng(blob,name);
+}
+export function kanbanExportWidth(columns:number[],gap:number,padding:number) {
+ return Math.ceil(columns.reduce((sum,width)=>sum+width,0)+Math.max(0,columns.length-1)*gap+padding);
+}
+async function saveKanbanPng(area:HTMLElement,name:string) {
+ await document.fonts.ready;
+ await Promise.all([...area.querySelectorAll('img')].map(image=>image.decode().catch(()=>{})));
+ const columns=area.querySelector<HTMLElement>('.task-board-columns'),previous=area.style.cssText,columnStyle=columns?.style.cssText,top=area.scrollTop,left=area.scrollLeft,columnLeft=columns?.scrollLeft??0,columnTop=columns?.scrollTop??0;
+ if(!columns)throw Error('Не удалось найти столбцы доски.');
+ const areaStyle=getComputedStyle(area),columnStyleValues=getComputedStyle(columns),number=(value:string)=>parseFloat(value)||0;
+ const padding=number(areaStyle.paddingLeft)+number(areaStyle.paddingRight)+number(areaStyle.borderLeftWidth)+number(areaStyle.borderRightWidth)+number(columnStyleValues.paddingLeft)+number(columnStyleValues.paddingRight);
+ const widths=Array.from(columns.querySelectorAll<HTMLElement>(':scope > .task-board-column')).map(column=>column.offsetWidth);
+ const width=widths.length?kanbanExportWidth(widths,number(columnStyleValues.columnGap),padding):Math.ceil(padding+250);
+ let blob:Blob;
+ try{
+  blob=await exporting(area,async()=>{
+   Object.assign(area.style,{position:'fixed',left:'0',top:'0',width:width+'px',maxWidth:'none',height:'auto',maxHeight:'none',overflow:'visible',zIndex:'10000'});
+   columns.style.overflow='visible';columns.scrollLeft=0;columns.scrollTop=0;
+   await nextPaint();
+   const height=Math.ceil(Math.max(area.scrollHeight,area.getBoundingClientRect().height));
+   if(!width||!height||width*height>64000000||width>32767||height>32767)throw Error('Доска слишком большая для одного PNG.');
+   return captureNotePng(area,height);
+  });
+ }finally{area.style.cssText=previous;columns.style.cssText=columnStyle??'';columns.scrollLeft=columnLeft;columns.scrollTop=columnTop;area.scrollTop=top;area.scrollLeft=left;}
  await savePng(blob,name);
 }
 async function savePng(blob:Blob,name:string) {

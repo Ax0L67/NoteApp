@@ -22,6 +22,9 @@ import Editor from './Editor';
 import MarkdownToolbar from './MarkdownToolbar';
 import ReorderTabs from './ReorderTabs';
 import CanvasEditor,{parseCanvas} from './CanvasEditor';
+import {TaskBoardView} from './TaskBoards';
+import {kanbanNoteId} from './kanbanNote';
+import './kanbanNote.css';
 import {ObjectIcon} from './ObjectIcon';
 
 export interface CentralWindowsHandle {
@@ -54,6 +57,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
 
   const [activeId,setActiveId]=useState(()=>props.detachedId??windows[0].id);
   const [menuId,setMenuId]=useState<string|null>(null);
+  const [exportWindow,setExportWindow]=useState<string|null>(null);
   const [sourceWindow,setSourceWindow]=useState<string|null>(null);
   const [splitPreview,setSplitPreview]=useState<{id:string;side:'L'|'R'|'T'|'B'}|null>(null);
   const [tilePreview,setTilePreview]=useState<CentralWindow[]|null>(null);
@@ -63,6 +67,11 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const stage=useRef<HTMLDivElement>(null);
   const current=useRef(windows);current.current=windows;
   const active=useRef(activeId);active.current=activeId;
+  async function captureReading(id:string,action:()=>Promise<void>){
+    setExportWindow(id);
+    try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await action();}
+    finally{setExportWindow(null);}
+  }
   const visibleWindows=props.detachedId?(tilePreview??windows).filter(win=>win.id===props.detachedId):(tilePreview??windows).filter(win=>!win.detached);
   const activeTabs=visibleWindows.find(win=>win.id===activeId)?.tabs.join('\0')??'';
   useLayoutEffect(()=>{
@@ -238,8 +247,8 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
               {!note.path.endsWith('.canvas')&&<button onClick={()=>{setSourceWindow(win.id);setMenuId(null)}}><FileText/>Исходный код заметки</button>}
               {note.path.endsWith('.canvas')&&(['snapGrid','snapGuides'] as const).map(key=><button key={key} role="menuitemcheckbox" disabled={props.read} aria-checked={parseCanvas(note.content)?.[key]!==false} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-canvas-setting',{detail:{path:note.path,key}}))}><Check size={16} style={{visibility:parseCanvas(note.content)?.[key]!==false?'visible':'hidden'}}/>{key==='snapGrid'?'Привязка виджетов к сетке':'Привязка к другим элементам'}</button>)}
               <button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>
-              <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void (async()=>{try{await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await (note.path.endsWith('.canvas')?saveCanvasPng(win,title(note.path)):saveNotePng(win,title(note.path)));}catch(error){alert(String(error));}})();}}><Download/>{note.path.endsWith('.canvas')?'Сохранить полотно в PNG…':'Сохранить заметку в PNG…'}</button>
-              <button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(note.path.endsWith('.canvas')){if(win)void printCanvasPdf(win,title(note.path)).catch(error=>alert(String(error)));}else props.pdf(note.path);}}><Download/>Печать / сохранить PDF…</button>
+              <button onClick={event=>{const node=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(node)void captureReading(win.id,()=>note.path.endsWith('.canvas')?saveCanvasPng(node,title(note.path)):saveNotePng(node,title(note.path))).catch(error=>alert(String(error)));}}><Download/>{note.path.endsWith('.canvas')?'Сохранить полотно в PNG…':'Сохранить заметку в PNG…'}</button>
+              <button onClick={event=>{const node=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(note.path.endsWith('.canvas')){if(node)void captureReading(win.id,()=>printCanvasPdf(node,title(note.path))).catch(error=>alert(String(error)));}else props.pdf(note.path);}}><Download/>Печать / сохранить PDF…</button>
               <button onClick={props.toggleRead}><FileText/>{props.read?'Редактировать':'Режим чтения'}</button></>}
             {location.kind==='graph'&&<button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void saveGraphPng(win,owner===ALL_PROJECTS?'Общая карта связей':'Карта — '+owner).catch(error=>alert(String(error)));}}><Download/>Сохранить карту в PNG…</button>}
             {location.kind==='folder'&&<button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>}
@@ -247,7 +256,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
           </div>}
           <div className={`note-tab-strip${location.kind==='note'?'':' folder-workspace'}`} onPointerDown={event=>{if(win.mode!=='tiled'&&!(event.target as Element).closest('button'))start(event,win.id,'move');}} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}><ReorderTabs windowId={win.id} transfer={transfer} active={win.active} order={win.tabs} change={tabs=>commit(current.current.map(entry=>entry.id===win.id?{...entry,tabs}:entry))}
             items={win.tabs.map(key=>{const tab=tabLocation(key);const tabOwner=tab?.kind==='note'?projectFor(tab.path):tab&&tab.kind!=='home'?tab.project:'';const tabPalette=paletteId(tabOwner?data.settings.projectPalettes?.[tabOwner]??props.generalPalette:props.generalPalette);const Icon=tab?.kind==='home'?House:tab?.kind==='graph'?Graph:tab?.kind==='folder'?Folder:FileText;const label=tab?.kind==='home'?'Все проекты':tab?.kind==='graph'?(tab.project===ALL_PROJECTS?'Общая карта':`Карта · ${tab.project}`):tab?.kind==='folder'?tab.path.split('/').at(-1)||tab.project:title(key);return <div key={key} data-closing={closing.includes(JSON.stringify([win.id,key]))||undefined} className={`note-tab${key===win.active?'':` palette-${tabPalette}`}${tabOwner&&tabOwner===owner&&key!==win.active?' same-project-note-tab':''}${key===win.active?' selected-note-tab':''}`}>
-              <button className="note-tab-label" title={label} aria-pressed={key===win.active} onClick={()=>{if(tab)void open(tab,false,true,win.id);}}><ObjectIcon item={{kind:tab?.kind==='note'?'note':tab?.kind==='folder'?'folder':'project',path:tab?.kind==='note'||tab?.kind==='folder'?tab.path:tab?.kind==='graph'?tab.project:''}} icons={data.settings.objectIcons} size={17}/><strong>{label}</strong></button>
+              <button className="note-tab-label" title={label} aria-pressed={key===win.active} onClick={()=>{if(tab)void open(tab,false,true,win.id);}}><ObjectIcon item={{kind:tab?.kind==='note'?'note':tab?.kind==='folder'?'folder':'project',path:tab?.kind==='note'||tab?.kind==='folder'?tab.path:tab?.kind==='graph'?tab.project:'',isKanban:tab?.kind==='note'&&!!kanbanNoteId(data.notes.find(item=>item.path===tab.path)?.content??'')}} icons={data.settings.objectIcons} size={17}/><strong>{label}</strong></button>
               <button className="icon-button" aria-label={`Закрыть вкладку «${label}»`} onClick={()=>void closeTab(win.id,key)}><X size={14}/></button></div>;})}/>
             <div className="central-window-actions">
               <button className="central-move-handle" title="Переместить окно" aria-label="Переместить окно" draggable={win.mode==='tiled'} onDragStart={event=>{draggingWindow.current=win.id;dragBase.current=current.current;setMoving(true);event.dataTransfer.setData('application/x-noteapp-window',win.id);event.dataTransfer.effectAllowed='move';const windowNode=event.currentTarget.closest<HTMLElement>('.central-window');if(windowNode)event.dataTransfer.setDragImage(windowNode,30,20);}} onDragEnd={()=>{draggingWindow.current=null;dragBase.current=null;tilePreviewKey.current='';setMoving(false);setSplitPreview(null);setTilePreview(null);}} onPointerDown={event=>{if(win.mode!=='tiled')start(event,win.id,'move');}} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}><DotsSixVertical size={16}/></button>
@@ -259,7 +268,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
           {sourceWindow===win.id&&note&&!note.path.endsWith('.canvas')&&<div className="modal-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)setSourceWindow(null)}}><section className="modal note-source-view" role="dialog" aria-modal="true" aria-label="Исходный код заметки" onKeyDown={event=>{if(event.key==='Escape')setSourceWindow(null)}}><header><h2>Исходный код заметки</h2><button aria-label="Закрыть" onClick={()=>setSourceWindow(null)}><X size={20}/></button></header><textarea readOnly value={note.content} aria-label="Исходный текст заметки"/></section></div>}
           <div className="editor-layout"><div className="tabbed-workspace">
             {location.kind==='home'?props.renderHome(openItem):location.kind==='graph'&&(owner===ALL_PROJECTS||projects.includes(owner))?props.renderGraph(owner,openItem):location.kind==='folder'?<FolderContents icons={data.settings.objectIcons} root={data.root} background={data.settings.projectBackgrounds?.[owner]??null} name={item.name} entries={entriesIn(owner,item.path,vaultFolders(data),data.notes,projectFor)} open={openItem} showMenu={props.showMenu}
-              actions={<div className="folder-actions"><button className="primary" onClick={()=>props.newNote(item.path)}><Plus size={18}/>Новая заметка</button><button onClick={()=>props.newFolder(item)}><Folder size={18}/>Новая папка</button></div>}/>:note?<NoteWindow key={note.path} {...props} path={note.path} onView={view=>noteViews.current.set(win.id,view)}/>:<div className="editor-pane editor-empty"><p>Этот объект больше недоступен.</p><button onClick={()=>void open({kind:'home'},false,true,win.id)}>Все проекты</button></div>}
+              actions={<div className="folder-actions"><button className="primary" onClick={()=>props.newNote(item.path)}><Plus size={18}/>Новая заметка</button><button onClick={()=>props.newFolder(item)}><Folder size={18}/>Новая папка</button></div>}/>:note?<NoteWindow key={note.path} {...props} read={props.read||exportWindow===win.id} path={note.path} onView={view=>noteViews.current.set(win.id,view)}/>:<div className="editor-pane editor-empty"><p>Этот объект больше недоступен.</p><button onClick={()=>void open({kind:'home'},false,true,win.id)}>Все проекты</button></div>}
           </div></div>
           {!maximized&&win.mode!=='tiled'&&['n','e','s','w','ne','se','sw','nw'].map(mode=><div key={mode} className={`central-resize central-resize-${mode}`} role="separator" tabIndex={0} aria-label="Изменить размер окна" onPointerDown={event=>start(event,win.id,mode)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onKeyDown={event=>{
             if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();commit(current.current.map(entry=>entry.id===win.id?{...entry,width:Math.max(320,(entry.width||stage.current!.clientWidth)+(event.key==='ArrowLeft'?-24:event.key==='ArrowRight'?24:0)),height:Math.max(240,(entry.height||stage.current!.clientHeight)+(event.key==='ArrowUp'?-24:event.key==='ArrowDown'?24:0))}:entry));
@@ -282,6 +291,17 @@ function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
   const activeView=()=>props.read?undefined:activeTableEditor(main.current)??editor.current?.view;
   const format=(apply:(view:EditorView)=>void)=>{const view=activeView();if(view)apply(view);};
   useEffect(()=>{setZoomTarget(main.current?.closest('.central-window')?.querySelector<HTMLElement>('.central-window-actions')??null);},[props.path]);
+  useEffect(()=>{
+    const focus=(event:Event)=>{
+      const detail=(event as CustomEvent<{path:string;column:string;taskId?:string}>).detail,root=main.current;
+      if(!root||detail.path!==props.path||!root.closest('.central-window[data-active]'))return;
+      const column=Array.from(root.querySelectorAll<HTMLElement>('[data-kanban-column]')).find(item=>item.dataset.kanbanColumn===detail.column);
+      const target=detail.taskId?Array.from(column?.querySelectorAll<HTMLElement>('[data-task-id]')??[]).find(item=>item.dataset.taskId===detail.taskId):column;
+      target?.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+    };
+    window.addEventListener('noteapp-focus-kanban',focus);
+    return()=>window.removeEventListener('noteapp-focus-kanban',focus);
+  },[props.path]);
   const zoomControls=<div className="note-zoom-controls note-zoom-controls-titlebar" role="group" aria-label="Масштаб редактора">
     <button type="button" aria-label={ribbonHidden?'Показать панель редактирования':'Скрыть панель редактирования'} aria-expanded={!ribbonHidden} onClick={()=>setRibbonHidden(value=>!value)}><CaretDown size={15} className={ribbonHidden?'ribbon-collapsed':''}/></button>
     <button type="button" aria-label="Уменьшить масштаб" disabled={zoom<=.5} onClick={()=>setZoom(value=>Math.max(.5,Math.round((value-.1)*10)/10))}><Minus size={15}/></button>
@@ -289,11 +309,17 @@ function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
     <button type="button" aria-label="Увеличить масштаб" disabled={zoom>=2} onClick={()=>setZoom(value=>Math.min(2,Math.round((value+.1)*10)/10))}><Plus size={15}/></button>
   </div>;
   if(note.path.endsWith('.canvas'))return <CanvasEditor key={note.path} note={note} notes={props.data.notes} project={owner} root={props.data.root} background={props.data.settings.projectBackgrounds?.[owner]??null} pattern={props.data.settings.projectPatterns?.[owner]} gridOpacity={props.data.settings.projectGridOpacity?.[owner]??100} read={props.read} light={props.data.settings.theme==='light'} textStyle={style} save={content=>props.edit(note.path,content)} onLink={props.openLink} references={props.references} typography={getView=>props.typography(note.path,getView)} pickReference={props.pickReference} attach={(files,position,ref)=>props.attach(files,position,note.path,ref)} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard} openTasks={()=>props.openTaskManager(owner)} insertBoard={(view,id)=>props.insertBoard(view,owner,id)}/>;
+  const boardId=kanbanNoteId(note.content);
+  if(boardId){
+    if(props.data.notes.filter(item=>kanbanNoteId(item.content)===boardId).length>1)return <main className="kanban-note editor-pane"><p>Несколько заметок используют один идентификатор Kanban. Данные сохранены в файлах; уберите лишние копии из хранилища, чтобы открыть доску.</p></main>;
+    const board=props.data.settings.taskBoards?.find(item=>item.id===boardId);
+    return <main ref={main} className="kanban-note editor-pane">{board?<TaskBoardView board={board} notes={props.data.notes} change={props.changeTaskBoard} openNote={props.openLink} editable={!props.read}/>:<p>Доска Kanban недоступна.</p>}</main>;
+  }
   return <>
   <main ref={main} className="editor-pane main-note-editor" data-ribbon-hidden={ribbonHidden||undefined}>
     {!ribbonHidden&&<div className="note-ribbon" inert={props.read}><MarkdownToolbar runEdit={format} disabled={props.read} typography={props.typography(note.path,activeView)}
       insertReference={kind=>format(view=>props.pickReference(view,kind))}
-      createWidget={kind=>format(view=>floatNoteText(view,kind))} taskBoards={props.data.settings.taskBoards??[]}
+      createWidget={kind=>format(view=>floatNoteText(view,kind))} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard}
       openTasks={()=>props.openTaskManager(owner)} insertBoard={(view,id)=>props.insertBoard(view,owner,id)}/></div>}
     <div className="editor-area note-editor-area"><NoteBackdrop root={props.data.root} path={props.data.settings.projectBackgrounds?.[owner]??null} grid/>
       <div className="editor-scroll" onPointerDown={event=>{if(props.read||event.button!==0)return;const target=event.target as HTMLElement;if(!target.matches('.editor-scroll,.text-surface,.note-zoom-frame,.note-zoom-content,.cm-editor,.cm-scroller,.cm-content'))return;const view=editor.current?.view;if(!view)return;const rect=view.contentDOM.getBoundingClientRect(),pos=view.posAtCoords({x:Math.max(rect.left+1,Math.min(event.clientX,rect.right-1)),y:Math.max(rect.top+1,Math.min(event.clientY,rect.bottom-1))},false);if(pos!==null){event.preventDefault();view.dispatch({selection:{anchor:pos}});view.focus();}}} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();}}

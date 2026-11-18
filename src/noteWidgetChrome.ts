@@ -7,7 +7,7 @@ import {applyTextureClass,textureById} from './textures';
 import {fitWidgetContent,refreshWidgetFit} from './widgetFit';
 import type {EditorView} from '@codemirror/view';
 
-export type NoteWidgetPosition={x:number;y:number;width:number;height:number;z:number;color?:string;fill?:string;texture?:string;scale?:number;borderWidth?:number};
+export type NoteWidgetPosition={x:number;y:number;width:number;height:number;z:number;color?:string;fill?:string;texture?:string;scale?:number;borderWidth?:number;autoSize?:boolean};
 export const widgetBorderWidth=(value?:number)=>Number.isFinite(value)?Math.max(0,Math.min(8,value!)):1.5;
 export function widgetBorderControls(actions:HTMLElement,get:()=>number|undefined,save:(width:number)=>void) {
   const label=document.createElement('label');label.className='note-widget-scale';label.append('Толщина обводки');
@@ -130,7 +130,7 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
   const heading=document.createElement('div');heading.className='note-widget-heading';heading.textContent=label;if(label==='Таблица')heading.title='Перетащите таблицу';
   host.classList.add('floating-note-text','note-feature-widget');host.contentEditable='false';host.append(heading,viewport,menu);
   const dispose=label==='Таблица'?()=>{}:fitWidgetContent(viewport,body,baseWidth,()=>position.scale??1);
-  widgetSizeControls(actions,()=>position,size=>savePosition({...position,...size}));
+  widgetSizeControls(actions,()=>position,size=>savePosition({...position,...size,...(label==='Доска задач'?{autoSize:false}:{})}));
   widgetBorderControls(actions,()=>label==='Таблица'?(position.borderWidth??1):position.borderWidth,borderWidth=>savePosition({...position,borderWidth}));
   const scaleLabel=document.createElement('label');scaleLabel.className='note-widget-scale';scaleLabel.append('Масштаб содержимого');
   const scaleOutput=document.createElement('output');
@@ -177,10 +177,10 @@ export function noteWidgetChrome(host:HTMLElement,view:EditorView,initial:NoteWi
       if(event.button!==0||!editable)return;event.preventDefault();event.stopPropagation();const start={x:event.clientX,y:event.clientY},scale=elementScale(view.contentDOM);let next=position;handle.setPointerCapture(event.pointerId);
       if(label==='Таблица'&&edge.length===1){handle.onpointermove=pointer=>{if(pointer.pointerId!==event.pointerId)return;const step=elementGridStep(view.contentDOM);next={...position,x:Math.max(0,Math.round((position.x+(pointer.clientX-start.x)/scale)/step)*step),y:Math.max(0,Math.round((position.y+(pointer.clientY-start.y)/scale)/step)*step)};place(next)};handle.onpointerup=pointer=>{if(pointer.pointerId!==event.pointerId)return;handle.onpointermove=null;handle.onpointerup=null;handle.onpointercancel=null;savePosition(next)};handle.onpointercancel=()=>{handle.onpointermove=null;handle.onpointerup=null;place(position)};return;}
       handle.onpointermove=pointer=>{if(pointer.pointerId!==event.pointerId)return;pointer.preventDefault();next=resized((pointer.clientX-start.x)/scale,(pointer.clientY-start.y)/scale);place(next);};
-      handle.onpointerup=pointer=>{if(pointer.pointerId!==event.pointerId)return;handle.onpointermove=null;handle.onpointerup=null;handle.onpointercancel=null;savePosition(next);};
+      handle.onpointerup=pointer=>{if(pointer.pointerId!==event.pointerId)return;handle.onpointermove=null;handle.onpointerup=null;handle.onpointercancel=null;savePosition({...next,...(label==='Доска задач'?{autoSize:false}:{})});};
       handle.onpointercancel=()=>{handle.onpointermove=null;handle.onpointerup=null;place(position);};
     };
-    handle.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();event.stopPropagation();const step=elementGridStep(view.contentDOM),dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;savePosition(label==='Таблица'&&edge.length===1?{...position,x:position.x+dx,y:position.y+dy}:resized(dx,dy));};
+    handle.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();event.stopPropagation();const step=elementGridStep(view.contentDOM),dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;savePosition(label==='Таблица'&&edge.length===1?{...position,x:position.x+dx,y:position.y+dy}:{...resized(dx,dy),...(label==='Доска задач'?{autoSize:false}:{})});};
   }
   host.onpointerdown=event=>{
     if(event.button!==0||!editable||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.floating-note-resize,.visual-table-column-resize,.visual-table-row-resize,.visual-table-cell,.plot-widget,button,input,select,textarea,a,[draggable="true"],.task-card')))return;

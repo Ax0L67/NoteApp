@@ -25,13 +25,12 @@ const extraPalettes = [
   { id: 'mint', name: 'Мята' },
   { id: 'rose', name: 'Розовый лёд' },
   { id: 'cobalt', name: 'Кобальт и золото' },
-  { id: 'nord', name: 'Nord · Север' },
   { id: 'dracula', name: 'Dracula · Орхидея' },
   { id: 'custom', name: 'Свой цвет' },
 ];
 
-export const palettes = [...mainPalettes, ...extraPalettes, ...textures];
-export const paletteId = (value?: string) => palettes.some(p => p.id === value) ? value! : 'graphite';
+export const palettes = [...mainPalettes, ...extraPalettes, ...textures, {id:'nord',name:'Nord · Север'}];
+export const paletteId = (value?: string) => value === 'nord' ? 'slate' : palettes.some(p => p.id === value) ? value! : 'graphite';
 export const paletteDragType='application/x-noteapp-palette';
 export function readPaletteDrop(value:string):{palette:string;blend?:string}|null {
   try {

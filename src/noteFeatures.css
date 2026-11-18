@@ -117,7 +117,7 @@
 .task-board-column>header>button:first-child { justify-content:flex-start; flex:1; padding:3px; font-weight:650; }
 .task-board-column>header>span { color:var(--muted); font-size:11px; }
 .task-board-card-list { display:grid; align-content:start; gap:7px; }
-.task-card { display:grid; gap:6px; padding:8px; border:1px solid var(--edge); border-radius:8px; background:var(--panel-fill); cursor:grab; }
+.task-card { display:grid; gap:6px; padding:8px; border:1px solid var(--edge); border-radius:8px; background:var(--panel-fill); }
 .task-card :is(input,textarea,select) { width:100%; min-height:28px; padding:4px 6px; font-size:12px; }
 .task-card textarea { min-height:44px; resize:vertical; }
 .task-card-meta { display:flex; gap:4px; align-items:center; }
@@ -316,3 +316,49 @@ html [data-note-joined][data-note-joined] { isolation:isolate; background:transp
 .note-widget-join-surface { position:absolute; z-index:-1; overflow:hidden; pointer-events:none; }
 .reading-floating-image { display:block; }
 .reading-floating-image > img { display:block; width:100%; height:100%; object-fit:contain; border-radius:inherit; }
+
+/* Kanban */
+.task-board-view { display:block; min-width:0; }
+.task-board-columns { align-items:flex-start; gap:10px; padding:2px 2px 12px; }
+.task-board-column { position:relative; display:flex; flex-direction:column; flex:0 0 250px; min-width:220px; min-height:180px; padding:0 8px 8px; border-radius:10px; background:color-mix(in srgb,var(--palette-hue) 9%,var(--editor)); }
+.task-board-column>header { margin:0 -8px 9px; padding:9px; border-radius:9px 9px 0 0; background:color-mix(in srgb,var(--palette-hue) 34%,var(--panel-fill)); }
+.task-board-column>header input { flex:1; min-width:0; padding:0; border:0; background:transparent; color:var(--text); font-weight:650; font-size:13px; }
+.task-board-column>header>span { padding:2px 6px; border-radius:10px; background:var(--glass-control); }
+.task-board-column>header button { padding:3px; opacity:.65; }
+.task-board-column>header>.task-column-drag:first-child { flex:none; cursor:grab; }
+.task-column-drag:active { cursor:grabbing; }
+.task-board-column[data-column-drop]::after { content:''; position:absolute; top:0; bottom:0; width:3px; border-radius:3px; background:var(--accent); }
+.task-board-column[data-column-drop="before"]::after { left:-7px; }
+.task-board-column[data-column-drop="after"]::after { right:-7px; }
+.task-board-card-list { position:relative; gap:8px; }
+.task-card { position:relative; gap:7px; padding:11px 30px 11px 11px; box-shadow:0 2px 8px #00000010; }
+.task-card-drag { position:absolute; top:8px; right:6px; padding:3px; color:var(--muted); cursor:grab; touch-action:none; }
+.task-card-drag:active { cursor:grabbing; }
+.task-card-move { max-width:100%; }
+.task-card :is(input,textarea),.task-card p,.task-card strong,.task-checklist span { user-select:text; cursor:text; }
+.task-card textarea { overflow:hidden; resize:none; }
+.task-card.dragging { position:absolute; width:100%; opacity:0; pointer-events:none; }
+.task-card-placeholder { min-height:56px; border:1px dashed var(--palette-hue); border-radius:8px; background:color-mix(in srgb,var(--palette-hue) 12%,transparent); }
+.task-card .task-card-title { min-height:0; padding:0; border:0; background:transparent; color:var(--text); font-size:13px; font-weight:650; }
+.task-card p { margin:0; color:var(--muted); font-size:12px; }
+.task-card-details-toggle { justify-self:start; padding:0; color:var(--muted); font-size:11px; }
+.task-card-details { display:grid; gap:7px; padding-top:6px; border-top:1px solid var(--edge); }
+.task-card-details form { display:flex; gap:4px; }
+.task-card-details form input { flex:1; min-width:0; }
+.task-card-details button { padding:4px; }
+.task-card-details .task-delete { justify-self:start; display:flex; align-items:center; gap:4px; color:var(--muted); font-size:11px; }
+.task-card-tags { display:flex; flex-wrap:wrap; gap:4px; }
+.task-card-tags :is(span,button) { padding:2px 6px; border-radius:5px; background:color-mix(in srgb,var(--palette-hue) 25%,var(--panel-fill)); color:var(--text); font-size:10px; }
+.task-card-tags :is(span,button):nth-child(3n+2) { background:color-mix(in srgb,#52b69a 30%,var(--panel-fill)); }
+.task-card-tags :is(span,button):nth-child(3n) { background:color-mix(in srgb,#d79922 30%,var(--panel-fill)); }
+.task-checklist { display:grid; gap:4px; font-size:12px; }
+.task-checklist label { display:flex; align-items:center; gap:6px; }
+.task-checklist label input { width:auto; min-height:0; margin:0; }
+.task-checklist label span { flex:1; }
+.task-checklist label:has(input:checked) span { color:var(--muted); text-decoration:line-through; }
+.task-checklist label button { padding:0 3px; color:var(--muted); }
+.task-board-column>.task-board-add { margin-top:8px; }
+.task-board-add input { min-width:0; }
+.task-board-new-column { align-self:flex-start; flex:0 0 220px; }
+.task-board-single .task-board-column { flex:1; min-height:0; padding:0; border:0; background:transparent; }
+@media (prefers-reduced-motion:reduce) { .task-card { animation:none!important; } }

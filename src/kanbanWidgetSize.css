@@ -1,0 +1,2 @@
+.kanban-size-sensor { width:100%; min-width:0; }
+.kanban-size-sensor.kanban-size-sensor > .task-board-view { width:100%; height:auto; min-height:0; overflow:visible; }

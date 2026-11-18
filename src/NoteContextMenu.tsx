@@ -6,8 +6,8 @@ import {insertFeature,insertTable} from './noteFeatureBlocks';
 import {insertCodeWidget} from './noteCodeWidgets';
 import {floatNoteText} from './noteTextBlocks';
 
-type Props={view:EditorView;x:number;y:number;widget?:HTMLElement;close:()=>void};
-export default function NoteContextMenu({view,x,y,widget,close}:Props) {
+type Props={view:EditorView;x:number;y:number;widget?:HTMLElement;close:()=>void;taskText?:boolean};
+export default function NoteContextMenu({view,x,y,widget,close,taskText=false}:Props) {
  const [category,setCategory]=useState('');
  useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close();};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);},[close]);
  const action=(fn:()=>void)=>{close();fn();};
@@ -20,6 +20,7 @@ export default function NoteContextMenu({view,x,y,widget,close}:Props) {
   'Абзац':[['Заголовок',()=>format('# ',undefined,true)],['Маркированный список',()=>format('- ',undefined,true)],['Нумерованный список',()=>format('1. ',undefined,true)],['Список задач',()=>format('- [ ] ',undefined,true)],['Цитата',()=>format('> ',undefined,true)],['Увеличить отступ',()=>action(()=>changeIndent(view,true))],['Уменьшить отступ',()=>action(()=>changeIndent(view,false))]],
   'Вставка':[['Текстовый виджет',()=>action(()=>floatNoteText(view,'text'))],['Изображение',()=>action(()=>floatNoteText(view,'image'))],['Ссылка',()=>action(()=>floatNoteText(view,'link'))],['Таблица',()=>action(()=>insertTable(view))],['Формула',()=>action(()=>insertFeature(view,'math'))],['График',()=>action(()=>insertFeature(view,'plot'))],['Сравнение',()=>action(()=>insertFeature(view,'compare'))],['Источник',()=>action(()=>insertFeature(view,'source'))],['Термин',()=>action(()=>insertFeature(view,'concept'))],['Код',()=>action(()=>insertCodeWidget(view))],['Горизонтальная линия',()=>insert('\n\n---\n\n')]]
  };
+ if(taskText)categories['Вставка']=categories['Вставка'].filter(([label])=>label==='Таблица');
  const left=Math.max(4,Math.min(x,window.innerWidth-235)),top=Math.max(4,Math.min(y,window.innerHeight-320));
  return createPortal(<><div className="note-context-dismiss" onMouseDown={close} onContextMenu={e=>{e.preventDefault();close();}}/><div className="note-context-menu" style={{left,top}} role="menu" onMouseDown={e=>e.preventDefault()}>
  {widget?<><button role="menuitem" onClick={()=>action(()=>{const details=widget.querySelector<HTMLDetailsElement>('.note-insert-menu');if(details)details.open=true;})}>Настройки виджета</button><button role="menuitem" onClick={()=>action(()=>{const buttons=widget.querySelectorAll<HTMLButtonElement>('.note-insert-actions button');for(const button of buttons)if(button.textContent?.trim()==='Удалить'){button.click();break;}})}>Удалить виджет</button></>:<>

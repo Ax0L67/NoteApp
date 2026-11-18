@@ -14,6 +14,7 @@ import {snapGrid} from './gridGeometry';
 import {CardFace,paletteDragType,readPaletteDrop} from './appearance';
 import {textureById} from './textures';
 import {FeatureCard,featureDefaults,featureFromMarkdown,featureBaseWidth,markdownBlock,type NoteFeature} from './noteFeatureBlocks';
+import {kanbanWidgetSize} from './kanbanWidgetSize';
 import {FittedWidget} from './widgetFit';
 import {queueNoteWidgetJoinSync,snapNoteWidgetPosition,tableMinimumSize} from './noteWidgetChrome';
 import {MapTable,ReadingTable,standaloneMapTable} from './noteTables';
@@ -161,6 +162,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const [comment, setComment] = useState<{id:string;text:string;index?:number}|null>(null);
   const [viewport, setViewport] = useState(0);
   const [measurements,setMeasurements]=useState<Record<string,Dimensions>>({});
+  const [boardHeights,setBoardHeights]=useState<Record<string,number>>({});
   const [drag, setDrag] = useState<Drag|null>(null);
   const [selectedIds,setSelectedIds]=useState<Set<string>>(()=>new Set());
   const [marquee,setMarquee]=useState<Marquee|null>(null);
@@ -214,7 +216,11 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     const link=/^\[(.*)\]\((noteapp-(?:note|map):[\w-]+)\)$/.exec(block.text.trim());
     const name=link?(references.targets.get(link[2])?.name??link[1])
       : image ? 'Фото'+(image[1]?' · '+image[1]:'') : firstLine.trim()||'Текстовый блок';
-    const size=dimensions(sizing?.id===id?sizing.size:block.size??{width:link?340:blockWidth,height:measurements[id]?.height??74},step);
+    const boardAutoSize=block.autoSize??(block.size?.width===704&&block.size?.height===462);
+    const boardBlock=boardAutoSize?/^`{3,}noteapp-board\n([\s\S]*?)\n`{3,}\s*$/.exec(block.text):null;
+    const boardValue=boardBlock&&featureFromMarkdown('board',boardBlock[1]);
+    const boardSize=boardValue&&kanbanWidgetSize(settings.taskBoards?.find(board=>board.id===boardValue.id),boardValue.column,boardValue.taskId);
+    const size=dimensions(sizing?.id===id?sizing.size:boardSize?{width:boardSize[0],height:boardHeights[block.id]??boardSize[1]}:block.size??{width:link?340:blockWidth,height:measurements[id]?.height??74},step);
     const endpoint={...position,name:link?name:name.slice(0,80),reference:link?.[2],
       width:size.width,height:block.size||sizing?.id===id?size.height:Math.ceil(Math.max(size.height,measurements[id]?.height??0)/step)*step};
     endpoints.set(id,endpoint);
@@ -299,7 +305,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     setActiveBlock(id);
     setPlacingText(false);
   }
-  function addMapFeature(kind:NoteFeature|'table',options?:{rows?:number;columns?:number;boardId?:string}) {
+  function addMapFeature(kind:NoteFeature|'table',options?:{rows?:number;columns?:number;boardId?:string;column?:string;taskId?:string}) {
     let text:string;
     if(kind==='table'){
       const rows=Math.max(1,Math.min(30,Math.floor(options?.rows??1))),columns=Math.max(1,Math.min(16,Math.floor(options?.columns??2)));
@@ -307,11 +313,11 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
       text=[`| ${cells.join(' | ')} |`,`| ${cells.map(()=>':---').join(' | ')} |`,...Array.from({length:rows},()=>`| ${cells.map(()=>' ').join(' | ')} |`)].join('\n');
     }else{
       const value=featureDefaults(kind);
-      if(kind==='board')value.id=options?.boardId||createTaskBoard();
+      if(kind==='board'){value.id=options?.boardId||createTaskBoard();value.column=options?.column;value.taskId=options?.taskId;}
       text=markdownBlock(kind,value);
     }
-    const id=crypto.randomUUID(),position=insertionPoint();
-    changeBlocks(current=>[...current,{id,position,text,size:{width:kind==='table'?Math.ceil(Math.max(180,(options?.columns??2)*90)/step)*step:kind==='board'?704:kind==='plot'?660:528,height:kind==='table'?Math.ceil(Math.max(100,((options?.rows??1)+1)*50)/step)*step:kind==='plot'?484:kind==='board'?462:330}}]);
+    const id=crypto.randomUUID(),position=insertionPoint(),boardSize=kind==='board'?kanbanWidgetSize(settings.taskBoards?.find(board=>board.id===options?.boardId),options?.column,options?.taskId):undefined;
+    changeBlocks(current=>[...current,{id,position,text,...(kind==='board'?{autoSize:true}:{}),size:{width:kind==='table'?Math.ceil(Math.max(180,(options?.columns??2)*90)/step)*step:boardSize?Math.ceil(boardSize[0]/step)*step:kind==='plot'?660:528,height:kind==='table'?Math.ceil(Math.max(100,((options?.rows??1)+1)*50)/step)*step:boardSize?Math.ceil(boardSize[1]/step)*step:kind==='plot'?484:330}}]);
     setActiveBlock(id);
   }
   function openEndpoint(id:string, endpoint:Endpoint) {
@@ -565,7 +571,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
         const view=blockEditor.current?.view;
         if(view)apply(view);
       }} insertReference={kind=>pickReference(kind,insertionPoint())} insertMapFeature={addMapFeature}
-        taskBoards={settings.taskBoards??[]} openTasks={openTasks}
+        taskBoards={settings.taskBoards??[]} changeTaskBoard={changeTaskBoard} openTasks={openTasks}
         createWidget={kind=>{
           if(kind==='text'){setPlacingText(true);scroll.current?.focus();}
           else if(kind==='image'){attachmentPosition.current=insertionPoint();fileInput.current?.click();}
@@ -810,13 +816,13 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
               ...textAppearanceStyle({lineHeight:block.lineHeight??map.lineHeight,textColor:block.textColor??map.textColor}),
               ...(font&&{'--body-font':fontStack(font)}),
             } as React.CSSProperties}>
-              {feature&&featureValue?<FittedWidget baseWidth={featureBaseWidth(feature[1] as NoteFeature)}><FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/></FittedWidget>:table&&rawMapTable!==block.id?editCanvas?<MapTable source={block.text} save={text=>{const host=Array.from(scroll.current?.querySelectorAll<HTMLElement>('.graph-annotation')??[]).find(node=>node.dataset.nodeId===dragId)??null,[minWidth,minHeight]=tableMinimumSize(host);updateBlock(block.id,{text,size:{width:Math.max(position.width,Math.ceil(minWidth/step)*step),height:Math.max(position.height,Math.ceil(minHeight/step)*step)}})}} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}}/>:<ReadingTable source={block.text}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
+              {feature&&featureValue?<FittedWidget baseWidth={featureBaseWidth(feature[1] as NoteFeature,settings.taskBoards?.find(board=>board.id===featureValue.id),featureValue.column,featureValue.taskId)}><FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} onBoardHeight={(block.autoSize??(block.size?.width===704&&block.size?.height===462))?height=>setBoardHeights(current=>{const next=height+48;return current[block.id]===next?current:{...current,[block.id]:next}}):undefined} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/></FittedWidget>:table&&rawMapTable!==block.id?editCanvas?<MapTable source={block.text} save={text=>{const host=Array.from(scroll.current?.querySelectorAll<HTMLElement>('.graph-annotation')??[]).find(node=>node.dataset.nodeId===dragId)??null,[minWidth,minHeight]=tableMinimumSize(host);updateBlock(block.id,{text,size:{width:Math.max(position.width,Math.ceil(minWidth/step)*step),height:Math.max(position.height,Math.ceil(minHeight/step)*step)}})}} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}}/>:<ReadingTable source={block.text}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
                 light={settings.theme==='light'} autoFocus={active} editorRef={blockEditor}
                 onChange={text=>updateBlock(block.id,{text})} onLink={openLink}/>}
               {!active&&!block.text&&<p className="subtle">Пустой блок</p>}
             </div>
             <ResizeHandle label={`Размер блока «${position.name}»`} size={{width:position.width,height:position.height}} position={position} step={step} zoom={camera.zoom} moveEdges={table?{start:event=>startMove(event,dragId,position,true),move,end:event=>endMove(event,savePositions),key:(dx,dy)=>updateBlock(block.id,{position:{x:position.x+dx,y:position.y+dy}})}:undefined}
-              draft={value=>setSizing(value?{id:dragId,...value}:null)} save={(size,nextPosition)=>updateBlock(block.id,{size,position:nextPosition})}/>
+              draft={value=>setSizing(value?{id:dragId,...value}:null)} save={(size,nextPosition)=>updateBlock(block.id,{size,position:nextPosition,...(feature?.[1]==='board'?{autoSize:false}:{})})}/>
           </article>;
         })}
         {marquee&&<div className="graph-selection-box" style={{left:Math.min(marquee.start.x,marquee.current.x),top:Math.min(marquee.start.y,marquee.current.y),width:Math.abs(marquee.current.x-marquee.start.x),height:Math.abs(marquee.current.y-marquee.start.y)}}/>}

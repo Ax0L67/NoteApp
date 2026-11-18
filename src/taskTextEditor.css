@@ -1,0 +1,17 @@
+.task-text-editor { position:relative; min-width:0; }
+.task-text-editor .cm-editor { min-width:0; font-size:inherit; }
+.task-text-editor .cm-content { min-height:1.5em; font:inherit; line-height:1.5; user-select:text; }
+.task-text-editor .cm-scroller { overflow:visible; font:inherit; }
+.task-text-placeholder { position:absolute; top:0; left:0; color:var(--muted); pointer-events:none; }
+.task-text-editor .reading { padding:0; font:inherit; overflow-wrap:anywhere; user-select:text; }
+.task-text-editor .reading p { margin:0; }
+.task-card-title .task-text-editor { font-size:13px; font-weight:650; }
+.task-text-editor .task-inline-table { position:relative; width:100%; min-width:0; padding-top:26px; white-space:normal; }
+.task-text-editor .task-inline-table .visual-table-widget { height:auto; }
+.task-text-editor .task-inline-table .visual-table-overflow { width:100%; max-width:100%; overflow:auto; }
+.task-text-editor .task-inline-table .visual-table-overflow table { height:auto; min-width:100%; }
+.task-text-editor .reading table { width:100%; max-width:100%; table-layout:fixed; border-collapse:collapse; }
+.task-text-editor .reading :is(td,th) { overflow-wrap:anywhere; border:1px solid var(--edge); padding:4px; }
+.task-table-menu-trigger { position:absolute; top:0; right:0; min-width:28px; min-height:26px; }
+.task-table-menu { max-height:min(70vh,600px); overflow:auto; }
+.task-table-menu .visual-table-actions { display:grid; gap:4px; }

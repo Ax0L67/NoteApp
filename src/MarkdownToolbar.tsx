@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import {useId,useState} from 'react';
 import type {ReferenceKind} from './noteReferences';
 import {applyNoteColor} from './noteTextColor';
-import {insertFeature,insertTable,type NoteFeature} from './noteFeatureBlocks';
+import {insertBoard as insertBoardWidget,insertFeature,insertTable,type NoteFeature} from './noteFeatureBlocks';
 import type {TaskBoard} from './types';
 import {insertCodeWidget} from './noteCodeWidgets';
 
@@ -70,7 +70,7 @@ export function applyFormat(view: EditorView, format: Format) {
   view.focus();
 }
 
-export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = disabled, typography, insertReference, createWidget,openTasks,insertBoard,taskBoards=[],insertMapFeature,insertCode }: {
+export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = disabled, typography, insertReference, createWidget,taskBoards=[],changeTaskBoard,insertMapFeature,insertCode }: {
   runEdit: (action: (view: EditorView) => void) => void;
   disabled: boolean;
   colorDisabled?: boolean;
@@ -80,13 +80,15 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
   openTasks?:()=>void;
   insertBoard?:(view:EditorView,id?:string)=>void;
   taskBoards?:TaskBoard[];
-  insertMapFeature?:(kind:NoteFeature|'table', options?:{rows?:number;columns?:number;boardId?:string})=>void;
+  changeTaskBoard?:(board:TaskBoard)=>void;
+  insertMapFeature?:(kind:NoteFeature|'table', options?:{rows?:number;columns?:number;boardId?:string;column?:string;taskId?:string})=>void;
   insertCode?:()=>void;
 }) {
   const [panel,setPanel]=useState<'format'|'insert'>('format');
   const [widgetMenu,setWidgetMenu]=useState(false);
   const [tableMenu,setTableMenu]=useState(false),[tableRows,setTableRows]=useState(1),[tableColumns,setTableColumns]=useState(2);
-  const [selectedBoard,setSelectedBoard]=useState('');
+  const [selectedBoard,setSelectedBoard]=useState(''),[boardMenu,setBoardMenu]=useState(false),[boardPart,setBoardPart]=useState<'board'|'column'|'task'>('board'),[selectedPart,setSelectedPart]=useState('');
+  const board=taskBoards.find(item=>item.id===selectedBoard);
   const insertDisabled=disabled&&!insertMapFeature;
   const addFeature=(kind:NoteFeature)=>insertMapFeature?insertMapFeature(kind):runEdit(view=>insertFeature(view,kind));
   const addTable=()=>insertMapFeature?insertMapFeature('table',{rows:tableRows,columns:tableColumns}):runEdit(view=>insertTable(view,tableRows,tableColumns));
@@ -147,9 +149,15 @@ export default function MarkdownToolbar({ runEdit, disabled, colorDisabled = dis
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addTable();}}>Таблица</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('math');}}>Формула</button>
               <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);addFeature('plot');}}>График</button>
-              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);openTasks?.();}}>Задачи</button>
-              <select aria-label="Доска для встраивания" value={selectedBoard} onChange={event=>setSelectedBoard(event.target.value)}><option value="">Новая доска</option>{taskBoards.map(board=><option key={board.id} value={board.id}>{board.name}</option>)}</select>
-              <button type="button" role="menuitem" onMouseDown={event=>event.preventDefault()} onClick={()=>{setWidgetMenu(false);insertMapFeature?insertMapFeature('board',{boardId:selectedBoard||undefined}):runEdit(view=>insertBoard?.(view,selectedBoard||undefined));}}>Встроить доску</button>
+            </div>}
+          </div>
+          <div className="widget-insert" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setBoardMenu(false);}} onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setBoardMenu(false);}}}>
+            <button type="button" className="ribbon-action" aria-expanded={boardMenu} disabled={insertDisabled} onMouseDown={event=>event.preventDefault()} onClick={()=>setBoardMenu(value=>!value)}>Kanban доска</button>
+            {boardMenu&&<div className="widget-insert-menu" aria-label="Вставить Kanban">
+              <select aria-label="Доска Kanban" value={selectedBoard} onChange={event=>{setSelectedBoard(event.target.value);setSelectedPart('');}}><option value="">Выберите доску</option>{taskBoards.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              <select aria-label="Что вставить" value={boardPart} onChange={event=>{setBoardPart(event.target.value as 'board'|'column'|'task');setSelectedPart('');}}><option value="board">Вся доска</option><option value="column">Столбец</option><option value="task">Задача</option></select>
+              {boardPart!=='board'&&<select aria-label={boardPart==='column'?'Столбец Kanban':'Задача Kanban'} value={selectedPart} onChange={event=>setSelectedPart(event.target.value)}><option value="">Выберите {boardPart==='column'?'столбец':'задачу'}</option>{boardPart==='column'?board?.columns.map(column=><option key={column} value={column}>{column}</option>):board?.tasks.map(task=><option key={task.id} value={task.id}>{task.title}</option>)}</select>}
+              <button type="button" disabled={!board||(boardPart!=='board'&&!selectedPart)} onMouseDown={event=>event.preventDefault()} onClick={()=>{if(!board)return;let column:string|undefined;if(boardPart==='column'){column=board.columnIds?.[selectedPart];if(!column&&changeTaskBoard){column=crypto.randomUUID();changeTaskBoard({...board,columnIds:{...board.columnIds,[selectedPart]:column}});}column??=selectedPart;}const taskId=boardPart==='task'?selectedPart:undefined;setBoardMenu(false);insertMapFeature?insertMapFeature('board',{boardId:board.id,column,taskId}):runEdit(view=>insertBoardWidget(view,board.id,column,taskId,boardPart==='column'?{...board,columnIds:{...board.columnIds,[selectedPart]:column!}}:board));}}>Вставить</button>
             </div>}
           </div>
           <select className="font-picker" aria-label="Специальные символы" value="" disabled={disabled}

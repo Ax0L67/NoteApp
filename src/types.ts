@@ -1,14 +1,14 @@
 import type {DockLayout,DockPanel} from './dockLayout';
 export interface Note {path:string;content:string;revision:string;createdAt?:number;modifiedAt?:number}
 export interface Template {name:string;content:string}
-export interface Task {id:string;title:string;description:string;due?:string;priority:'low'|'normal'|'high';status:string;notes:string[]}
-export interface TaskBoard {id:string;name:string;project:string;columns:string[];tasks:Task[];hiddenColumns?:string[];compact?:boolean}
+export interface Task {id:string;title:string;description:string;due?:string;priority:'low'|'normal'|'high';status:string;notes:string[];tags?:string[];checklist?:{id:string;text:string;done:boolean}[]}
+export interface TaskBoard {id:string;name:string;project:string;columns:string[];tasks:Task[];hiddenColumns?:string[];compact?:boolean;palette?:string;columnColors?:Record<string,string>;columnAliases?:Record<string,string>;columnIds?:Record<string,string>}
 export type TextAppearance = {lineHeight?:number;textColor?:string};
 export interface NoteAppearance extends TextAppearance {palette?:string;background?:string|null;fontFamily?:string;fontSize?:number;paper?:'graphite'}
 export interface ProjectConnection {from:string;to:string;label?:string}
 export interface MapPoint {x:number;y:number}
 export interface MapCard {texture?:string;position?:MapPoint;size?:{width:number;height:number};comments?:string[]}
-export interface MapBlock extends TextAppearance {texture?:string;id:string;position:MapPoint;size?:{width:number;height:number};text:string;fontFamily?:string}
+export interface MapBlock extends TextAppearance {texture?:string;id:string;position:MapPoint;size?:{width:number;height:number};text:string;fontFamily?:string;autoSize?:boolean}
 export interface ProjectMap extends TextAppearance {cards?:Record<string,MapCard>;hiddenConnections?:ProjectConnection[];text?:string;blocks?:MapBlock[];fontFamily?:string}
 export interface PanelAppearance {palette:string;blend?:string|null}
 export interface Settings {simpleStyle?:boolean}

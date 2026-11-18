@@ -1,0 +1,5 @@
+.kanban-outline-column { display:flex; align-items:center; min-width:0; }
+.kanban-outline-column > button:not(.kanban-outline-caret) { flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kanban-outline-column .kanban-outline-caret { flex:0 0 26px; width:26px; padding:4px; }
+.kanban-outline-tasks { padding-left:25px; }
+.kanban-outline-tasks > button { width:100%; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

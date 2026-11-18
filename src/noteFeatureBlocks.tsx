@@ -1,5 +1,5 @@
 import {noteFenceRanges} from './noteFenceRanges';
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {useEffect,useLayoutEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {createRoot,type Root} from 'react-dom/client';
 import {syntaxTree} from '@codemirror/language';
 import {StateField,type EditorState} from '@codemirror/state';
@@ -10,13 +10,15 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type {Note,TaskBoard} from './types';
 import {TaskBoardView} from './TaskBoards';
+import {kanbanWidgetSize} from './kanbanWidgetSize';
+import './kanbanWidgetSize.css';
 import {evaluateMath,evaluateMathVariables} from './safeMath';
 import {chooseSourceLocation,openSourceLocation} from './storage';
 import {loadNoteImage} from './noteImages';
 import {defaultNoteWidgetPosition,initialNoteWidget,noteWidgetChrome,type NoteWidgetPosition} from './noteWidgetChrome';
 
 export type NoteFeature='compare'|'source'|'concept'|'math'|'plot'|'board';
-export const featureBaseWidth=(kind:NoteFeature)=>kind==='board'?708:kind==='plot'?628:kind==='compare'?668:kind==='math'?388:468;
+export const featureBaseWidth=(kind:NoteFeature,board?:TaskBoard,column?:string,taskId?:string)=>kind==='board'?kanbanWidgetSize(board,column,taskId)[0]-40:kind==='plot'?628:kind==='compare'?668:kind==='math'?388:468;
 type FeatureValue=Record<string,any>;
 type BlockRange={from:number;to:number;source:string;fence:string;kind:NoteFeature;value:FeatureValue};
 const fenceBlock=/^(`{3,})(noteapp-(compare|source|concept|math|plot|board))[^\n]*\n([\s\S]*?)\n\1[ \t]*$/gm;
@@ -65,7 +67,7 @@ export function insertTable(view:EditorView,rows=1,columns=2) {
   insertText(view,`<!-- noteapp-table widths=${widths.join(',')} x=${widget.x} y=${widget.y} w=${widget.width} h=${widget.height} z=${widget.z} -->\n${source}`);
 }
 
-export function insertBoard(view:EditorView,id:string) {insertText(view,markdownBlock('board',{id,mode:'compact',widget:initialNoteWidget(view,view.state.selection.main.from,760,480)}));}
+export function insertBoard(view:EditorView,id:string,column?:string,taskId?:string,board?:TaskBoard) {const [width,height]=kanbanWidgetSize(board,column,taskId);insertText(view,markdownBlock('board',{id,column,taskId,mode:'compact',widget:{...initialNoteWidget(view,view.state.selection.main.from,width,height),autoSize:true}}));}
 
 export function featureBlocks(getNotes:()=>Note[],getBoards:()=>TaskBoard[],changeBoard:(board:TaskBoard)=>void,openNote:(path:string)=>void) {
   class FeatureWidget extends WidgetType {
@@ -75,16 +77,18 @@ export function featureBlocks(getNotes:()=>Note[],getBoards:()=>TaskBoard[],chan
     toDOM(view:EditorView) {
       const host=document.createElement('div');host.className=`note-feature-host note-feature-${this.block.kind}`;
       let value=this.block.value;
-      const size=this.block.kind==='board'?[760,480]:this.block.kind==='plot'?[680,500]:this.block.kind==='compare'?[720,350]:[520,360];
+      const board=this.block.kind==='board'?getBoards().find(item=>item.id===value.id):undefined;
+      const size=this.block.kind==='board'?kanbanWidgetSize(board,value.column,value.taskId):this.block.kind==='plot'?[680,500]:this.block.kind==='compare'?[720,350]:[520,360];
       const fallback=defaultNoteWidgetPosition(size[0],size[1]),stored=value.widget as Partial<NoteWidgetPosition>|undefined;
       let position=stored&&Number.isFinite(stored.x)&&Number.isFinite(stored.y)?{...fallback,...stored} as NoteWidgetPosition:fallback;
+      if(this.block.kind==='board'&&position.autoSize===undefined&&position.width===760&&position.height===480)position.autoSize=true;
       const write=(next:FeatureValue)=>{
         const end=this.block.to;if(view.state.sliceDoc(this.block.from,end)!==this.block.source)return;
         if(next.__delete){view.dispatch({changes:{from:this.block.from,to:end},userEvent:'delete.note-feature'});return;}
         const block=markdownBlock(this.block.kind,{...next,widget:position});
         view.dispatch({changes:{from:this.block.from,to:end,insert:block},userEvent:'input.note-feature'});
       };
-      const chrome=noteWidgetChrome(host,view,position,this.block.kind==='board'?'Доска задач':'Блок заметки',next=>{position=next;write(value);},()=>write({__delete:true}),true,featureBaseWidth(this.block.kind));
+      const chrome=noteWidgetChrome(host,view,position,this.block.kind==='board'?'Доска задач':'Блок заметки',next=>{position=next;write(value);},()=>write({__delete:true}),true,featureBaseWidth(this.block.kind,board,value.column,value.taskId));
       if(this.block.kind==='plot'){
         const label=document.createElement('label');label.className='note-widget-color';label.textContent='Цвет графика';
         const input=document.createElement('input');input.type='color';input.value=/^#[0-9a-f]{6}$/i.test(value.plotColor??'')?value.plotColor:'#96a6b6';input.setAttribute('aria-label','Цвет графика');
@@ -92,7 +96,7 @@ export function featureBlocks(getNotes:()=>Note[],getBoards:()=>TaskBoard[],chan
       }
       fitByHost.set(host,chrome.dispose);
       const root=createRoot(chrome.body);roots.set(host,root);
-      const refresh=()=>root.render(<FeatureCard kind={this.block.kind} value={value} editable notes={getNotes()} boards={getBoards()} save={next=>{value=next;write(next);}} draftChange={next=>{value=next;}} changeBoard={changeBoard} openNote={openNote}/>);
+      const refresh=()=>{const boards=getBoards();if(this.block.kind==='board'&&position.autoSize){const [width,height]=kanbanWidgetSize(boards.find(item=>item.id===value.id),value.column,value.taskId);position={...position,width,height};chrome.setPosition(position);}root.render(<FeatureCard kind={this.block.kind} value={value} editable notes={getNotes()} boards={boards} onBoardHeight={height=>{if(position.autoSize){const next=Math.min(1200,Math.max(140,height+48));if(Math.abs(position.height-next)>1){position={...position,height:next};chrome.setPosition(position);}}}} save={next=>{value=next;write(next);}} draftChange={next=>{value=next;}} changeBoard={changeBoard} openNote={openNote}/>);};
       refresh();refreshers.add(refresh);refreshByHost.set(host,refresh);
       return host;
     }
@@ -169,7 +173,13 @@ function publishMathValues(id:string,variables:{name:string;value:number}[]) {
   if(id)window.dispatchEvent(new CustomEvent('noteapp:math-values',{detail:{id,variables:Object.fromEntries(variables.map(item=>[item.name,Number(item.value)]))}}));
 }
 
-export function FeatureCard({kind,value,editable,notes,boards,save,draftChange,changeBoard,openNote}:{kind:NoteFeature;value:FeatureValue;editable:boolean;notes:Note[];boards:TaskBoard[];save?:(value:FeatureValue)=>void;draftChange?:(value:FeatureValue)=>void;changeBoard:(board:TaskBoard)=>void;openNote:(path:string)=>void}) {
+function KanbanSizeSensor({children,onHeight}:{children:ReactNode;onHeight?:(height:number)=>void}) {
+  const host=useRef<HTMLDivElement>(null),callback=useRef(onHeight);callback.current=onHeight;
+  useLayoutEffect(()=>{const columns=host.current?.querySelector<HTMLElement>('.task-board-columns');if(!columns)return;const update=()=>callback.current?.(Math.ceil(columns.scrollHeight));const observer=new ResizeObserver(update);observer.observe(columns);update();return()=>observer.disconnect()},[]);
+  return <div className="kanban-size-sensor" ref={host}>{children}</div>;
+}
+
+export function FeatureCard({kind,value,editable,notes,boards,save,draftChange,changeBoard,openNote,onBoardHeight}:{kind:NoteFeature;value:FeatureValue;editable:boolean;notes:Note[];boards:TaskBoard[];save?:(value:FeatureValue)=>void;draftChange?:(value:FeatureValue)=>void;changeBoard:(board:TaskBoard)=>void;openNote:(path:string)=>void;onBoardHeight?:(height:number)=>void}) {
   const [draft,setDraft]=useState(()=>structuredClone(value));
 
   useEffect(()=>{setDraft(current=>({...current,plotColor:value.plotColor}));},[value.plotColor]);
@@ -180,7 +190,7 @@ export function FeatureCard({kind,value,editable,notes,boards,save,draftChange,c
   const header=kind==='compare'?'Сравнение':kind==='source'?'Источник':kind==='concept'?'Понятие':kind==='math'?'Формула':kind==='plot'?'График':'Доска задач';
   if(kind==='board'){
     const board=boards.find(item=>item.id===value.id);
-    return board?<TaskBoardView board={board} notes={notes} change={changeBoard} openNote={openNote} editable={editable}/>:<article className="note-feature-card"><strong>Доска задач недоступна</strong></article>;
+    return board?<KanbanSizeSensor onHeight={onBoardHeight}><TaskBoardView board={board} notes={notes} change={changeBoard} openNote={openNote} editable={editable} embedded column={value.column} taskId={value.taskId}/></KanbanSizeSensor>:<article className="note-feature-card"><strong>Доска задач недоступна</strong></article>;
   }
   return <form className={`note-feature-card note-feature-${kind}-card`} onSubmit={event=>event.preventDefault()} onBlur={event=>{if(editable&&!event.currentTarget.contains(event.relatedTarget as Node|null))save?.(draftRef.current);}}>
     <header><strong>{kind==='compare'?draft.title||header:kind==='source'?draft.title||header:kind==='concept'?draft.term||header:header}</strong>
@@ -221,8 +231,8 @@ function SourceEditor({value,editable,change}:{value:FeatureValue;editable:boole
   </div>;
 }
 
-export function FeatureBlockView({kind,value,notes,boards,changeBoard,openNote}:{kind:NoteFeature;value:FeatureValue;notes:Note[];boards:TaskBoard[];changeBoard:(board:TaskBoard)=>void;openNote:(path:string)=>void}) {
-  return <FeatureCard kind={kind} value={value} editable={false} notes={notes} boards={boards} changeBoard={changeBoard} openNote={openNote}/>;
+export function FeatureBlockView({kind,value,notes,boards,changeBoard,openNote,onBoardHeight}:{kind:NoteFeature;value:FeatureValue;notes:Note[];boards:TaskBoard[];changeBoard:(board:TaskBoard)=>void;openNote:(path:string)=>void;onBoardHeight?:(height:number)=>void}) {
+  return <FeatureCard kind={kind} value={value} editable={false} notes={notes} boards={boards} changeBoard={changeBoard} openNote={openNote} onBoardHeight={onBoardHeight}/>;
 }
 
 function ConceptEditor({value,editable,change,notes,openNote}:{value:FeatureValue;editable:boolean;change:(value:FeatureValue)=>void;notes:Note[];openNote:(path:string)=>void}) {

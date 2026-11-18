@@ -114,6 +114,13 @@
   .note-print img { max-width:100%; break-inside:avoid; }
   .note-print h1,.note-print h2,.note-print h3 { break-after:avoid; }
   .note-print a { color:inherit; }
+  .note-print .task-board-columns { flex-wrap:wrap; overflow:visible; }
+  .note-print .task-board-column { flex:1 1 200px; min-height:0; break-inside:avoid; background:white!important; border:1px solid #bbb; color:#111; }
+  .note-print .task-board-column>header { background:#eee!important; }
+  .note-print .task-board-column>header input { color:#111; }
+  .note-print .task-card { background:white!important; border:1px solid #ccc; box-shadow:none; color:#111; break-inside:avoid; }
+  .note-print :is(.task-card-drag,.task-card-move,.task-column-drag) { display:none!important; }
+  .note-print .task-card p,.note-print .task-checklist label:has(input:checked) span { color:#555; }
 }
 .central-window .note-tab[data-closing] { max-width:0; flex-basis:0; opacity:0; overflow:hidden; transition:max-width 170ms var(--ease-ui),flex-basis 170ms var(--ease-ui),opacity 140ms var(--ease-ui); }
 .central-window .selected-note-tab::after { animation:tab-join 180ms var(--ease-ui); }
@@ -289,6 +296,7 @@
 .app.liquid-shell .dock-zone-top .dock-panel { border-radius:12px; }
 .app[data-png-export] { pointer-events:none; }
 .app[data-png-export] :is(.note-insert-menu,.floating-note-resize,.canvas-widget-resize,.canvas-align-guide,.graph-resize,.cm-cursorLayer,.cm-selectionLayer,.graph-selection-box) { visibility:hidden; }
+.app[data-png-export] :is(.task-card-drag,.task-card-move,.task-column-drag) { display:none!important; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .sidebar-top { padding-top:31px; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector { padding-top:16px; }
 /* Align the inspector with the storage strip and the editor ribbon. */

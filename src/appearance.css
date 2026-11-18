@@ -73,7 +73,7 @@
   --veil: 84%;
   --contrast-base: var(--ink);
 }
-.app, .app.light, .app[class*="palette-"], .project-workspace, .project-card, .note-tab:not(.selected-note-tab) {
+.app, .app.light, .app[class*="palette-"], .project-workspace, .project-card, .note-tab:not(.selected-note-tab), .task-board-view[class*="palette-"], .task-board-column[class*="palette-"] {
   --base: color-mix(in srgb, var(--contrast-base) var(--contrast-boost, 0%), color-mix(in srgb, var(--surface-editor) var(--contrast-fade, 0%), color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-base))));
   --panel: color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-panel));
   --tint: color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-tint));

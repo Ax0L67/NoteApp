@@ -5,6 +5,8 @@ import type {Note,TaskBoard} from './types';
 import type {ReferenceActions} from './ReferenceChip';
 import {title} from './indexing';
 import Editor from './Editor';
+import {kanbanNoteBoard,kanbanNoteId} from './kanbanNote';
+import {TaskBoardView} from './TaskBoards';
 export default function PrintNote({note,notes,references,done,taskBoards=[],changeTaskBoard=()=>{},openNote=()=>{}}:{note:Note;notes:Note[];references:ReferenceActions;done:()=>void;taskBoards?:TaskBoard[];changeTaskBoard?:(board:TaskBoard)=>void;openNote?:(path:string)=>void}){
   const ref=useRef<ReactCodeMirrorRef>(null),root=useRef<HTMLElement>(null),doneRef=useRef(done);doneRef.current=done;
   useEffect(()=>{
@@ -17,5 +19,6 @@ export default function PrintNote({note,notes,references,done,taskBoards=[],chan
     })();
     return()=>{live=false;document.title=previous;window.removeEventListener('afterprint',finish);};
   },[note.path]);
-  return createPortal(<article className="note-print" ref={root}><Editor note={note} notes={notes} read onChange={()=>{}} onLink={()=>{}} editorRef={ref} light autoFocus={false} references={references} taskBoards={taskBoards} changeTaskBoard={changeTaskBoard} openNote={openNote}/></article>,document.body);
+  const boardId=kanbanNoteId(note.content),board=boardId&&(taskBoards.find(item=>item.id===boardId)??kanbanNoteBoard(note.content));
+  return createPortal(<article className="note-print" ref={root}>{boardId?<><h1>{title(note.path)}</h1>{board?<TaskBoardView board={board} notes={notes} change={()=>{}} openNote={openNote} editable={false} interactive={false}/>:<p>Доска Kanban недоступна.</p>}</>:<Editor note={note} notes={notes} read onChange={()=>{}} onLink={()=>{}} editorRef={ref} light autoFocus={false} references={references} taskBoards={taskBoards} changeTaskBoard={changeTaskBoard} openNote={openNote}/>}</article>,document.body);
 }

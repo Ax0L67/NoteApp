@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, type MouseEvent, type ReactNode } from 'react';
-import { CaretDown, CaretRight, DotsThree, FilePlus, FileText, Folder, FolderOpen, FolderPlus, Stack, Trash, SquaresFour } from '@phosphor-icons/react';
+import { CaretDown, CaretRight, Columns, DotsThree, FilePlus, FileText, Folder, FolderOpen, FolderPlus, Stack, Trash, SquaresFour } from '@phosphor-icons/react';
 import { folder, title } from './indexing';
 import { NoteBackdrop } from './appearance';
 import type { Note } from './types';
 import {ObjectIcon} from './ObjectIcon';
+import {kanbanNoteId} from './kanbanNote';
 
-export type ExplorerItem = { kind: 'project' | 'folder' | 'note'; project: string; path: string; name: string };
+export type ExplorerItem = { kind: 'project' | 'folder' | 'note'; project: string; path: string; name: string; isKanban?:boolean };
 export type ExplorerMenu = { item: ExplorerItem; x: number; y: number };
 export type Location = { kind: 'home' } | { kind: 'graph'; project: string } | { kind: 'folder'; project: string; path: string } | { kind: 'note'; path: string };
 type OpenMenu = (event: MouseEvent, item: ExplorerItem) => void;
@@ -17,14 +18,14 @@ export function entriesIn(project: string, dir: string, folders: string[], notes
   return [
     ...directories.map(path => ({kind: 'folder' as const, project, path, name: path.split('/').at(-1)!})),
     ...files.sort((a, b) => title(a.path).localeCompare(title(b.path), 'ru', {numeric: true}))
-      .map(n => ({kind: 'note' as const, project, path: n.path, name: title(n.path)})),
+      .map(n => ({kind: 'note' as const, project, path: n.path, name: title(n.path),isKanban:!!kanbanNoteId(n.content)})),
   ];
 }
 
 export const itemKey = (item: ExplorerItem) => JSON.stringify([item.kind, item.project, item.path]);
 const itemIcon = (item: ExplorerItem, expanded = false, size = 20) => {
   if (item.kind === 'project') return <Stack size={size}/>;
-  if (item.kind === 'note') return item.path.endsWith('.canvas')?<SquaresFour size={size}/>:<FileText size={size}/>;
+  if (item.kind === 'note') return item.isKanban?<Columns size={size}/>:item.path.endsWith('.canvas')?<SquaresFour size={size}/>:<FileText size={size}/>;
   return expanded ? <FolderOpen size={size}/> : <Folder size={size}/>;
 };
 
@@ -87,7 +88,7 @@ export function FolderContents({ name, background, root, entries, open, showMenu
         <ul className="file-list">{entries.map(item => <li key={itemKey(item)} onContextMenu={event => showMenu(event, item)}>
           <button className="file-open" title={item.name} onClick={() => open(item)}>
             <span><ObjectIcon item={item} icons={icons} size={23}/><strong>{item.name}</strong></span>
-            <small>{item.kind === 'folder' ? 'Папка' : item.path.endsWith('.canvas')?'Полотно':'Заметка Markdown'}</small>
+            <small>{item.kind === 'folder' ? 'Папка' : item.isKanban?'Kanban':item.path.endsWith('.canvas')?'Полотно':'Заметка Markdown'}</small>
           </button>
           <MenuButton item={item} showMenu={showMenu}/>
         </li>)}</ul></> : <div className="folder-empty"><FolderOpen size={34}/><p>В этой папке пока пусто</p><small>Создайте заметку или папку на панели сверху.</small></div>}

@@ -2,6 +2,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import {markdown as markdownLanguage} from '@codemirror/lang-markdown';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {DotsThree} from '@phosphor-icons/react';
 import {noteTextColor,remarkNoteColor} from './noteTextColor';
 import {noteFenceRanges} from './noteFenceRanges';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
@@ -55,7 +56,7 @@ function serialize(table:TableData,widget:NoteWidgetPosition) {
   return `${comment}${[header,separator,...body].join('\n')}`;
 }
 
-function MarkdownTable({table,source,update,markdown,draftChange,menuActions}:{table:TableData;source:string;update:(data:TableData)=>void;markdown:()=>void;draftChange:(data:TableData)=>void;menuActions:HTMLElement}) {
+function MarkdownTable({table,source,update,markdown,draftChange,menuActions,openMenu}:{table:TableData;source:string;update:(data:TableData)=>void;markdown:()=>void;draftChange:(data:TableData)=>void;menuActions:HTMLElement;openMenu?:()=>void}) {
   const [context,setContext]=useState<{x:number;y:number}|null>(null);
   const [draft,setDraft]=useState(table),[selection,setSelection]=useState({from:[0,0] as [number,number],to:[0,0] as [number,number]});
   const tableRef=useRef<HTMLTableElement>(null),[rowBoundaries,setRowBoundaries]=useState<number[]>([]);
@@ -110,7 +111,7 @@ function MarkdownTable({table,source,update,markdown,draftChange,menuActions}:{t
       <button disabled={selectedColumn>=draft.widths.length-1} onClick={()=>{reorder(selectedColumn,selectedColumn+1);setContext(null);}}>Переместить столбец вправо</button>
       {(['left','center','right'] as const).map((align,i)=><button key={align} onClick={()=>{change({...draft,align:draft.align.map((v,j)=>j===selectedColumn?align:v)});setContext(null);}}>{['Выровнять по левому краю','Выровнять по центру','Выровнять по правому краю'][i]}</button>)}
       <button onClick={()=>{setContext(null);void copyRange();}}>Копировать выделение</button>
-      <button onClick={()=>{setContext(null);const details=menuActions.closest('details');if(details)details.open=true;}}>Настройки таблицы</button>
+      <button onClick={()=>{setContext(null);if(openMenu)openMenu();else{const details=menuActions.closest('details');if(details)details.open=true;}}}>Настройки таблицы</button>
     </div></>,document.querySelector('.app')??document.body)}
     <div className="visual-table-overflow"><table ref={tableRef}><colgroup>{draft.widths.map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup><thead><tr style={{height:draft.heights?.[0]}} onDragOver={event=>{if(draggingRow.current!==null)event.preventDefault()}} onDrop={event=>{if(draggingRow.current!==null){event.preventDefault();reorderRow(draggingRow.current,0);draggingRow.current=null}}}>{draft.rows[0].map((cell,column)=>{
       const palette=draft.palettes?.[column]??null,paint=palette?`palette-${palette}`:undefined;
@@ -159,14 +160,17 @@ export function ReadingTable({source}:{source:string}) {
  return <div className="visual-table-widget reading-table"><div className="visual-table-overflow"><table><colgroup>{table.widths.map((width,i)=><col key={i} style={{width:`${width}%`}}/>)}</colgroup><thead><tr style={{height:table.heights?.[0]}}>{cells(table.rows[0],true)}</tr></thead><tbody>{table.rows.slice(1).map((row,r)=><tr key={r} style={{height:table.heights?.[r+1]}}>{cells(row,false)}</tr>)}</tbody></table></div></div>;
 }
 
-export function MapTable({source,save,markdown,menuTarget}:{source:string;save:(source:string)=>void;markdown:()=>void;menuTarget?:HTMLDivElement}) {
+export function MapTable({source,save,markdown,menuTarget,inline=false,remove}:{source:string;save:(source:string)=>void;markdown:()=>void;menuTarget?:HTMLDivElement;inline?:boolean;remove?:()=>void}) {
   const [actions,setActions]=useState<HTMLDivElement|null>(null);
+  const [menu,setMenu]=useState<{left:number;top:number}|null>(null),trigger=useRef<HTMLButtonElement>(null);
+  const openMenu=()=>{const rect=trigger.current?.getBoundingClientRect();if(rect)setMenu({left:Math.max(4,Math.min(rect.left,window.innerWidth-235)),top:Math.max(4,Math.min(rect.bottom,window.innerHeight-320))});};
+  useEffect(()=>{if(!menu)return;const close=(event:KeyboardEvent)=>{if(event.key==='Escape'){setMenu(null);trigger.current?.focus();}};document.addEventListener('keydown',close);return()=>document.removeEventListener('keydown',close)},[menu]);
   const table=standaloneMapTable(source);
   if(!table)return null;
-  return <div className="note-feature-widget map-table-widget">
-    {!menuTarget&&<details className="note-insert-menu"><summary aria-label="Действия с таблицей"/><div className="note-insert-actions" ref={setActions}/></details>}
+  return <div className={`note-feature-widget map-table-widget${inline?' task-inline-table':''}`}>
+    {inline?<><button type="button" className="task-table-menu-trigger" ref={trigger} aria-label="Настройки таблицы" aria-expanded={!!menu} onClick={()=>menu?setMenu(null):openMenu()}><DotsThree size={18}/></button>{createPortal(<>{menu&&<div className="note-context-dismiss" onMouseDown={()=>setMenu(null)}/>}<div className="note-context-menu task-table-menu" ref={setActions} style={menu?{left:menu.left,top:menu.top,maxHeight:Math.max(80,window.innerHeight-menu.top-8)}:{display:'none'}}>{remove&&<button type="button" onClick={remove}>Удалить таблицу</button>}</div></>,document.querySelector('.app')??document.body)}</>:!menuTarget&&<details className="note-insert-menu"><summary aria-label="Действия с таблицей"/><div className="note-insert-actions" ref={setActions}/></details>}
     {(menuTarget??actions)&&<MarkdownTable table={table} source={source} menuActions={(menuTarget??actions)!} markdown={markdown} draftChange={()=>{}}
-      update={next=>save(serialize(next,defaultNoteWidgetPosition(720,320)))}/>}
+      openMenu={inline?openMenu:undefined} update={next=>save(serialize(next,defaultNoteWidgetPosition(720,320)))}/>}
   </div>;
 }
 
@@ -195,7 +199,22 @@ class TableWidget extends WidgetType {
   destroy(dom:HTMLElement){tableContexts.get(dom)?.dispose?.();roots.get(dom)?.unmount();roots.delete(dom);tableContexts.delete(dom);}
 }
 
-export function markdownTables(){
+const inlineTables=new WeakMap<HTMLElement,{root:Root;render:(range:TableRange)=>void}>();
+class InlineTableWidget extends WidgetType {
+  constructor(readonly range:TableRange){super();}
+  eq(other:InlineTableWidget){return this.range.from===other.range.from&&this.range.source===other.range.source;}
+  updateDOM(host:HTMLElement){const context=inlineTables.get(host);if(!context)return false;context.render(this.range);return true;}
+  ignoreEvent(){return true;}
+  toDOM(view:EditorView){
+    const host=document.createElement('div'),root=createRoot(host);let current=this.range;
+    const replace=(insert:string)=>{if(view.state.sliceDoc(current.from,current.to)!==current.source)return;view.dispatch({changes:{from:current.from,to:current.to,insert},userEvent:insert?'input.markdown-table':'delete.markdown-table'});};
+    const render=(range:TableRange)=>{current=range;root.render(<MapTable source={range.source} inline save={replace} markdown={()=>{}} remove={()=>replace('')}/>);};
+    inlineTables.set(host,{root,render});render(current);return host;
+  }
+  destroy(host:HTMLElement){inlineTables.get(host)?.root.unmount();inlineTables.delete(host);}
+}
+
+export function markdownTables(inline=false){
   const decorate=(state:EditorView['state']):DecorationSet=>{
     const fences=noteFenceRanges(state.doc.toString());
     const lines=Array.from({length:state.doc.lines},(_,index)=>state.doc.line(index+1)),widgets=[];
@@ -205,7 +224,7 @@ export function markdownTables(){
       const start=i>0&&tableComment(lines[i-1].text)?i-1:i;
       let end=i+1;while(end+1<lines.length&&pipeLine(lines[end+1].text))end++;
       const from=lines[start].from,to=lines[end].to,source=state.doc.sliceString(from,to),header=lines[i].text,separator=lines[i+1].text,body=lines.slice(i+2,end+1).map(line=>line.text),comment=start<i?lines[start].text:'';
-      const table:TableRange={from,to,source,header,separator,body,comment,widget:parseWidget(comment)};widgets.push(Decoration.replace({block:true,widget:new TableWidget(table)}).range(from,to));i=end;
+      const table:TableRange={from,to,source,header,separator,body,comment,widget:parseWidget(comment)};widgets.push(Decoration.replace({block:true,widget:inline?new InlineTableWidget(table):new TableWidget(table)}).range(from,to));i=end;
     }
     return Decoration.set(widgets,true);
   };
