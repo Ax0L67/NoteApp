@@ -37,14 +37,19 @@ function indentFold(view:EditorView,line:ReturnType<EditorView['state']['doc']['
 }
 export function readingIndent(content:string) {
   let fence='';
+  let blanks=0;
   return content.split('\n').map(line=>{
     const marker=/^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
     if(marker){
       if(!fence)fence=marker;
       else if(marker[0]===fence[0]&&marker.length>=fence.length)fence='';
-      return line;
+      blanks=0;return line;
     }
-    return fence||/^\t+(?:[-+*]|\d+[.)])\s/.test(line)?line:line.replace(/^\t+/,tabs=>'\u00a0'.repeat(tabs.length*6));
+    if(!fence&&!line.trim()){blanks++;return blanks>1?'\nNOTEAPPBLANKLINE\n':line;}
+    blanks=0;
+    if(fence)return line;
+    line=line.replace(/(`+[^`]*`+)|<!-- noteapp-definition:\S+ -->/g,(match,code)=>code??'');
+    return /^\t+(?:[-+*]|\d+[.)])\s/.test(line)?line:line.replace(/^\t+/,tabs=>'\u00a0'.repeat(tabs.length*6));
   }).join('\n');
 }
 function guides(view:EditorView) {

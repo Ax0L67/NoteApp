@@ -302,7 +302,7 @@
 /* Align the inspector with the storage strip and the editor ribbon. */
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel[data-panel="inspector"]:has(.inspector-note-mode) > .dock-panel-heading { min-height:44px; flex-basis:44px; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading { position:relative; border-bottom:0!important; }
-.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading::after { content:''; position:absolute; top:73px; left:0; right:0; border-bottom:1px solid var(--edge); pointer-events:none; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading::after { content:''; position:absolute; top:var(--dock-header-line-top,73px); left:0; right:0; border-bottom:1px solid var(--edge); pointer-events:none; }
 .app.liquid-shell:not(.light)[data-theme="coal"] :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading::after { border-color:#414141; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel:has(> .inspector-rings) > .dock-panel-body { border-top:0; }
 .app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .explorer-sidebar-heading,
@@ -329,3 +329,23 @@
 .app.liquid-shell .central-window-actions > .note-zoom-controls-titlebar::after,
 .app.liquid-shell .central-window:has(.project-graph) .central-window-actions > button::after { content:none; }
 .app.liquid-shell .central-window:has(.project-graph) .central-window-actions > button { height:30px; }
+
+.storage-strip .vault-switch { border:0; background:transparent; }
+.app.liquid-shell .storage-strip { border:1px solid var(--edge); background:var(--panel-fill); }
+.app.liquid-shell .central-desktop[data-storage-covered] { background:var(--panel-fill); }
+.canvas-export-dialog { width:min(540px,95vw); max-height:80vh; display:flex; flex-direction:column; }
+.canvas-export-list { overflow:auto; display:grid; gap:4px; min-height:0; }
+.canvas-export-list label { display:flex; align-items:center; gap:10px; padding:9px; border-radius:6px; background:var(--input); }
+.canvas-export-list label span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.canvas-export-list label small { flex:none; }
+.storage-strip .storage-graph { border:0; background:transparent; }
+.graph-layout-switch { display:flex; flex:none; align-items:center; gap:2px; padding:3px; border:1px solid var(--edge); border-radius:8px; background:var(--glass-control); }
+.graph-layout-switch button { min-height:26px; padding:3px 8px; font-size:12px; white-space:nowrap; }
+.graph-layout-switch button[aria-pressed="true"] { background:var(--selection); }
+.detached-graph-nav { display:flex; flex:none; justify-content:flex-end; padding:4px 10px; }
+@media(max-width:1050px) { .graph-layout-switch button:first-child { max-width:90px; overflow:hidden; text-overflow:ellipsis; } }
+.app.liquid-shell[data-simple-style] .storage-strip .vault-switch { padding-left:var(--vault-icon-offset,10px); }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-note-mode { top:4px; height:34px; }
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-note-mode .segmented,
+.app.liquid-shell :is(.dock-zone-left,.dock-zone-right) .dock-panel .inspector-note-mode .segmented > button { height:34px; min-height:34px; }
+.main-note-editor[data-ribbon-hidden] .editor-scroll > .text-surface { padding-top:20px; }

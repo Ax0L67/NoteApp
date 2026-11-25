@@ -82,11 +82,18 @@ async fn save_note_png(bytes: Vec<u8>, file_name: String) -> Result<bool,String>
  if let Some(path)=rfd::FileDialog::new().set_title("Save note as PNG").add_filter("PNG", &["png"]).set_file_name(name).save_file(){storage::atomic_write(&path,&bytes)?;return Ok(true);}
  Ok(false)
 }
+#[tauri::command]
+async fn save_note_jpeg(bytes: Vec<u8>, file_name: String) -> Result<bool,String> {
+ if bytes.len()>256*1024*1024 || !bytes.starts_with(b"\xff\xd8\xff") { return Err("Invalid JPEG".into()); }
+ let name=std::path::Path::new(&file_name).file_name().and_then(|n|n.to_str()).filter(|n|n.to_lowercase().ends_with(".jpg")||n.to_lowercase().ends_with(".jpeg")).unwrap_or("note.jpg");
+ if let Some(path)=rfd::FileDialog::new().set_title("Save image as JPEG").add_filter("JPEG", &["jpg", "jpeg"]).set_file_name(name).save_file(){storage::atomic_write(&path,&bytes)?;return Ok(true);}
+ Ok(false)
+}
 fn main() {
     tauri::Builder::default().plugin(tauri_plugin_opener::init()).manage(AppState(Mutex::new(None)))
         .manage(code_runtime::CodeRuns::default())
         .register_uri_scheme_protocol("note-code", |_context, request| code_runtime::sandbox_response(request.uri().path()))
-        .invoke_handler(tauri::generate_handler![request, save_note_png, png_capture::capture_png_region, code_runtime::code_runtime_status, code_runtime::save_code_file, code_runtime::prepare_code_run, code_runtime::release_code_run])
+        .invoke_handler(tauri::generate_handler![request, save_note_png, save_note_jpeg, png_capture::capture_png_region, code_runtime::code_runtime_status, code_runtime::save_code_file, code_runtime::prepare_code_run, code_runtime::release_code_run])
         .run(tauri::generate_context!()).expect("Не удалось запустить NoteApp");
 }
 

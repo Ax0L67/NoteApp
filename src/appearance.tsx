@@ -41,10 +41,12 @@ export function readPaletteDrop(value:string):{palette:string;blend?:string}|nul
   } catch {return null;}
 }
 
-export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, blend, customColor, changeCustomColor, textureColors, changeTextureColor, savedColors, changeSavedColors, collapsible=false }: { value: string; choose: (id: string) => void; mix?:(id:string)=>void; disabled?:string; autoFocus?:boolean; blend?:string|null; customColor?:string; changeCustomColor?:(color:string)=>void; textureColors?:Record<string,string>; changeTextureColor?:(id:string,color:string|undefined)=>void; savedColors?:string[]; changeSavedColors?:(colors:string[])=>void; collapsible?:boolean }) {
+export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, blend, customColor, changeCustomColor, textureColors, changeTextureColor, savedColors, changeSavedColors, collapsible=false }: { value: string; choose: (id: string) => void; mix?:(base:string,withColor:string)=>void; disabled?:string; autoFocus?:boolean; blend?:string|null; customColor?:string; changeCustomColor?:(color:string)=>void; textureColors?:Record<string,string>; changeTextureColor?:(id:string,color:string|undefined)=>void; savedColors?:string[]; changeSavedColors?:(colors:string[])=>void; collapsible?:boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [showPalettes,setShowPalettes]=useState(!collapsible);
   const [showTextures,setShowTextures]=useState(false);
+  const [mixBase,setMixBase]=useState<string|null>(null);
+  useEffect(()=>setMixBase(null),[value]);
   const texture=textureById(value);
   const extraId = useId();
   const extra = extraPalettes.find(palette => palette.id === value);
@@ -53,15 +55,15 @@ export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, 
   function swatch(palette: (typeof palettes)[number]) {
     return <button type="button" key={palette.id} className={`palette-swatch palette-${palette.id}`}
       title={palette.name} aria-label={`Палитра ${palette.name}`} aria-pressed={value === palette.id}
-      disabled={palette.id===disabled}
+      disabled={palette.id===disabled||palette.id===mixBase}
       draggable={palette.id!==disabled}
       onDragStart={event=>{
         event.dataTransfer.setData(paletteDragType,JSON.stringify({palette:palette.id,blend:value===palette.id?blend||undefined:undefined}));
         event.dataTransfer.effectAllowed='copy';
       }}
       autoFocus={autoFocus&&palette.id===palettes.find(item=>item.id!==disabled)?.id}
-      onContextMenu={mix?event=>{event.preventDefault();mix(palette.id);}:undefined}
-      onClick={() => choose(palette.id)}/>;
+      onContextMenu={mix?event=>{event.preventDefault();setMixBase(palette.id);}:undefined}
+      onClick={() => {if(mixBase){mix?.(mixBase,palette.id);setMixBase(null);}else choose(palette.id)}}/>;
   }
 
   return <>
@@ -84,7 +86,7 @@ export function ProjectPalettePicker({ value, choose, mix, disabled, autoFocus, 
       }}/>
     </label>}
     {changeSavedColors&&<div className="saved-palette-colors"><button type="button" onClick={()=>{const color=validCustomColor(customColor);changeSavedColors([...new Set([...(savedColors??[]),color])])}}>Сохранить цвет</button>{savedColors?.map(color=><span key={color}><button type="button" className="palette-swatch" style={{background:color}} title={`Выбрать ${color}`} aria-label={`Выбрать ${color}`} onClick={()=>{changeCustomColor?.(color);choose('custom')}}/><button type="button" aria-label={`Удалить ${color}`} title={`Удалить ${color}`} onClick={()=>changeSavedColors(savedColors.filter(item=>item!==color))}><Trash size={14}/></button></span>)}</div>}
-    {mix&&<button type="button" className="palette-mix-action" onClick={()=>mix(value)}><Palette size={16}/>Смешать палитры</button>}
+    {mix&&<button type="button" className="palette-mix-action" aria-pressed={!!mixBase} onClick={()=>setMixBase(mixBase?null:value)}><Palette size={16}/>{mixBase?'Выберите цвет для смешивания':'Смешать палитры'}</button>}
     </div>
     {!disabled&&<button type="button" className="texture-picker-toggle" aria-expanded={showTextures} onClick={()=>setShowTextures(!showTextures)}><SquaresFour size={16}/>Текстуры</button>}
     {showTextures&&<div className="texture-picker" role="group" aria-label="Текстуры">

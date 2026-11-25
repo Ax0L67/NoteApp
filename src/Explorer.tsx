@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type MouseEvent, type ReactNode } from 'react';
-import { CaretDown, CaretRight, Columns, DotsThree, FilePlus, FileText, Folder, FolderOpen, FolderPlus, Stack, Trash, SquaresFour } from '@phosphor-icons/react';
+import { CaretDown, CaretRight, Check, Columns, DotsThree, FilePlus, FileText, Folder, FolderOpen, FolderPlus, Stack, Star, Trash, SquaresFour } from '@phosphor-icons/react';
 import { folder, title } from './indexing';
 import { NoteBackdrop } from './appearance';
 import type { Note } from './types';
@@ -35,7 +35,7 @@ function MenuButton({ item, showMenu }: { item: ExplorerItem; showMenu: OpenMenu
     onClick={event => showMenu(event, item)}><DotsThree size={22}/></button>;
 }
 
-export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle, showMenu, projectPalette, icons }: {
+export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle, showMenu, projectPalette, icons, favorites=[] }: {
   roots: ExplorerItem[];
   childrenOf: (item: ExplorerItem) => ExplorerItem[];
   expanded: string[];
@@ -45,6 +45,7 @@ export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle
   showMenu?: OpenMenu;
   projectPalette?: (project:string)=>string;
   icons?:Record<string,string>;
+  favorites?:string[];
 }) {
   function branch(item: ExplorerItem) {
     const key = itemKey(item);
@@ -64,7 +65,7 @@ export function ExplorerTree({ roots, childrenOf, expanded, active, open, toggle
               strokeLinecap="round" strokeLinejoin="round" className={`project-tree-icon palette-${projectPalette(item.project)}`} aria-hidden="true">
               <path d="m12 3 10 5-10 5L2 8Z" fill="var(--swatch-color, var(--palette-highlight, var(--palette-hue)))"/>
               <path d="m2 12 10 5 10-5M2 16l10 5 10-5"/>
-            </svg>:itemIcon(item, isExpanded)}<span>{item.name}</span></button>
+            </svg>:itemIcon(item, isExpanded)}<span className="explorer-name-text">{item.name}</span>{favorites.includes(item.path)&&<Star className="explorer-favorite" size={14} weight="fill" aria-label="В избранном"/>}</button>
         {showMenu&&<MenuButton item={item} showMenu={showMenu}/>}
       </div>
       {isExpanded && <ul className="explorer-branch">{childrenOf(item).map(branch)}</ul>}
@@ -96,11 +97,12 @@ export function FolderContents({ name, background, root, entries, open, showMenu
   </main>;
 }
 
-export function ExplorerContextMenu({ menu, close, newNote, newCanvas, newFolder, rename, move, remove, openSeparate, openSplit, chooseIcon }: {
+export function ExplorerContextMenu({ menu, close, newNote, newCanvas, newFolder, rename, move, remove, openSeparate, openSplit, chooseIcon, isFavorite, toggleFavorite }: {
   menu: ExplorerMenu; close: () => void; newNote: () => void; newCanvas:()=>void; newFolder: () => void; rename: () => void; remove: () => void;chooseIcon:()=>void;
   openSeparate:()=>void;
   openSplit:()=>void;
   move:()=>void;
+  isFavorite:boolean;toggleFavorite:(path:string)=>void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(()=>{
@@ -134,13 +136,14 @@ export function ExplorerContextMenu({ menu, close, newNote, newCanvas, newFolder
     }}>
     <button role="menuitem" onClick={()=>pick(openSeparate)}><SquaresFour size={19}/>Открыть в отдельной вкладке</button>
     {menu.item.kind==='note'&&<button role="menuitem" onClick={()=>pick(openSplit)}><SquaresFour size={19}/>Открыть в разделённом окне</button>}
+    <button role="menuitem" onClick={()=>pick(()=>toggleFavorite(menu.item.path))}><Star size={19}/>{isFavorite?'Убрать из избранного':'В избранное'}{isFavorite&&<Check size={16}/>}</button>
     <button role="menuitem" disabled={menu.item.kind==='project'&&!menu.item.path} onClick={()=>pick(move)}><Folder size={19}/>Переместить…</button>
     <button role="menuitem" onClick={()=>pick(chooseIcon)}><Stack size={19}/>Выбрать иконку…</button>
     {menu.item.kind !== 'note' ? <>
       <button role="menuitem" onClick={() => pick(newNote)}><FilePlus size={19}/>Новая заметка</button>
       <button role="menuitem" onClick={() => pick(newCanvas)}><SquaresFour size={19}/>Новое полотно</button>
       <button role="menuitem" onClick={() => pick(newFolder)}><FolderPlus size={19}/>Новая папка</button>
-    </> : <button role="menuitem" onClick={() => pick(rename)}><FileText size={19}/>Переименовать / переместить</button>}
+    </> : <button role="menuitem" onClick={() => pick(rename)}><FileText size={19}/>Переименовать</button>}
     <button role="menuitem" className="context-remove" onClick={() => pick(remove)}><Trash size={19}/>В корзину</button>
   </div>;
 }

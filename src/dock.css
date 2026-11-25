@@ -205,7 +205,7 @@
 
 .liquid-shell :is(.editor-pane,.project-overview,.folder-contents,.graph-scroll,.project-card,.project-cover) { background: var(--editor-fill); }
 .liquid-shell :is(.explorer-address,.titlebar,.dock-panel) { background: var(--panel-fill); }
-.liquid-shell :is(.markdown-ribbon-tabs,.statusbar,.graph-toolbar,.markdown-toolbar,.graph-annotation > header) { background: var(--tint-fill); }
+.liquid-shell :is(.markdown-ribbon-tabs,.statusbar,.graph-toolbar,.markdown-toolbar) { background: var(--tint-fill); }
 .note-tab.selected-note-tab { background: var(--tint-fill); }
 .liquid-shell .project-open > strong { background: var(--panel-fill); }
 
@@ -337,7 +337,7 @@
 .app.liquid-shell[data-simple-style] .central-window.workbench { border-top:0; }
 .app.liquid-shell[data-simple-style] .dock-zone .dock-panel { border-top-width:0; }
 .app.liquid-shell[data-simple-style] .central-window .tabbed-workspace > :is(.editor-pane,.folder-contents,.project-overview) { border-radius:0!important; }
-.app.liquid-shell[data-simple-style] :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading::after { top:85px; }
+.app.liquid-shell[data-simple-style] :is(.dock-zone-left,.dock-zone-right) .dock-panel > .dock-panel-heading::after { top:var(--dock-header-line-top,85px); }
 .app.liquid-shell[data-simple-style] :is(.dock-zone-left,.dock-zone-right) .dock-panel :is(.explorer-sidebar-heading,.note-outline-header) { margin-top:27px; }
 .app.liquid-shell[data-simple-style] :is(.dock-zone-left,.dock-zone-right) .dock-panel:has(> .inspector-rings) .note-outline-header { margin-top:19px; }
 .app.liquid-shell[data-simple-style] .central-window > .note-tab-strip::after { border-bottom:0; }

@@ -14,11 +14,12 @@ import {widgetBorderWidth,defaultNoteWidgetPosition,noteWidgetChrome,tableMinimu
 import {elementGridStep} from './gridGeometry';
 import {paletteDragType,palettes,readPaletteDrop} from './appearance';
 import {textureById} from './textures';
+import {inlineMath,mathHtml,prepareMathMarkdown} from './noteInlineMath';
 
 const activeCells=new WeakMap<HTMLElement,EditorView>();
 export function activeTableEditor(root:HTMLElement|null) {const view=root?activeCells.get(root):undefined;return view&&root?.contains(view.dom)?view:undefined;}
 export function clearActiveTableEditor(root:HTMLElement|null) {if(root)activeCells.delete(root);}
-const tableCellExtensions=[markdownLanguage(),noteTextColor,EditorView.lineWrapping,EditorView.domEventHandlers({focus(_event,view){const root=view.dom.closest<HTMLElement>('.main-note-editor');if(root)activeCells.set(root,view);return false;}})];
+const tableCellExtensions=[markdownLanguage(),inlineMath,noteTextColor,EditorView.lineWrapping,EditorView.domEventHandlers({focus(_event,view){const root=view.dom.closest<HTMLElement>('.main-note-editor');if(root)activeCells.set(root,view);return false;}})];
 function TableCell({value,label,change,focus,paste}:{value:string;label:string;change:(value:string)=>void;focus:()=>void;paste:(event:ClipboardEvent)=>boolean}) {
  const pasteRef=useRef(paste);pasteRef.current=paste;
  const extensions=useMemo(()=>[...tableCellExtensions,EditorView.domEventHandlers({paste(event){return pasteRef.current(event);}})],[]);
@@ -156,7 +157,7 @@ export function readingWidgetTables(source:string) {
 
 export function ReadingTable({source}:{source:string}) {
  const table=standaloneMapTable(source);if(!table)return null;
- const cells=(row:string[],header:boolean)=>row.map((cell,c)=>{const Cell=header?'th':'td';return <Cell key={c} className={table.palettes?.[c]?`palette-${table.palettes[c]}`:undefined} data-column-palette={table.palettes?.[c]||undefined} style={{textAlign:table.align[c]??'left'}}><div className="reading-table-cell"><ReactMarkdown remarkPlugins={[remarkGfm,remarkNoteColor]}>{cell.replace(/<br\s*\/?\s*>/gi,'\n')}</ReactMarkdown></div></Cell>});
+ const cells=(row:string[],header:boolean)=>row.map((cell,c)=>{const Cell=header?'th':'td';return <Cell key={c} className={table.palettes?.[c]?`palette-${table.palettes[c]}`:undefined} data-column-palette={table.palettes?.[c]||undefined} style={{textAlign:table.align[c]??'left'}}><div className="reading-table-cell"><ReactMarkdown remarkPlugins={[remarkGfm,remarkNoteColor]} components={{code:({children,className})=>{const text=String(children),prefix='noteapp-inline-math:';if(!className&&text.startsWith(prefix)){try{return <span className="note-inline-math" dangerouslySetInnerHTML={{__html:mathHtml(decodeURIComponent(text.slice(prefix.length)))}}/>}catch{return <code>{children}</code>}}return <code className={className}>{children}</code>}}}>{prepareMathMarkdown(cell.replace(/<br\s*\/?\s*>/gi,'\n'))}</ReactMarkdown></div></Cell>});
  return <div className="visual-table-widget reading-table"><div className="visual-table-overflow"><table><colgroup>{table.widths.map((width,i)=><col key={i} style={{width:`${width}%`}}/>)}</colgroup><thead><tr style={{height:table.heights?.[0]}}>{cells(table.rows[0],true)}</tr></thead><tbody>{table.rows.slice(1).map((row,r)=><tr key={r} style={{height:table.heights?.[r+1]}}>{cells(row,false)}</tr>)}</tbody></table></div></div>;
 }
 

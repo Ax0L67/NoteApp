@@ -1,15 +1,18 @@
 export type WidgetRect={x:number;y:number;width:number;height:number};
 export function widgetJoinGroups(rects:WidgetRect[],step:number):number[][] {
- const groups=rects.map((_,index)=>[index]);
+ const parents=rects.map((_,index)=>index);
+ const root=(index:number):number=>{while(parents[index]!==index){parents[index]=parents[parents[index]];index=parents[index]}return index};
  const touches=(a:WidgetRect,b:WidgetRect)=>{
   const x=Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x),y=Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y);
   return x>=-2&&y>=-2&&(x>Math.min(step*.25,.1*Math.min(a.width,b.width))||y>Math.min(step*.25,.1*Math.min(a.height,b.height)));
  };
- for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++)if(touches(rects[i],rects[j])){
-  const a=groups.find(group=>group.includes(i))!,b=groups.find(group=>group.includes(j))!;
-  if(a!==b){a.push(...b);groups.splice(groups.indexOf(b),1);}
+ const ordered=rects.map((rect,index)=>({rect,index})).sort((a,b)=>a.rect.x-b.rect.x);
+ for(let i=0;i<ordered.length;i++)for(let j=i+1;j<ordered.length&&ordered[j].rect.x<=ordered[i].rect.x+ordered[i].rect.width+2;j++)if(touches(ordered[i].rect,ordered[j].rect)){
+  const a=root(ordered[i].index),b=root(ordered[j].index);if(a!==b)parents[b]=a;
  }
- return groups.filter(group=>group.length>1);
+ const groups=new Map<number,number[]>();
+ for(let index=0;index<rects.length;index++){const key=root(index),group=groups.get(key)??[];group.push(index);groups.set(key,group)}
+ return [...groups.values()].filter(group=>group.length>1);
 }
 
 export function widgetOutline(rects:WidgetRect[],radius=16,squareBottom=false,squareOuter=false):string {

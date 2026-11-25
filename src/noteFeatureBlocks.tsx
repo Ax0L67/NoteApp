@@ -23,12 +23,13 @@ type FeatureValue=Record<string,any>;
 type BlockRange={from:number;to:number;source:string;fence:string;kind:NoteFeature;value:FeatureValue};
 const fenceBlock=/^(`{3,})(noteapp-(compare|source|concept|math|plot|board))[^\n]*\n([\s\S]*?)\n\1[ \t]*$/gm;
 const roots=new WeakMap<HTMLElement,Root>(),refreshByHost=new WeakMap<HTMLElement,()=>void>(),refreshers=new Set<()=>void>(),fitByHost=new WeakMap<HTMLElement,()=>void>();
-export function refreshFeatureBlocks(){for(const refresh of refreshers)refresh();}
+let refreshFrame=0;
+export function refreshFeatureBlocks(){if(refreshFrame)return;refreshFrame=requestAnimationFrame(()=>{refreshFrame=0;for(const refresh of refreshers)refresh();});}
 
 export function featureDefaults(kind:NoteFeature,term=''):FeatureValue {
   if(kind==='compare')return {title:'Сравнение',orientation:'horizontal',traits:['Характеристика 1','Характеристика 2'],items:[{name:'Объект 1',values:['','']},{name:'Объект 2',values:['','']}]};
   if(kind==='source')return {type:'Сайт',title:'',author:'',url:'',date:'',page:'',comment:'',compact:false};
-  if(kind==='concept')return {id:crypto.randomUUID(),term:term||'Термин',definition:'',meanings:[]};
+  if(kind==='concept')return {id:crypto.randomUUID(),term,definition:''};
   if(kind==='math')return {id:crypto.randomUUID(),latex:'{{x}}^2',expression:'x^2',variables:[{name:'x',min:0,max:10,step:1,value:2}]};
   if(kind==='plot')return {expressions:['sin(x)'],minX:-10,maxX:10,minY:-5,maxY:5,variables:{}};
   return {id:'',mode:'compact'};
@@ -47,11 +48,9 @@ function insertText(view:EditorView,text:string,from=view.state.selection.main.f
 export function insertFeature(view:EditorView,kind:NoteFeature) {
   if(kind==='concept'){
     const {from,to}=view.state.selection.main,selected=view.state.sliceDoc(from,to).trim();
-    const term=selected||'Термин',value=featureDefaults('concept',term),link=`[${term.replace(/[\\[\]]/g,'\\$&')}](noteapp-concept:${value.id})`;
+    const value=featureDefaults('concept',selected);
     value.widget=initialNoteWidget(view,from,520,320);
-    const source=markdownBlock('concept',value),doc=view.state.doc,at=selected?to:from,before=at&&doc.sliceString(at-1,at)!=='\n'?'\n\n':'',after=at<doc.length&&doc.sliceString(at,at+1)!=='\n'?'\n\n':'';
-    const text=(selected?link:link)+'\n\n'+source;
-    view.dispatch({changes:{from,to:at,insert:before+text+after},selection:{anchor:from+before.length+link.length},userEvent:'input.note-concept'});view.focus();return;
+    insertText(view,markdownBlock('concept',value),selected?to:from,selected?to:from);return;
   }
   const value=featureDefaults(kind),size=kind==='compare'?[720,350]:kind==='source'?[520,360]:kind==='math'?[440,330]:kind==='plot'?[680,500]:[760,480];
   value.widget=initialNoteWidget(view,view.state.selection.main.from,size[0],size[1]);
@@ -121,12 +120,17 @@ export function featureFromMarkdown(kind:string,body:string) {
   try{const value=JSON.parse(body);return value&&typeof value==='object'&&!Array.isArray(value)?value as FeatureValue:null;}catch{return null;}
 }
 
+const conceptCache=new WeakMap<Note[],{snapshot:{path:string;content:string}[];result:Map<string,{term:string;definition:string;path:string}>}>();
 export function conceptDefinitions(notes:Note[]) {
+  const cached=conceptCache.get(notes);if(cached&&cached.snapshot.length===notes.length&&notes.every((note,index)=>cached.snapshot[index].path===note.path&&cached.snapshot[index].content===note.content))return cached.result;
   const result=new Map<string,{term:string;definition:string;path:string}>();
-  for(const note of notes){fenceBlock.lastIndex=0;for(const match of note.content.matchAll(fenceBlock))if(match[3]==='concept'){
-    const value=featureFromMarkdown('concept',match[4]);if(value?.id)result.set(String(value.id),{term:String(value.term??''),definition:String(value.definition??''),path:note.path});
-  }}
-  return result;
+  for(const note of notes){
+    const add=(value:FeatureValue,key:string)=>{if(!value?.term)return;for(const [index,definition] of [value.definition,...(Array.isArray(value.meanings)?value.meanings:[])].entries()){if(!definition)continue;const unique=index||result.has(key)?`${key}:${note.path}:${result.size}`:key;result.set(unique,{term:String(value.term),definition:String(definition),path:note.path});}};
+    fenceBlock.lastIndex=0;for(const match of note.content.matchAll(fenceBlock))if(match[3]==='concept'){const value=featureFromMarkdown('concept',match[4]);if(value)add(value,String(value.id??`${note.path}:${match.index}`));}
+    for(const match of note.content.matchAll(/<!-- noteapp-definition:(\S+) -->/g)){try{add(JSON.parse(decodeURIComponent(match[1])),`${note.path}:${match.index}`)}catch{}}
+    if(note.path.endsWith('.canvas'))try{const data=JSON.parse(note.content);for(const widget of data.widgets??[])if(widget.kind==='concept'){const body=/^`{3,}noteapp-concept[^\n]*\n([\s\S]*?)\n`{3,}\s*$/.exec(widget.text)?.[1]??widget.text;const value=featureFromMarkdown('concept',body);if(value)add(value,String(value.id??widget.id));}}catch{}
+  }
+  conceptCache.set(notes,{snapshot:notes.map(({path,content})=>({path,content})),result});return result;
 }
 
 export function conceptLinks(getNotes:()=>Note[],openNote:(path:string)=>void) {
@@ -144,7 +148,9 @@ export function conceptLinks(getNotes:()=>Note[],openNote:(path:string)=>void) {
     destroy(dom:HTMLElement){const refresh=refreshByHost.get(dom);if(refresh)refreshers.delete(refresh);roots.get(dom)?.unmount();roots.delete(dom);}
   }
   const decorate=(state:EditorState):DecorationSet=>{
-    const widgets:ReturnType<Decoration['range']>[]=[];syntaxTree(state).iterate({enter(node){
+    const widgets:ReturnType<Decoration['range']>[]=[];
+    for(const match of state.doc.toString().matchAll(/<!-- noteapp-definition:\S+ -->/g))widgets.push(Decoration.replace({}).range(match.index!,match.index!+match[0].length));
+    syntaxTree(state).iterate({enter(node){
       if(node.name!=='Link')return;
       const url=node.node.getChild('URL');if(!url)return;
       const match=/^noteapp-concept:([\w-]+)$/.exec(state.sliceDoc(url.from,url.to));if(!match)return;
@@ -239,7 +245,7 @@ function ConceptEditor({value,editable,change,notes,openNote}:{value:FeatureValu
   const meanings:string[]=value.meanings??[];
   const sourceNote=notes.find(note=>note.content.includes(`\"id\": \"${value.id}\"`));
   return <div className="concept-card-body">
-    {editable?<><label>Термин<input value={value.term??''} onChange={event=>change({term:event.target.value})}/></label><label>Определение<textarea value={value.definition??''} onChange={event=>change({definition:event.target.value})} placeholder="Можно использовать Markdown, формулы и ссылки"/></label>{meanings.map((meaning,index)=><label key={index}>Ещё одно значение<textarea value={meaning} onChange={event=>change({meanings:meanings.map((text,i)=>i===index?event.target.value:text)})}/></label>)}<button type="button" onClick={()=>change({meanings:[...meanings,'']})}>+ Значение</button></>:<><MarkdownMath text={value.definition||'Определение не заполнено.'} notePath={sourceNote?.path} openNote={openNote}/>{meanings.map((meaning,index)=><details key={index}><summary>Значение {index+2}</summary><MarkdownMath text={meaning} notePath={sourceNote?.path} openNote={openNote}/></details>)}</>}
+    {editable?<><label>Термин<input value={value.term??''} onChange={event=>change({term:event.target.value})}/></label><label>Определение<textarea value={value.definition??''} onChange={event=>change({definition:event.target.value})} placeholder="Можно использовать Markdown, формулы и ссылки"/></label>{meanings.map((meaning,index)=><label key={index}>Дополнительное значение<textarea value={meaning} onChange={event=>change({meanings:meanings.map((text,i)=>i===index?event.target.value:text)})}/></label>)}</>:<><MarkdownMath text={value.definition||'Определение не заполнено.'} notePath={sourceNote?.path} openNote={openNote}/>{meanings.map((meaning,index)=><details key={index}><summary>Значение {index+2}</summary><MarkdownMath text={meaning} notePath={sourceNote?.path} openNote={openNote}/></details>)}</>}
     {!editable&&<button type="button" className="concept-source" onClick={()=>{const source=notes.find(note=>note.content.includes(`\"id\": \"${value.id}\"`));if(source)openNote(source.path)}}>К исходному определению</button>}
   </div>;
 }
@@ -253,6 +259,7 @@ function FeatureImage({src,alt,notePath}:{src?:string;alt?:string;notePath?:stri
 }
 
 export function MarkdownMath({text,notePath,openNote}:{text:string;notePath?:string;openNote?:(path:string)=>void}) {
+  text=text.replace(/\\{1,2}\(([^\n]+?)\\{1,2}\)/g,(_,formula:string)=>'$'+formula+'$');
   const formulas:string[]=[],marker='NOTEAPPMATHTOKEN';
   const source=text.replace(/\[\[([^\]]+)\]\]/g,(_,target:string)=>{const [path,label]=target.split('|');return `[${label||path}](note:${encodeURIComponent(path)})`}).replace(/\$\$([\s\S]+?)\$\$|\$([^$\n]+)\$/g,(_,display:string|undefined,inline:string|undefined)=>{const index=formulas.push(display!==undefined?`\\displaystyle ${display}`:inline??'')-1;return `\`${marker}${index}END\``});
   return <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url=>url.startsWith('note:')||/^https?:|^mailto:/i.test(url)||!url.includes(':')?url:''} components={{img:({src,alt})=><FeatureImage src={src} alt={alt} notePath={notePath}/>,a:({href,children})=><a href={href} target={/^https?:/i.test(href??'')?'_blank':undefined} rel="noreferrer" onClick={event=>{if(href?.startsWith('note:')){event.preventDefault();openNote?.(decodeURIComponent(href.slice(5)))}else if(href&&!/^(?:https?:|mailto:|#)/i.test(href)){event.preventDefault();openNote?.(href.replace(/\.md$/,''))}}}>{children}</a>,code:({children})=>{

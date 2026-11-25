@@ -26,3 +26,5 @@
 :is(.dock-panel,.project-card,.graph-annotation,.floating-note-text,.reading-floating-text,.note-feature-host,.visual-table-host,th,td)[class*="palette-texture-"] { background-image:var(--texture-surface)!important; background-size:cover!important; background-position:center!important; }
 .central-window[class*="palette-texture-"] :is(.graph-scroll,.note-backdrop:not(.has-image),.folder-contents,.project-overview) { background-image:var(--texture-surface)!important; background-size:cover; background-position:center; }
 .graph-card[class*="palette-texture-"] .project-open { background:transparent; }
+.graph-canvas[data-graph-layout="graph"] .graph-card[class*="palette-texture-"] { background-image:none!important; }
+.graph-canvas[data-graph-layout="graph"] .graph-card[class*="palette-texture-"] .project-open { background-image:var(--texture-surface); background-size:cover; background-position:center; }

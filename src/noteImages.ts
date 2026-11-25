@@ -1,4 +1,4 @@
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { StateField, type EditorState } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
 import { folder } from './indexing';
@@ -10,6 +10,16 @@ import {widgetBorderControls,widgetBorderWidth,widgetSizeControls,queueNoteWidge
 
 const widthMarker = /#noteapp-width=(\d+)(?:&x=(\d+)&y=(\d+))?(?:&z=(\d{1,9}))?(?:&c=([\da-fA-F]{6}))?(?:&s=(\d{1,3}))?(?:&h=(\d{1,4}))?(?:&bw=(\d{1,2}))?$/;
 const limitWidth = (width: number) => Math.max(1, Math.min(1600, Math.round(width)));
+type ImageEdge='n'|'e'|'s'|'w'|'nw'|'ne'|'sw'|'se';
+export function resizeImage(position:{x:number;y:number;width:number;height:number},edge:ImageEdge,dx:number,dy:number,step:number,available:number) {
+  let {x,y,width,height}=position;
+  const minWidth=Math.min(64,available),snap=(value:number)=>Math.round(value/step)*step;
+  if(edge.includes('e'))width=Math.max(minWidth,Math.min(1600,available-x,snap(position.width+dx)));
+  if(edge.includes('w')){width=Math.max(minWidth,Math.min(1600,available,position.x+position.width,snap(position.width-dx)));x=position.x+position.width-width;}
+  if(edge.includes('s'))height=Math.max(64,Math.min(1200,snap(position.height+dy)));
+  if(edge.includes('n')){height=Math.max(64,Math.min(1200,position.y+position.height,snap(position.height-dy)));y=position.y+position.height-height;}
+  return {x,y,width,height};
+}
 export function imageLayout(src: string) {
   const match = src.match(widthMarker);
   return {
@@ -51,7 +61,7 @@ function applyLayout(parts: ImageParts, layout = imageLayout(parts.source.src)) 
   parts.box.toggleAttribute('data-sized',layout.width!==undefined);
   parts.box.style.width = layout.width ? 'min(' + layout.width + 'px, 100%)' : '';
   parts.box.style.height=layout.height?layout.height+'px':'';
-  parts.preview.style.height=layout.height?(floating?'calc(100% - 29px)':'100%'):'';parts.preview.style.objectFit='contain';
+  parts.preview.style.height=layout.height?'100%':'';parts.preview.style.objectFit='contain';
   parts.box.style.setProperty('--note-widget-border-width',widgetBorderWidth(layout.borderWidth)+'px');
   parts.box.style.borderColor=layout.color??'color-mix(in srgb,var(--editor) 72%,var(--base))';
   parts.preview.style.transform=`scale(${layout.scale??1})`;
@@ -100,9 +110,9 @@ class ImageWidget extends WidgetType {
     const scaleLabel=document.createElement('label');scaleLabel.className='note-widget-scale';scaleLabel.append('Масштаб содержимого');
     const scaleOutput=document.createElement('output'),scaleInput=document.createElement('input');scaleInput.type='range';scaleInput.min='0';scaleInput.max='300';scaleInput.step='5';scaleInput.value=String(Math.round((imageLayout(this.image.src).scale??1)*100));scaleOutput.textContent=scaleInput.value+'%';scaleLabel.append(scaleOutput,scaleInput);actions.insertBefore(scaleLabel,remove);
     const resetColor=document.createElement('button');resetColor.type='button';resetColor.textContent='Вернуть обычный цвет рамки';actions.insertBefore(resetColor,remove);
-    const heading=document.createElement('div');heading.className='note-widget-heading';heading.textContent='Изображение';
-    const corners=(['nw','ne','sw','se'] as const).map(corner=>{const handle=document.createElement('div');handle.className=`floating-note-resize floating-note-resize-${corner}`;handle.setAttribute('role','separator');handle.setAttribute('aria-label','Изменить размер изображения');handle.tabIndex=0;return {corner,handle};});
-    box.append(heading,preview,status,menu,...corners.map(({handle})=>handle));
+    const edges=(['n','e','s','w','nw','ne','sw','se'] as const).map(edge=>{const handle=document.createElement('div');handle.className=`floating-note-resize floating-note-resize-${edge}`;handle.setAttribute('role','separator');handle.setAttribute('aria-label',edge.length===2?'Изменить размер изображения':edge==='e'||edge==='w'?'Изменить ширину изображения':'Изменить высоту изображения');handle.tabIndex=0;return {edge,handle};});
+    box.tabIndex=0;box.setAttribute('role','group');box.setAttribute('aria-label','Изображение. Для перемещения используйте клавиши со стрелками');
+    box.append(preview,status,menu,...edges.map(({handle})=>handle));
     frame.append(box);
     const parts = {source:this.image, box, preview};
     partsByFrame.set(frame,parts);
@@ -127,7 +137,9 @@ class ImageWidget extends WidgetType {
       if (insert !== src) view.dispatch({changes:{from:urlFrom,to:urlTo,insert},userEvent:'input.image'});
     };
     widgetBorderControls(actions,()=>imageLayout(parts.source.src).borderWidth,borderWidth=>{const l=imageLayout(parts.source.src);save(l.width??box.offsetWidth,l.x,l.y,false,l.color,l.scale,l.height,borderWidth);});
+    const existingActions=actions.children.length;
     widgetSizeControls(actions,()=>{const layout=imageLayout(parts.source.src);return {width:layout.width??box.offsetWidth,height:layout.height??box.offsetHeight};},size=>{const layout=imageLayout(parts.source.src);save(size.width,layout.x,layout.y,false,layout.color,layout.scale,size.height);});
+    Array.from(actions.children).slice(existingActions).forEach(element=>element.classList.add('image-legacy-size'));
     colorInput.oninput=()=>{box.style.borderColor=colorInput.value;};
     colorInput.onchange=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);save(layout.width??preview.getBoundingClientRect().width/scale/Math.max(.01,layout.scale??1),layout.x,layout.y,false,colorInput.value,layout.scale);};
     resetColor.onclick=()=>{const layout=imageLayout(parts.source.src),scale=elementScale(view.contentDOM);colorInput.value='#b0b0b0';box.style.borderColor='color-mix(in srgb,var(--editor) 72%,var(--base))';save(layout.width??preview.getBoundingClientRect().width/scale/Math.max(.01,layout.scale??1),layout.x,layout.y,false,null,layout.scale);};
@@ -145,6 +157,7 @@ class ImageWidget extends WidgetType {
       const dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;
       save((layout.width??width/scale/contentScale),(layout.x??(left-bounds.left)/scale)+dx,(layout.y??(top-bounds.top)/scale)+dy,true);
     };
+    box.onkeydown=event=>{if(event.target===box&&box.classList.contains('floating-image'))move.onkeydown?.call(move,event);};
     resize.onkeydown = event => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       event.preventDefault();
@@ -152,7 +165,7 @@ class ImageWidget extends WidgetType {
       const step=elementGridStep(view.contentDOM);
       save(Math.max(step*4, preview.getBoundingClientRect().width/elementScale(view.contentDOM)/Math.max(.01,contentScale??1) + (event.key === 'ArrowLeft' ? -step : step)), x, y);
     };
-    const startPointer = (event: PointerEvent, control: HTMLElement, moving: boolean, corner:'nw'|'ne'|'sw'|'se'='se') => {
+    const startPointer = (event: PointerEvent, control: HTMLElement, moving: boolean, edge:ImageEdge='se') => {
       if (event.button !== 0) return;
       event.preventDefault();
       const original = imageLayout(parts.source.src);
@@ -178,7 +191,7 @@ class ImageWidget extends WidgetType {
           x = snapGridBounded(initialX + dx/scale,Math.max(0,content.clientWidth-width),step);
           y = snapGridBounded(initialY + dy/scale,100000,step);
           const next=snapNoteWidgetPosition(box,{x,y,width,height:boxRect.height/scale,z},content,step);x=next.x;y=next.y;
-        } else {const oldWidth=original.width??boxRect.width/scale,oldHeight=original.height??boxRect.height/scale;const west=corner.includes('w'),north=corner.includes('n');width=Math.min(1600,content.clientWidth||1600,Math.max(64,Math.round((oldWidth+(west?-dx:dx)/scale)/step)*step));height=Math.min(1200,Math.max(64,Math.round((oldHeight+(north?-dy:dy)/scale)/step)*step));if(original.x!==undefined&&original.y!==undefined){x=west?Math.max(0,initialX+oldWidth-width):initialX;y=north?Math.max(0,initialY+oldHeight-height):initialY;}}
+        } else {const next=resizeImage({x:initialX,y:initialY,width:original.width??boxRect.width/scale,height:original.height??boxRect.height/scale},edge,dx/scale,dy/scale,step,content.clientWidth||1600);width=next.width;height=next.height;if(original.x!==undefined&&original.y!==undefined){x=next.x;y=next.y;}}
         applyLayout(parts,{width,height,x,y,z,color:original.color,scale:original.scale,borderWidth:original.borderWidth});
         queueNoteWidgetJoinSync(content,step);
       };
@@ -206,9 +219,9 @@ class ImageWidget extends WidgetType {
     };
     move.onpointerdown = event => startPointer(event,move,true);
     resize.onpointerdown = event => startPointer(event,resize,false);
-    for(const {corner,handle} of corners){
-      handle.onpointerdown=event=>{event.stopPropagation();if(box.classList.contains('floating-image'))startPointer(event,handle,false,corner);};
-      handle.onkeydown=event=>{if(!box.classList.contains('floating-image'))return;const step=elementGridStep(view.contentDOM),dx=event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0,dy=event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0;if(!dx&&!dy)return;event.preventDefault();event.stopPropagation();const layout=imageLayout(parts.source.src),oldWidth=layout.width??box.offsetWidth,oldHeight=layout.height??box.offsetHeight,width=Math.max(64,oldWidth+(corner.includes('w')?-dx:dx)),height=Math.max(64,oldHeight+(corner.includes('n')?-dy:dy));save(width,corner.includes('w')?(layout.x??0)+oldWidth-width:layout.x,corner.includes('n')?(layout.y??0)+oldHeight-height:layout.y,false,layout.color,layout.scale,height);};
+    for(const {edge,handle} of edges){
+      handle.onpointerdown=event=>{event.stopPropagation();if(box.classList.contains('floating-image'))startPointer(event,handle,false,edge);};
+      handle.onkeydown=event=>{if(!box.classList.contains('floating-image'))return;const step=elementGridStep(view.contentDOM),dx=event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0,dy=event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0;if(!dx&&!dy)return;event.preventDefault();event.stopPropagation();const layout=imageLayout(parts.source.src),next=resizeImage({x:layout.x??0,y:layout.y??0,width:layout.width??box.offsetWidth,height:layout.height??box.offsetHeight},edge,dx,dy,step,view.contentDOM.clientWidth||1600);save(next.width,next.x,next.y,false,layout.color,layout.scale,next.height);};
     }
     box.onpointerdown=event=>{
       if(!box.classList.contains('floating-image')||(event.target instanceof Element&&event.target.closest('.note-insert-menu,.note-insert-resize,button')))return;
@@ -242,7 +255,7 @@ export function noteImagePreviews(note: string) {
   };
   const decorate = (state: EditorState) => {
     const widgets: ReturnType<Decoration['range']>[] = [];
-    syntaxTree(state).iterate({enter(node) {
+    (ensureSyntaxTree(state,state.doc.length,20)??syntaxTree(state)).iterate({enter(node) {
       if (node.name !== 'Image') return;
       const url = node.node.getChild('URL');
       if (!url) return false;

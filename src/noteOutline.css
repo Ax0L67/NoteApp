@@ -13,3 +13,13 @@
 .note-outline-search input { width:100%; padding:3px 0; border:0; outline:0; background:transparent; }
 .note-outline-results button { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .note-outline-panel .outline p { padding:8px; color:var(--muted); }
+.canvas-widget-outline-list { gap:1px; }
+.canvas-layer-row { display:flex; align-items:center; min-width:0; }
+.canvas-layer-expand { display:grid; place-items:center; flex:0 0 19px; width:19px; height:30px; padding:0; color:var(--muted); }
+.canvas-layer-item { display:flex; align-items:center; gap:7px; flex:1; min-width:0; min-height:34px; padding:3px 6px; text-align:left; }
+.canvas-layer-item:hover,.canvas-layer-expand:hover { background:var(--glass-hover); }
+.canvas-layer-item > svg { flex:none; color:var(--muted); }
+.canvas-layer-item > span:last-child { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; }
+.canvas-layer-preview { display:grid; place-items:center; flex:0 0 25px; width:25px; height:25px; overflow:hidden; border:1px solid var(--edge); border-radius:4px; background:var(--editor); color:var(--muted); font-size:10px; }
+.canvas-layer-preview img,.canvas-layer-preview svg { display:block; width:100%; height:100%; object-fit:cover; }
+.canvas-layer-preview svg { padding:3px; }

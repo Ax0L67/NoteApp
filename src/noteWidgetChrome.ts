@@ -32,17 +32,21 @@ const joinedWidgets='.floating-note-text, .reading-floating-text, .note-feature-
 const joinFrames=new WeakSet<HTMLElement>();
 const joinRoots='.cm-content,.reading,.canvas-world,.graph-canvas';
 const tableWidgets='.visual-table-host,.reading-table-widget,.graph-table-annotation,.canvas-widget:has(> .canvas-widget-table)';
-function joinableWidgets(root:HTMLElement) {
-  return [...root.querySelectorAll<HTMLElement>(joinedWidgets)].filter(item=>
-    !item.matches(tableWidgets)&&item.parentElement?.closest(joinRoots)===root&&item.getClientRects().length);
+function widgetsInJoinRoot(root:HTMLElement) {
+  if(root.classList.contains('canvas-world'))return Array.from(root.children).filter((item):item is HTMLElement=>item instanceof HTMLElement&&item.classList.contains('canvas-widget'));
+  return [...root.querySelectorAll<HTMLElement>(joinedWidgets)].filter(item=>item.parentElement?.closest(joinRoots)===root);
 }
 
-export function snapNoteWidgetPosition(element:HTMLElement,next:NoteWidgetPosition,root:HTMLElement,step:number):NoteWidgetPosition {
-  if(element.matches(tableWidgets))return constrainNoteWidgetPosition(next,root,step);
+function isJoinableWidget(item:HTMLElement) {
+  return !item.matches(tableWidgets)&&!item.matches('.canvas-widget:has(> .canvas-frame-body)')&&item.getClientRects().length>0;
+}
+
+export function snapNoteWidgetPosition(element:HTMLElement,next:NoteWidgetPosition,root:HTMLElement,step:number,unbounded=false):NoteWidgetPosition {
+  if(element.matches(tableWidgets))return unbounded?next:constrainNoteWidgetPosition(next,root,step);
   const scale=elementScale(root),bounds=root.getBoundingClientRect(),tolerance=Math.min(6,step*.18);
   let x=next.x,y=next.y,dx=tolerance+1,dy=tolerance+1;
-  for(const peer of joinableWidgets(root)){
-    if(peer===element||!peer.getClientRects().length)continue;
+  for(const peer of widgetsInJoinRoot(root)){
+    if(peer===element||!isJoinableWidget(peer))continue;
     const rect=peer.getBoundingClientRect(),px=(rect.left-bounds.left)/scale,py=(rect.top-bounds.top)/scale,pw=rect.width/scale,ph=rect.height/scale;
     if(Math.min(y+next.height,py+ph)-Math.max(y,py)>Math.min(step*.25,.1*Math.min(next.height,ph))){
       const left=Math.abs(x-(px+pw)),right=Math.abs(x+next.width-px);
@@ -53,7 +57,7 @@ export function snapNoteWidgetPosition(element:HTMLElement,next:NoteWidgetPositi
       if(above<dy){y=py+ph;dy=above;}if(below<dy){y=py-next.height;dy=below;}
     }
   }
-  return constrainNoteWidgetPosition({...next,x,y},root,step);
+  return unbounded?{...next,x,y}:constrainNoteWidgetPosition({...next,x,y},root,step);
 }
 
 export function constrainNoteWidgetPosition(next:NoteWidgetPosition,root:HTMLElement,step=elementGridStep(root)):NoteWidgetPosition {
@@ -65,27 +69,29 @@ export function queueNoteWidgetJoinSync(root:HTMLElement,step:number) {
   if(joinFrames.has(root))return;joinFrames.add(root);
   requestAnimationFrame(()=>{
     joinFrames.delete(root);if(!root.isConnected)return;
-    const all=[...root.querySelectorAll<HTMLElement>(joinedWidgets)].filter(item=>item.parentElement?.closest(joinRoots)===root);
+    const all=widgetsInJoinRoot(root);
     for(const item of all){
       item.removeAttribute('data-note-joined');
       item.querySelectorAll(':scope > .note-widget-join-surface').forEach(surface=>surface.remove());
     }
-    const items=joinableWidgets(root),scale=elementScale(root),bounds=root.getBoundingClientRect();
+    const items=all.filter(isJoinableWidget),scale=elementScale(root),bounds=root.getBoundingClientRect();
     const rects=items.map(item=>{const r=item.getBoundingClientRect();return {x:(r.left-bounds.left)/scale,y:(r.top-bounds.top)/scale,width:r.width/scale,height:r.height/scale};});
-    // Read the original appearance before hiding any backgrounds or borders.
-    const styles=items.map(item=>{
+    const groups=widgetJoinGroups(rects,step);
+    // Only joined widgets need computed styles and SVG surfaces.
+    const styles=Object.fromEntries(groups.flat().map(index=>{
+      const item=items[index];
       const s=getComputedStyle(item),graph=item.classList.contains('graph-annotation');
       const background=item.style.background||(graph?'var(--graph-note-fill)':item.classList.contains('reading-floating-image')?'transparent':'var(--panel-fill)');
       const color=item.style.borderColor||(graph?'var(--edge)':item.classList.contains('canvas-widget-active')?'color-mix(in srgb,var(--accent) 42%,var(--panel))':'color-mix(in srgb,var(--editor) 72%,var(--base))');
-      return {background,color,image:item.className.includes('palette-texture-')?'var(--texture-surface)':s.backgroundImage,size:s.backgroundSize,position:s.backgroundPosition,width:parseFloat(s.borderTopWidth)||0,left:parseFloat(s.borderLeftWidth)||0,top:parseFloat(s.borderTopWidth)||0,z:parseFloat(s.zIndex)||0};
-    });
+      return [index,{background,color,image:item.className.includes('palette-texture-')?'var(--texture-surface)':s.backgroundImage,size:s.backgroundSize,position:s.backgroundPosition,width:parseFloat(s.borderTopWidth)||0,left:parseFloat(s.borderLeftWidth)||0,top:parseFloat(s.borderTopWidth)||0,z:parseFloat(s.zIndex)||0}] as const;
+    }));
     const ns='http://www.w3.org/2000/svg',padding=16;
     const svgElement=(tag:string,attrs:Record<string,string|number>={})=>{
       const element=document.createElementNS(ns,tag);
       for(const [name,value] of Object.entries(attrs))element.setAttribute(name,String(value));
       return element;
     };
-    for(const group of widgetJoinGroups(rects,step)){
+    for(const group of groups){
       group.sort((a,b)=>styles[a].z-styles[b].z||a-b);
       const path=widgetOutline(group.map(index=>rects[index]),12);
       for(const [order,index] of group.entries()){

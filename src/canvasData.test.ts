@@ -1,9 +1,16 @@
 import {describe,it,expect} from 'vitest';
 import {canvasFeature,parseCanvas} from './CanvasEditor';
+import {referenceMarkdown,remapNoteReference,referenceUrl} from './noteReferences';
 
 describe('формат полотна',()=>{
  it('читает прежние полотна и сохраняет текст виджета',()=>{
   expect(parseCanvas('{"widgets":[{"id":"a","x":10,"y":20,"text":"**Текст**"}],"strokes":[]}')).toMatchObject({widgets:[{text:'**Текст**'}],snapGrid:true,snapGuides:true});
+ });
+ it('сохраняет виджет заметки и обновляет ссылку при переименовании',()=>{
+  const text=referenceMarkdown({kind:'note',path:'Старая.md',name:'Старая',palette:'graphite',background:null});
+  const source=JSON.stringify({widgets:[{id:'note',x:20,y:30,width:810,kind:'note',text}],strokes:[]});
+  expect(parseCanvas(source)?.widgets[0]).toMatchObject({kind:'note',text});
+  expect(remapNoteReference(source,'Старая.md','Новая.md')).toContain(referenceUrl({kind:'note',path:'Новая.md'}));
  });
  it('не считает повреждённое содержимое пустым полотном',()=>{
   expect(parseCanvas('{bad')).toBeNull();

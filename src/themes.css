@@ -209,9 +209,9 @@
 @media(max-width:600px) { .theme-picker { grid-template-columns:1fr; } }
 .theme-option[data-theme="graphite"] {
   --surface-base: #181818;
-  --surface-panel: #1e1e1e;
+  --surface-panel: #292929;
   --surface-tint: #282828;
-  --surface-editor: #292929;
+  --surface-editor: #1e1e1e;
   --surface-popup: #222222;
   --surface-input: #2b2b2b;
   --ink: #dedede;
@@ -221,9 +221,9 @@
 }
 .app.light .theme-option[data-theme="graphite"] {
   --surface-base: #d2d2d2;
-  --surface-panel: #dedede;
+  --surface-panel: #eaeaea;
   --surface-tint: #e4e4e4;
-  --surface-editor: #eaeaea;
+  --surface-editor: #dedede;
   --surface-popup: #e5e5e5;
   --surface-input: #e4e4e4;
   --ink: #333333;
@@ -394,6 +394,7 @@
 .theme-menu > summary:hover { color:var(--accent); }
 .theme-menu > summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:4px; }
 .theme-menu > .subtle { margin:4px 0 12px; }
+.theme-shuffle { padding:7px 12px; border:1px solid var(--edge); background:var(--input); }
 .theme-menu .theme-picker { margin:12px 0; }
 @media(prefers-reduced-motion:reduce) { .theme-menu > summary::after { transition:none; } }
 
@@ -489,6 +490,40 @@
 .app[data-theme="lagoon"], .theme-option[data-theme="lagoon"] { --theme-deep:#184e77; --theme-mid:#168aad; --theme-bright:#76c893; --theme-pale:#d9ed92; }
 .app[data-theme="ember"], .theme-option[data-theme="ember"] { --theme-deep:#240046; --theme-mid:#7b2cbf; --theme-bright:#ff9e00; --theme-pale:#f6d0ae; }
 .app[data-theme="atlantic"], .theme-option[data-theme="atlantic"] { --theme-deep:#1d3557; --theme-mid:#457b9d; --theme-bright:#a8dadc; --theme-pale:#f1faee; }
+:is(.app,.theme-option)[data-theme="custom"] {
+  --surface-base:color-mix(in srgb,var(--theme-deep) 55%,#111);
+  --surface-panel:color-mix(in srgb,var(--theme-mid) 32%,#161616);
+  --surface-tint:color-mix(in srgb,var(--theme-bright) 22%,#1a1a1a);
+  --surface-editor:color-mix(in srgb,var(--theme-deep) 30%,#1c1c1c);
+  --surface-popup:color-mix(in srgb,var(--theme-mid) 24%,#202020);
+  --surface-input:color-mix(in srgb,var(--theme-bright) 18%,#252525);
+  --selection-base:color-mix(in srgb,var(--theme-bright) 30%,#222);
+  --ink:#f1f1f1; --secondary-ink:#c5c5c5; --quiet-ink:#aaa;
+  --line-base:color-mix(in srgb,var(--theme-mid) 30%,#444);
+  --edge-base:color-mix(in srgb,var(--theme-mid) 35%,#666);
+  --dot-base:color-mix(in srgb,var(--theme-mid) 30%,#555);
+  --theme-accent:var(--theme-bright);
+}
+.app.light[data-theme="custom"], .app.light .theme-option[data-theme="custom"] {
+  --surface-base:color-mix(in srgb,var(--theme-pale) 30%,#ddd);
+  --surface-panel:color-mix(in srgb,var(--theme-mid) 20%,#eee);
+  --surface-tint:color-mix(in srgb,var(--theme-bright) 15%,#f1f1f1);
+  --surface-editor:color-mix(in srgb,var(--theme-pale) 18%,#fafafa);
+  --surface-popup:color-mix(in srgb,var(--theme-mid) 12%,#fafafa);
+  --surface-input:color-mix(in srgb,var(--theme-bright) 12%,#f5f5f5);
+  --selection-base:color-mix(in srgb,var(--theme-mid) 24%,#eee);
+  --ink:#252525; --secondary-ink:#4a4a4a; --quiet-ink:#606060;
+  --line-base:color-mix(in srgb,var(--theme-mid) 25%,#aaa);
+  --edge-base:color-mix(in srgb,var(--theme-mid) 28%,#888);
+  --dot-base:color-mix(in srgb,var(--theme-mid) 25%,#aaa);
+  --theme-accent:color-mix(in srgb,var(--theme-deep) 70%,#222);
+}
+.custom-theme-option { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.custom-theme-option .theme-option { flex:1; width:100%; }
+.custom-theme-delete { align-self:flex-end; padding:4px 8px; font-size:12px; color:var(--secondary-ink); }
+.custom-theme-form { display:grid; gap:9px; margin:18px 0; }
+.custom-theme-form label { display:grid; gap:4px; }
+.custom-theme-form button { justify-self:start; padding:7px 12px; background:var(--input); }
 :is(.app,.theme-option)[data-theme="neon"], :is(.app,.theme-option)[data-theme="earth"], :is(.app,.theme-option)[data-theme="lagoon"], :is(.app,.theme-option)[data-theme="ember"], :is(.app,.theme-option)[data-theme="atlantic"] {
   --ink:color-mix(in srgb,var(--theme-pale) 55%,white);
   --secondary-ink:color-mix(in srgb,var(--theme-pale) 70%,#aaa);

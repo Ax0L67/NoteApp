@@ -1,0 +1,27 @@
+.canvas-effects-heading { position:relative; display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-top:1px solid var(--edge); }
+.canvas-effects-heading > button { width:28px; height:28px; font-size:20px; }
+.canvas-effects-add { position:absolute; top:100%; right:0; z-index:80; min-width:190px; display:grid; padding:5px; border:1px solid var(--edge); border-radius:8px; background:var(--popup); box-shadow:0 12px 24px #0005; }
+.canvas-effects-add button,.canvas-effect-row button:first-child { justify-content:flex-start; text-align:left; padding:7px; }
+.canvas-effect-entry { border:1px solid var(--edge); border-radius:7px; }
+.canvas-effect-row { display:flex; align-items:center; }
+.canvas-effect-row button:first-child { flex:1; }
+.canvas-effect-row button:last-child { width:28px; height:28px; }
+.canvas-effect-options { display:grid; gap:7px; padding:10px; border-top:1px solid var(--edge); }
+.canvas-effect-options > small { color:var(--muted); line-height:1.4; }
+.canvas-effect-popover { position:fixed; z-index:150; width:280px; max-height:calc(100vh - 16px); overflow:auto; border:1px solid var(--edge); border-radius:8px; color:var(--text); background:var(--popup); box-shadow:0 12px 24px #0005; }
+.canvas-effect-popover > header { display:flex; align-items:center; justify-content:space-between; padding:10px; }
+.canvas-effect-popover > header button { width:24px; height:24px; }
+.canvas-filter-defs { position:absolute; width:0; height:0; pointer-events:none; }
+.canvas-shader-upload { display:flex; flex-direction:column; gap:5px; color:var(--text); font-size:12px; }
+.canvas-shader-upload input { width:100%; font-size:11px; padding:4px; }
+.canvas-shader-canvas { position:absolute; inset:0; width:100%; height:100%; border-radius:inherit; pointer-events:none; z-index:1; }
+.canvas-frame-shader-output { opacity:0; border-radius:0; }
+.canvas-frame-shader-output[data-wgsl-ready] { opacity:1; }
+[data-frame-shader-covered] { opacity:0!important; }
+.canvas-widget:has(> .canvas-shader-wgsl[data-wgsl-ready]) { filter:var(--canvas-wgsl-filter,none)!important; }
+.canvas-widget:has(> .canvas-shader-wgsl[data-wgsl-ready]) .canvas-image-content img,
+.canvas-widget:has(> .canvas-shader-wgsl[data-wgsl-ready]) .canvas-shape-body > svg[aria-label] { visibility:hidden; }
+.canvas-widget:not(:has(> .canvas-frame-body)):not(:has(.canvas-image-content)):not(:has(.canvas-shape-body)):has(> .canvas-shader-wgsl[data-wgsl-ready]):not(:focus-within) { background:transparent!important; border-color:transparent!important; }
+.canvas-widget:not(:has(> .canvas-frame-body)):not(:has(.canvas-image-content)):not(:has(.canvas-shape-body)):has(> .canvas-shader-wgsl[data-wgsl-ready]):not(:focus-within) > :not(.canvas-shader-canvas):not(.canvas-widget-resize):not(.canvas-radius-handle) { opacity:0; }
+.canvas-widget:not(:has(> .canvas-frame-body)):not(:has(.canvas-image-content)):not(:has(.canvas-shape-body)):focus-within > .canvas-shader-wgsl { visibility:hidden; }
+.canvas-settings-section + .canvas-settings-section { border-top:0; }

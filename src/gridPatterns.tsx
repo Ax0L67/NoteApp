@@ -23,11 +23,11 @@ export function gridStep(value?:string) {
   return (gridPatterns.find(pattern=>pattern.id===value)??gridPatterns[0]).id==='dot'?22:28;
 }
 
-export function gridStyle(value?:string,opacity=100):CSSProperties {
+export function gridStyle(value?:string,opacity=100,stepOverride?:number):CSSProperties {
   const pattern=gridPatterns.find(pattern=>pattern.id===value)??gridPatterns[0];
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">${pattern.shape}</svg>`;
   const intensity=Number.isFinite(opacity)?Math.max(0,Math.min(200,opacity)):100;
-  const step=gridStep(value);
+  const step=stepOverride??gridStep(value);
   return {'--grid-image':`url("data:image/svg+xml,${encodeURIComponent(svg)}")`,'--grid-size':`${step}px ${step}px`,'--grid-step':`${step}px`,
     '--grid-opacity':Math.min(1,intensity/100),'--grid-boost':`${Math.max(0,intensity-100)*.35}%`} as CSSProperties;
 }

@@ -1,0 +1,3 @@
+.canvas-frame-guide-toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.canvas-frame-guides { position:absolute; inset:0; border-radius:inherit; pointer-events:none; }
+[data-png-export] .canvas-frame-guides,.canvas-viewport[data-canvas-export] .canvas-frame-guides { display:none; }

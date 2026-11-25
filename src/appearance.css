@@ -32,9 +32,9 @@
 
 .app {
   --surface-base: #181818;
-  --surface-panel: #1e1e1e;
+  --surface-panel: #292929;
   --surface-tint: #282828;
-  --surface-editor: #292929;
+  --surface-editor: #1e1e1e;
   --surface-popup: #222222;
   --surface-input: #2b2b2b;
   --ink: #dedede;
@@ -55,9 +55,9 @@
 }
 .app.light {
   --surface-base: #d2d2d2;
-  --surface-panel: #dedede;
+  --surface-panel: #eaeaea;
   --surface-tint: #e4e4e4;
-  --surface-editor: #eaeaea;
+  --surface-editor: #dedede;
   --surface-popup: #e5e5e5;
   --surface-input: #e4e4e4;
   --ink: #333333;
@@ -78,6 +78,7 @@
   --panel: color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-panel));
   --tint: color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-tint));
   --editor: color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-editor));
+  --widget-surface: color-mix(in srgb, var(--panel) 50%, var(--editor));
   --popup: color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-popup));
   --input: color-mix(in srgb, var(--palette-hue) var(--palette-mix), var(--surface-input));
   --text: color-mix(in srgb, var(--palette-hue) calc(var(--palette-mix) / 3), var(--ink));
@@ -281,7 +282,8 @@
   vertical-align: baseline;
   border-left: 0;
 }
-.reading-indent-guide { display:inline-block; min-width:3em; background:linear-gradient(to right,transparent calc(50% - .5px),color-mix(in srgb,var(--text) 52%,var(--editor)) calc(50% - .5px),color-mix(in srgb,var(--text) 52%,var(--editor)) calc(50% + .5px),transparent calc(50% + .5px)); vertical-align:baseline; }
+.reading-indent-guide { display:inline-block; width:40px; overflow:hidden; color:transparent; background:linear-gradient(to right,transparent 19.5px,color-mix(in srgb,var(--text) 52%,var(--editor)) 19.5px 20.5px,transparent 20.5px); vertical-align:baseline; }
+.reading p:has(.reading-indent-guide) { white-space:pre-wrap; }
 .cm-line:has(.note-fold-toggle) { position:relative; }
 .note-fold-toggle { position:absolute; left:-20px; top:50%; z-index:3; display:grid; place-items:center; width:16px; height:16px; min-width:16px; min-height:16px; padding:0; border:0; border-radius:4px; background:transparent; color:var(--muted); opacity:0; transform:translateY(-50%); cursor:pointer; }
 .note-fold-toggle::before { content:""; width:6px; height:6px; border-right:1px solid var(--edge); border-bottom:1px solid var(--edge); transform:rotate(-45deg); }
@@ -378,7 +380,7 @@
 .floating-note-text > .note-insert-menu { z-index:5; }
 .floating-note-resize::before { content: none; }
 .reading-floating-text { box-sizing: border-box; overflow: hidden; }
-.note-zoom-content .reading { position:relative; }
+.note-zoom-content > .reading { position:relative; display:flow-root; }
 .reading-note-feature-widget .note-widget-body { padding-right:0; }
 .reading-floating-text img { max-width: 100%; max-height: calc(var(--widget-height,160px) - 52px); object-fit: contain; }
 .reading-floating-text > :first-child { margin-top: 0; }
@@ -556,6 +558,9 @@
 .liquid-shell .modal-daily-note { width: min(690px, 100%); }
 
 .palette-custom { --palette-hue: var(--palette-color-custom, #8f9bb3); --palette-highlight: var(--palette-color-custom, #8f9bb3); --palette-mix: 24%; --swatch-color: var(--palette-color-custom, #8f9bb3); }
+.central-window.palette-custom .editor-area { --editor:var(--palette-color-custom, #8f9bb3); --editor-fill:var(--palette-color-custom, #8f9bb3); }
+.central-window.palette-custom[data-custom-light="true"] .editor-area { --text:#202124; --muted:#50545a; --dots:#777; }
+.central-window.palette-custom[data-custom-light="false"] .editor-area { --text:#f4f4f4; --muted:#c4c4c4; --dots:#aaa; }
 [data-palette-blend="custom"] { --palette-left-hue: var(--palette-color-custom, #8f9bb3); --palette-left-mix: 24%; }
 html, body, #root { background-color: transparent; }
 
@@ -585,6 +590,7 @@ html, body, #root { background-color: transparent; }
 
 .app.liquid-shell > .titlebar { margin: calc(-1 * var(--layout-gap)) 0 0; border: 0; border-bottom: 1px solid var(--edge); border-radius: 0; }
 .app.liquid-shell { border: 1px solid color-mix(in srgb, var(--edge) 70%, var(--base)); border-radius: 8px; }
+.app.liquid-shell[data-window-fullscreen] { border-radius:0; }
 
 .cm-line.note-horizontal-rule { position:relative; min-height:1.85em; }
 .cm-line.note-horizontal-rule::after { content:""; position:absolute; left:0; right:0; top:50%; border-top:2px solid var(--edge); pointer-events:none; }

@@ -12,7 +12,6 @@ export function allProjectsGraph(projects:string[],settings:Settings,childrenOf:
  const cards:Record<string,MapCard>={},inherited:ProjectConnection[]=[],hidden:ProjectConnection[]=[];let x=48;
  const global=settings.projectMaps?.[ALL_PROJECTS]??{};
  const plain=(link:ProjectConnection)=>!link.from.startsWith('annotation:')&&!link.to.startsWith('annotation:');
- const same=(a:ProjectConnection,b:ProjectConnection)=>a.from===b.from&&a.to===b.to;
  for(const root of roots){
   const owner=root.project,map=settings.projectMaps?.[owner]??{},step=gridStep(settings.projectPatterns?.[owner]);
   const arranged=layoutProjectGraph(root,childrenOf,{},map.cards,1200,null,step,null);
@@ -25,6 +24,7 @@ export function allProjectsGraph(projects:string[],settings:Settings,childrenOf:
  if(roots.length){const step=gridStep(settings.projectPatterns?.[ALL_PROJECTS]),width=Math.round(296/step)*step;cards['project:'+ALL_PROJECTS]={position:{x:(48+x-64-width)/2,y:48}};}
  for(const [id,card] of Object.entries(global.cards??{}))cards[id]={...cards[id],...card};
  const map:ProjectMap={...global,cards,blocks:mapBlocks(global),hiddenConnections:[...hidden,...(global.hiddenConnections??[])]};
- const connections=[...inherited.filter(link=>!global.hiddenConnections?.some(hidden=>same(link,hidden))),...(settings.projectConnections?.[ALL_PROJECTS]??[])];
+ const hiddenKeys=new Set((global.hiddenConnections??[]).map(link=>JSON.stringify([link.from,link.to])));
+ const connections=[...inherited.filter(link=>!hiddenKeys.has(JSON.stringify([link.from,link.to]))),...(settings.projectConnections?.[ALL_PROJECTS]??[])];
  return {roots,map,connections,inherited};
 }

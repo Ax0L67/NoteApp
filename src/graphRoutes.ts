@@ -209,7 +209,7 @@ export function graphRoutePath(points:MapPoint[],_boxes:Box[]=[],step?:number) {
   for(let i=1;i<points.length-1;i++){
     const a=points[i-1],b=points[i],c=points[i+1],before=distance(a,b),after=distance(b,c);
     if(!before||!after)continue;
-    const radius=Math.min(step?step*1.25:64,before/2,after/2);
+    const radius=Math.min(step?step*2:96,before/2,after/2);
     path+=`L${b.x+(a.x-b.x)*radius/before} ${b.y+(a.y-b.y)*radius/before}Q${b.x} ${b.y} ${b.x+(c.x-b.x)*radius/after} ${b.y+(c.y-b.y)*radius/after}`;
   }
   const last=points.at(-1)!;

@@ -1,0 +1,17 @@
+.canvas-tool-dock-wrap { position:absolute; z-index:12; bottom:14px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:flex-end; gap:6px; max-width:calc(100% - 20px); }
+.canvas-tool-dock,.canvas-tool-dock-extra { display:flex; align-items:center; gap:3px; padding:4px; border:1px solid var(--edge); border-radius:10px; background:var(--popup); box-shadow:0 6px 24px #0005; }
+.canvas-tool-dock button,.canvas-tool-dock-extra button { min-width:34px; height:34px; padding:5px; color:var(--text); border:0; border-radius:6px; background:transparent; }
+.canvas-tool-dock button:hover,.canvas-tool-dock-extra button:hover,.canvas-tool-dock button[aria-pressed="true"],.canvas-tool-dock-extra button[aria-pressed="true"] { background:var(--selection); }
+.canvas-dock-divider { width:1px; height:26px; margin:0 3px; background:var(--edge); }
+.canvas-dock-chevron { font-size:11px; color:var(--muted); }
+.canvas-dock-menu { position:relative; display:flex; }
+.canvas-dock-popover,.canvas-dock-shapes { position:absolute; z-index:2; bottom:calc(100% + 8px); left:0; padding:6px; border:1px solid var(--edge); border-radius:9px; background:var(--popup); box-shadow:0 8px 24px #0005; }
+.canvas-dock-popover { min-width:180px; display:grid; gap:2px; }
+.canvas-dock-popover button { justify-content:flex-start; gap:9px; width:100%; padding:6px 9px; }
+.canvas-dock-popover button[aria-checked="true"] { background:var(--selection); }
+.canvas-dock-shapes { width:250px; max-height:min(50vh,310px); overflow:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:3px; }
+.canvas-dock-shapes button { display:flex; flex-direction:column; gap:3px; height:65px; min-width:0; font-size:10px; }
+.canvas-dock-shapes svg { width:24px; height:24px; overflow:visible; }
+.canvas-dock-shapes path { fill:none; stroke:currentColor; stroke-width:6; stroke-linejoin:round; }
+.canvas-dock-shapes span { max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+@media(max-width:560px) { .canvas-tool-dock { gap:0; } .canvas-tool-dock button { min-width:30px; } .canvas-dock-shapes { left:auto; right:-100px; width:min(250px,85vw); } }

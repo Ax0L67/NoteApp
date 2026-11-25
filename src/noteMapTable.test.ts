@@ -41,3 +41,9 @@ it('renders saved cell font size in reading mode',async()=>{
  const html=renderToStaticMarkup(React.createElement(ReadingTable,{source}));
  expect(html).toContain('font-size:24px');expect(html).toContain('Large');
 });
+
+it('renders inline formulas in table cells',async()=>{
+ const React=await import('react');const {renderToStaticMarkup}=await import('react-dom/server');const {ReadingTable}=await import('./noteTables');
+ const html=renderToStaticMarkup(React.createElement(ReadingTable,{source:'| Формула |\n| --- |\n| \\(f(a)=b\\) |'}));
+ expect(html).toContain('class="katex"');
+});

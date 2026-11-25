@@ -1,0 +1,5 @@
+.canvas-object-connections { z-index:1; }
+.canvas-connection-hint { position:absolute; z-index:30; left:50%; top:12px; transform:translateX(-50%); display:flex; align-items:center; gap:12px; padding:8px 12px; color:var(--text); background:var(--popup); border:1px solid var(--edge); border-radius:8px; box-shadow:0 8px 24px #0004; }
+.canvas-connection-hint button { color:var(--accent); white-space:nowrap; }
+.canvas-object-connections-menu { display:grid; padding-left:12px; border-left:1px solid var(--edge); }
+.canvas-widget.canvas-mask-source:not(.canvas-widget-active) { opacity:0!important; pointer-events:none; }

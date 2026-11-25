@@ -1,9 +1,10 @@
 import {activeTableEditor,clearActiveTableEditor} from './noteTables';
 import {ALL_PROJECTS} from './allProjectsGraph';
-import {saveNotePng,saveGraphPng,saveCanvasPng,printCanvasPdf} from './notePng';
-import {forwardRef,useEffect,useLayoutEffect,useImperativeHandle,useRef,useState,type ReactNode,type RefObject} from 'react';
+import {saveNotePng,saveGraphPng,saveCanvasPng,printCanvasPdf,saveCanvasObjectPng} from './notePng';
+import {parseCanvas} from './CanvasEditor';
+import {forwardRef,useEffect,useLayoutEffect,useImperativeHandle,useRef,useState,type Dispatch,type ReactNode,type RefObject,type SetStateAction} from 'react';
 import {createPortal} from 'react-dom';
-import {ArrowsIn,ArrowsOut,DotsThree,DotsSixVertical,FileText,Folder,Graph,House,Minus,Plus,Stack,X,Copy,Download,PencilSimple,Trash,ArrowsOutCardinal,CaretDown,ArrowUp,Star,Check} from '@phosphor-icons/react';
+import {ArrowsIn,ArrowsOut,DotsThree,DotsSixVertical,FileText,Folder,Graph,House,Minus,Plus,X,Copy,Download,PencilSimple,Trash,ArrowsOutCardinal,CaretDown,ArrowUp,Star,Check} from '@phosphor-icons/react';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import type {EditorView} from '@codemirror/view';
 import type {ReferenceActions} from './ReferenceChip';
@@ -21,11 +22,14 @@ import {NoteBackdrop,paletteId,paletteDragType,readPaletteDrop} from './appearan
 import Editor from './Editor';
 import MarkdownToolbar from './MarkdownToolbar';
 import ReorderTabs from './ReorderTabs';
-import CanvasEditor,{parseCanvas} from './CanvasEditor';
+import CanvasEditor from './CanvasEditor';
 import {TaskBoardView} from './TaskBoards';
 import {kanbanNoteId} from './kanbanNote';
 import './kanbanNote.css';
 import {ObjectIcon} from './ObjectIcon';
+
+type NoteViewport={zoom:number;scrollTop:number;scrollLeft:number};
+const noteViewports=new Map<string,NoteViewport>();
 
 export interface CentralWindowsHandle {
   open:(location:Location,replace?:boolean,notify?:boolean)=>Promise<boolean>;
@@ -40,14 +44,15 @@ interface Props {
   beforeNavigate:()=>Promise<boolean>;onLocation:(location:Location)=>void;save:(windows:CentralWindow[])=>void;
   edit:(path:string,text:string)=>void;openLink:(link:string)=>void;
   renderHome:(open:(item:ExplorerItem)=>void)=>ReactNode;
-  renderGraph:(project:string,open:(item:ExplorerItem)=>void)=>ReactNode;
+  renderGraph:(project:string,open:(item:ExplorerItem)=>void,mode:'tree'|'graph')=>ReactNode;
   showMenu:(event:React.MouseEvent,item:ExplorerItem)=>void;
   newNote:(folder:string)=>void;newFolder:(item:ExplorerItem)=>void;move:(item:ExplorerItem)=>void;
   rename:(path:string)=>void;remove:(item:ExplorerItem)=>void;pdf:(path:string)=>void;toggleFavorite:(path:string)=>void;
-  toggleRead:()=>void;toggleFocus:()=>void;chooseVault:()=>void;
+  toggleRead:()=>void;toggleFocus:()=>void;
   typography:(path:string,getView?:()=>EditorView|undefined)=>ReactNode;
   pickReference:(view:EditorView,kind?:ReferenceKind)=>void;
   attach:(files:File[],position:number|undefined,path:string,editor:RefObject<ReactCodeMirrorRef|null>)=>void;
+  uploadImages:(files:File[],path:string)=>Promise<string[]>;
   changeTaskBoard:(board:TaskBoard)=>void;openTaskManager:(project:string)=>void;insertBoard:(view:EditorView,project:string,id?:string)=>void;
   detachedId?:string;detach?:(id:string,point?:{x:number;y:number})=>void;returnToApp?:(id:string)=>void;
 }
@@ -56,8 +61,10 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const [windows,setWindows]=useState(()=>readCentralWindows(data.settings.centralWindows,data.settings.active));
 
   const [activeId,setActiveId]=useState(()=>props.detachedId??windows[0].id);
+  const [graphLayout,setGraphLayout]=useState<'tree'|'graph'>(()=>localStorage.getItem('noteapp-graph-layout')==='graph'?'graph':'tree');
   const [menuId,setMenuId]=useState<string|null>(null);
   const [exportWindow,setExportWindow]=useState<string|null>(null);
+  const [batchExport,setBatchExport]=useState<{windowId:string;node:HTMLElement;items:{id:string;name:string;scale:number;format:'png'|'jpeg';width:number;height:number;enabled:boolean}[]}|null>(null);
   const [sourceWindow,setSourceWindow]=useState<string|null>(null);
   const [splitPreview,setSplitPreview]=useState<{id:string;side:'L'|'R'|'T'|'B'}|null>(null);
   const [tilePreview,setTilePreview]=useState<CentralWindow[]|null>(null);
@@ -73,16 +80,22 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
     finally{setExportWindow(null);}
   }
   const visibleWindows=props.detachedId?(tilePreview??windows).filter(win=>win.id===props.detachedId):(tilePreview??windows).filter(win=>!win.detached);
-  const activeTabs=visibleWindows.find(win=>win.id===activeId)?.tabs.join('\0')??'';
   useLayoutEffect(()=>{
-    const desktop=stage.current?.closest<HTMLElement>('.central-desktop');
-    if(!desktop||!data.settings.simpleStyle||props.detachedId){desktop?.style.removeProperty('--vault-tab-width');return;}
-    const tab=stage.current?.querySelector<HTMLElement>('.central-window[data-active] .note-tabs > .note-tab');
-    if(!tab){desktop.style.removeProperty('--vault-tab-width');return;}
-    const sync=()=>{if(tab.offsetWidth)desktop.style.setProperty('--vault-tab-width',`${tab.offsetWidth}px`)};
-    const observer=new ResizeObserver(sync);observer.observe(tab);sync();
-    return()=>{observer.disconnect();desktop.style.removeProperty('--vault-tab-width')};
-  },[activeId,activeTabs,data.settings.simpleStyle,props.detachedId]);
+    const root=stage.current?.closest<HTMLElement>('.app'),stageNode=stage.current;
+    if(!root||!stageNode)return;
+    const sync=()=>{
+      const strip=stageNode.querySelector<HTMLElement>('.central-window[data-active] .note-tab-strip');
+      if(!strip)return;
+      const y=strip.getBoundingClientRect().bottom;
+      root.querySelectorAll<HTMLElement>('.dock-zone-left .dock-panel-heading,.dock-zone-right .dock-panel-heading').forEach(heading=>heading.style.setProperty('--dock-header-line-top',`${y-heading.getBoundingClientRect().top}px`));
+    };
+    const resize=new ResizeObserver(sync);resize.observe(stageNode);
+    const activeWindow=stageNode.querySelector<HTMLElement>('.central-window[data-active]');if(activeWindow)resize.observe(activeWindow);
+    root.querySelectorAll<HTMLElement>('.dock-zone-left,.dock-zone-right,.dock-zone-left .dock-panel,.dock-zone-right .dock-panel').forEach(panel=>resize.observe(panel));
+    const mutation=new MutationObserver(records=>{if(records.some(record=>record.target instanceof HTMLElement&&record.target.classList.contains('central-window')))sync()});mutation.observe(stageNode,{subtree:true,attributes:true,attributeFilter:['style','data-active']});
+    window.addEventListener('resize',sync);sync();
+    return()=>{resize.disconnect();mutation.disconnect();window.removeEventListener('resize',sync);root.querySelectorAll<HTMLElement>('.dock-panel-heading').forEach(heading=>heading.style.removeProperty('--dock-header-line-top'))};
+  },[activeId,data.settings.workspaceLayout,data.settings.simpleStyle,props.detachedId]);
   const noteViews=useRef(new Map<string,EditorView>());
   const gesture=useRef<{id:string;pointer:number;x:number;y:number;rect:CentralWindow;mode:string;fitBottom:boolean}|null>(null);
   const [moving,setMoving]=useState(false);
@@ -206,13 +219,15 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
   const hasTiles=visibleWindows.some(win=>win.mode==='tiled');
   const tileTopLimit=()=>{const node=stage.current,app=node?.closest<HTMLElement>('.app');if(!node||!app)return 0;const top=app.querySelector<HTMLElement>(':scope > .titlebar')?.getBoundingClientRect().bottom??app.getBoundingClientRect().top;return Math.min(0,top+2-(node.getBoundingClientRect().top-tileOffset));};
   const covered=(hasTiles&&tileOffset<-24)||visibleWindows.some(win=>win.mode!=='tiled'&&win.y<-34&&(win.width===0||win.width>=(stage.current?.clientWidth??1000)*.8));
+  const layoutSwitch=<div className="graph-layout-switch" role="group" aria-label="Вид карты связей"><button type="button" aria-pressed={graphLayout==='tree'} onClick={()=>{setGraphLayout('tree');localStorage.setItem('noteapp-graph-layout','tree')}}>Древовидная таблица</button><button type="button" aria-pressed={graphLayout==='graph'} onClick={()=>{setGraphLayout('graph');localStorage.setItem('noteapp-graph-layout','graph')}}>Граф</button></div>;
   return <div className="central-desktop" data-detached={props.detachedId||undefined} data-storage-covered={covered||undefined} data-moving={moving||undefined}>
-    {!props.detachedId&&<nav className={`storage-strip project-workspace palette-${props.generalPalette}`} aria-label="Хранилище">
-      <button className="vault-switch" title={data.root} onClick={props.chooseVault}><Stack size={19}/><strong>Хранилище</strong><CaretDown size={15}/></button>
+    {!props.detachedId&&<nav className={`storage-strip project-workspace palette-${props.generalPalette}`} aria-label="Навигация по хранилищу">
       <button className="storage-up" title="На уровень выше" aria-label="На уровень выше" disabled={!selectedOwner} onClick={()=>void open(selectedOwner===ALL_PROJECTS?{kind:'home'}:{kind:'folder',project:selectedOwner,path:parentPath},false,true,selected.id)}><ArrowUp size={19}/></button>
       <span className="storage-path" title={selectedPath||selectedLabel||'Все проекты'}>{selectedLabel||'Все проекты'}{selectedPath&&selectedPath!==projectRoot(selectedOwner)&&<> <span aria-hidden="true">›</span> {selectedPath.startsWith(projectRoot(selectedOwner))?selectedPath.slice(projectRoot(selectedOwner).length).replace(/^\//,'').replaceAll('/',' › '):selectedPath}</>}</span>
+      {selectedLocation.kind==='graph'&&layoutSwitch}
       <button className="storage-graph" onClick={()=>void open({kind:'graph',project:selectedOwner||ALL_PROJECTS},false,true,selected.id)}><Graph size={18}/>{selectedOwner?'Карта связей':'Общая карта связей'}</button>
     </nav>}
+    {props.detachedId&&selectedLocation.kind==='graph'&&<nav className="detached-graph-nav" aria-label="Вид карты связей">{layoutSwitch}</nav>}
     <div ref={stage} className="central-stage" data-tiled={hasTiles||undefined} style={hasTiles?{marginTop:tileOffset}:undefined}>
       {hasTiles&&<div className="tile-stage-resize" role="separator" tabIndex={0} aria-label="Переместить верхнюю границу центральной области" aria-orientation="horizontal"
         onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);tileResize.current={pointer:event.pointerId,y:event.clientY,offset:tileOffset};}}
@@ -230,7 +245,8 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
         const maximized=props.detachedId===win.id||props.focus&&visibleWindows.length===1;
         const fillBottom=!maximized&&win.mode!=='tiled'&&(win.width===0||win.width>=(stage.current?.clientWidth??Number.POSITIVE_INFINITY)-2);
         const preview=splitPreview?.id===win.id?splitPreview.side:undefined;
-        return <section key={win.id} className={`central-window workbench project-workspace palette-${palette}`} data-active={activeId===win.id||undefined} data-mode={win.mode??'floating'} data-maximized={maximized||undefined} data-palette-blend={blend??''} data-split-preview={preview} aria-label={`Центральное окно ${index+1}`}
+        const customHex=/^#[\da-f]{6}$/i.test(data.settings.customPaletteColor??'')?data.settings.customPaletteColor!:'#8f9bb3',customRgb=parseInt(customHex.slice(1),16),customLight=((customRgb>>16)*299+((customRgb>>8)&255)*587+(customRgb&255)*114)/1000>=150;
+        return <section key={win.id} className={`central-window workbench project-workspace palette-${palette}`} data-custom-light={palette==='custom'?customLight:undefined} data-active={activeId===win.id||undefined} data-mode={win.mode??'floating'} data-maximized={maximized||undefined} data-palette-blend={blend??''} data-split-preview={preview} aria-label={`Центральное окно ${index+1}`}
           style={win.mode==='tiled'&&!maximized?{...tileRect(win.tilePath??'',data.settings.simpleStyle),zIndex:activeId===win.id?20:index+1}:{left:maximized?0:win.x,top:maximized?0:win.y,width:maximized?'100%':win.width||'100%',height:maximized?'100%':fillBottom?undefined:win.height||'100%',bottom:fillBottom?0:undefined,zIndex:activeId===win.id?20:index+1}}
           onDragOver={event=>{if(event.dataTransfer.types.includes('application/x-noteapp-window')){event.preventDefault();if(win.mode==='tiled'&&draggingWindow.current!==win.id){const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5,vertical=Math.abs(dy)>Math.abs(dx);const side: 'L'|'R'|'T'|'B'=vertical?(dy<0?'T':'B'):(dx<0?'L':'R'),key=`${draggingWindow.current}:${win.id}:${side}`;if(tilePreviewKey.current!==key){tilePreviewKey.current=key;setSplitPreview({id:win.id,side});const preview=tileMove(dragBase.current??current.current,draggingWindow.current!,win.id,side);if(preview)setTilePreview(preview)}}}else if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
           onDrop={event=>{setSplitPreview(null);const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(value){event.preventDefault();event.stopPropagation();commit(current.current.map(entry=>entry.id===win.id?{...entry,palette:value.palette,blend:value.blend}:entry));return;}const source=event.dataTransfer.getData('application/x-noteapp-window');if(!source)return;const destination=splitPreview?.id??win.id;if(source===destination||current.current.find(entry=>entry.id===destination)?.mode!=='tiled')return;event.preventDefault();const rect=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-rect.left)/rect.width-.5,dy=(event.clientY-rect.top)/rect.height-.5,vertical=Math.abs(dy)>Math.abs(dx),side: 'L'|'R'|'T'|'B'=splitPreview?.side??(vertical?(dy<0?'T':'B'):(dx<0?'L':'R')),next=tileMove(dragBase.current??current.current,source,destination,side);setTilePreview(null);tilePreviewKey.current='';dragBase.current=null;if(next)commit(next);}}
@@ -248,6 +264,7 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
               {note.path.endsWith('.canvas')&&(['snapGrid','snapGuides'] as const).map(key=><button key={key} role="menuitemcheckbox" disabled={props.read} aria-checked={parseCanvas(note.content)?.[key]!==false} onClick={()=>window.dispatchEvent(new CustomEvent('noteapp-canvas-setting',{detail:{path:note.path,key}}))}><Check size={16} style={{visibility:parseCanvas(note.content)?.[key]!==false?'visible':'hidden'}}/>{key==='snapGrid'?'Привязка виджетов к сетке':'Привязка к другим элементам'}</button>)}
               <button onClick={()=>{props.move(item);setMenuId(null);}}><Folder/>Переместить…</button>
               <button onClick={event=>{const node=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(node)void captureReading(win.id,()=>note.path.endsWith('.canvas')?saveCanvasPng(node,title(note.path)):saveNotePng(node,title(note.path))).catch(error=>alert(String(error)));}}><Download/>{note.path.endsWith('.canvas')?'Сохранить полотно в PNG…':'Сохранить заметку в PNG…'}</button>
+              {note.path.endsWith('.canvas')&&<button onClick={event=>{const node=event.currentTarget.closest<HTMLElement>('.central-window'),items=(parseCanvas(note.content)?.widgets??[]).filter(item=>item.exportPreset);setMenuId(null);if(!node)return;if(!items.length){alert('Добавьте параметры экспорта в настройках объектов.');return}setBatchExport({windowId:win.id,node,items:items.map((item,index)=>({id:item.id,name:item.kind==='frame'&&item.text.trim()?item.text.trim():`Объект ${index+1}`,scale:item.exportPreset?.scale??1,format:item.exportPreset?.format==='jpeg'?'jpeg':'png',width:item.width??300,height:item.height??140,enabled:true}))})}}><Download/>Экспортировать объекты…</button>}
               <button onClick={event=>{const node=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(note.path.endsWith('.canvas')){if(node)void captureReading(win.id,()=>printCanvasPdf(node,title(note.path))).catch(error=>alert(String(error)));}else props.pdf(note.path);}}><Download/>Печать / сохранить PDF…</button>
               <button onClick={props.toggleRead}><FileText/>{props.read?'Редактировать':'Режим чтения'}</button></>}
             {location.kind==='graph'&&<button onClick={event=>{const win=event.currentTarget.closest<HTMLElement>('.central-window');setMenuId(null);if(win)void saveGraphPng(win,owner===ALL_PROJECTS?'Общая карта связей':'Карта — '+owner).catch(error=>alert(String(error)));}}><Download/>Сохранить карту в PNG…</button>}
@@ -266,8 +283,9 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
               {!win.detached&&windows.length>1&&<button title="Закрыть окно" aria-label="Закрыть окно" onClick={()=>void closeWindow(win.id)}><X size={16}/></button>}
             </div></div>
           {sourceWindow===win.id&&note&&!note.path.endsWith('.canvas')&&<div className="modal-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)setSourceWindow(null)}}><section className="modal note-source-view" role="dialog" aria-modal="true" aria-label="Исходный код заметки" onKeyDown={event=>{if(event.key==='Escape')setSourceWindow(null)}}><header><h2>Исходный код заметки</h2><button aria-label="Закрыть" onClick={()=>setSourceWindow(null)}><X size={20}/></button></header><textarea readOnly value={note.content} aria-label="Исходный текст заметки"/></section></div>}
+          {batchExport?.windowId===win.id&&<div className="modal-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)setBatchExport(null)}}><section className="modal canvas-export-dialog" role="dialog" aria-modal="true" aria-label="Экспорт объектов" onKeyDown={event=>{if(event.key==='Escape')setBatchExport(null)}}><header><h2>Экспорт объектов</h2><button type="button" aria-label="Закрыть" onClick={()=>setBatchExport(null)}><X size={20}/></button></header><p className="subtle">Выберите объекты для экспорта. Для каждого файла откроется окно сохранения.</p><div className="canvas-export-list">{batchExport.items.map((item,index)=><label key={item.id}><input type="checkbox" checked={item.enabled} onChange={event=>{const enabled=event.target.checked;setBatchExport(current=>current?{...current,items:current.items.map((value,i)=>i===index?{...value,enabled}:value)}:current)}}/><span>{item.name}</span><small>{item.format.toUpperCase()} · {item.scale}× · {Math.round(item.width*item.scale)} × {Math.round(item.height*item.scale)} px</small></label>)}</div><div className="modal-foot"><button type="button" onClick={()=>setBatchExport(null)}>Отмена</button><button type="button" className="primary" disabled={!batchExport.items.some(item=>item.enabled)} onClick={()=>{const batch=batchExport,items=batch.items.filter(item=>item.enabled);setBatchExport(null);void captureReading(batch.windowId,async()=>{for(const item of items)await saveCanvasObjectPng(batch.node,item.id,item.name,item.scale,item.format)}).catch(error=>alert(String(error)))}}>Экспортировать ({batchExport.items.filter(item=>item.enabled).length})</button></div></section></div>}
           <div className="editor-layout"><div className="tabbed-workspace">
-            {location.kind==='home'?props.renderHome(openItem):location.kind==='graph'&&(owner===ALL_PROJECTS||projects.includes(owner))?props.renderGraph(owner,openItem):location.kind==='folder'?<FolderContents icons={data.settings.objectIcons} root={data.root} background={data.settings.projectBackgrounds?.[owner]??null} name={item.name} entries={entriesIn(owner,item.path,vaultFolders(data),data.notes,projectFor)} open={openItem} showMenu={props.showMenu}
+            {location.kind==='home'?props.renderHome(openItem):location.kind==='graph'&&(owner===ALL_PROJECTS||projects.includes(owner))?props.renderGraph(owner,openItem,graphLayout):location.kind==='folder'?<FolderContents icons={data.settings.objectIcons} root={data.root} background={data.settings.projectBackgrounds?.[owner]??null} name={item.name} entries={entriesIn(owner,item.path,vaultFolders(data),data.notes,projectFor)} open={openItem} showMenu={props.showMenu}
               actions={<div className="folder-actions"><button className="primary" onClick={()=>props.newNote(item.path)}><Plus size={18}/>Новая заметка</button><button onClick={()=>props.newFolder(item)}><Folder size={18}/>Новая папка</button></div>}/>:note?<NoteWindow key={note.path} {...props} read={props.read||exportWindow===win.id} path={note.path} onView={view=>noteViews.current.set(win.id,view)}/>:<div className="editor-pane editor-empty"><p>Этот объект больше недоступен.</p><button onClick={()=>void open({kind:'home'},false,true,win.id)}>Все проекты</button></div>}
           </div></div>
           {!maximized&&win.mode!=='tiled'&&['n','e','s','w','ne','se','sw','nw'].map(mode=><div key={mode} className={`central-resize central-resize-${mode}`} role="separator" tabIndex={0} aria-label="Изменить размер окна" onPointerDown={event=>start(event,win.id,mode)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onKeyDown={event=>{
@@ -281,16 +299,71 @@ const CentralWindows=forwardRef<CentralWindowsHandle,Props>(function CentralWind
 function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
   const editor=useRef<ReactCodeMirrorRef>(null);
   const main=useRef<HTMLElement>(null);
-  const [zoom,setZoom]=useState(1);
+  const viewportKey=JSON.stringify([props.data.root,props.path]);
+  const [zoom,setZoomState]=useState(()=>noteViewports.get(viewportKey)?.zoom??1);
+  const setZoom:Dispatch<SetStateAction<number>>=value=>setZoomState(current=>{const next=typeof value==='function'?value(current):value;noteViewports.set(viewportKey,{zoom:next,scrollTop:noteViewports.get(viewportKey)?.scrollTop??0,scrollLeft:noteViewports.get(viewportKey)?.scrollLeft??0});return next});
   const [ribbonHidden,setRibbonHidden]=useState(false);
   const [zoomTarget,setZoomTarget]=useState<HTMLElement|null>(null);
   const note=props.data.notes.find(note=>note.path===props.path)!;
   const appearance=props.data.settings.noteAppearance?.[note.path];
   const owner=projectOf(note.path,props.data.settings.projects??defaultProjects);
-  const style={...textAppearanceStyle(appearance),'--editor-size':`${props.data.settings.fontSize??16}px`,'--body-font':fontStack(validFont(props.data.settings.fontFamily))} as React.CSSProperties;
+  const style={...textAppearanceStyle(appearance),'--editor-size':`${appearance?.fontSize??props.data.settings.fontSize??16}px`,'--text-width':`${appearance?.textWidth??props.data.settings.textWidth??810}px`,'--body-font':fontStack(validFont(appearance?.fontFamily??props.data.settings.fontFamily))} as React.CSSProperties;
   const activeView=()=>props.read?undefined:activeTableEditor(main.current)??editor.current?.view;
   const format=(apply:(view:EditorView)=>void)=>{const view=activeView();if(view)apply(view);};
   useEffect(()=>{setZoomTarget(main.current?.closest('.central-window')?.querySelector<HTMLElement>('.central-window-actions')??null);},[props.path]);
+  useEffect(()=>{
+    const root=main.current;
+    if(!root||props.read||props.path.endsWith('.canvas'))return;
+    let current:{widget:HTMLElement;menu:HTMLElement;actions:HTMLElement;panel:HTMLElement;inspector:HTMLElement;gridStep:string;gridPriority:string}|null=null;
+    const close=()=>{
+      if(!current)return;
+      const {widget,menu,actions,panel,inspector,gridStep,gridPriority}=current;
+      widget.removeAttribute('data-note-widget-selected');
+      if(gridStep)actions.style.setProperty('--grid-step',gridStep,gridPriority);else actions.style.removeProperty('--grid-step');
+      if(menu.isConnected)menu.append(actions);
+      panel.remove();inspector.removeAttribute('data-note-widget-settings');current=null;
+    };
+    const select=(event:PointerEvent)=>{
+      const target=event.target as Element|null;
+      if(!target||!root.closest('.central-window[data-active]'))return;
+      const widget=target.closest<HTMLElement>('.floating-note-text,.note-image-box,.note-feature-host.note-feature-widget,.visual-table-host.note-feature-widget,.note-code-host.note-feature-widget');
+      if(!widget||!root.contains(widget)){close();return;}
+      if(current?.widget===widget)return;
+      const menu=widget.querySelector<HTMLElement>(':scope > .note-insert-menu');
+      const actions=menu?.querySelector<HTMLElement>(':scope > .note-insert-actions');
+      const inspector=root.closest('.app')?.querySelector<HTMLElement>('.dock-panel[data-panel="inspector"] .inspector');
+      if(!menu||!actions||!inspector){close();return;}
+      close();
+      const gridStep=actions.style.getPropertyValue('--grid-step'),gridPriority=actions.style.getPropertyPriority('--grid-step');
+      const inheritedGrid=getComputedStyle(actions).getPropertyValue('--grid-step');
+      if(inheritedGrid)actions.style.setProperty('--grid-step',inheritedGrid);
+      const panel=document.createElement('section');panel.className='note-widget-settings-panel';
+      const heading=document.createElement('strong');heading.textContent='Настройки виджета';panel.append(heading,actions);
+      inspector.append(panel);inspector.setAttribute('data-note-widget-settings','');widget.setAttribute('data-note-widget-selected','');current={widget,menu,actions,panel,inspector,gridStep,gridPriority};
+    };
+    const observer=new MutationObserver(()=>{if(current&&!current.widget.isConnected)close()});
+    const switchWindow=(event:PointerEvent)=>{const target=(event.target as Element|null)?.closest('.central-window');if(target&&target!==root.closest('.central-window'))close()};
+    observer.observe(root,{childList:true,subtree:true});
+    root.addEventListener('pointerdown',select,true);
+    document.addEventListener('pointerdown',switchWindow,true);
+    return()=>{observer.disconnect();root.removeEventListener('pointerdown',select,true);document.removeEventListener('pointerdown',switchWindow,true);close()};
+  },[props.path,props.read]);
+  useLayoutEffect(()=>{
+    const scroll=main.current?.querySelector<HTMLElement>('.editor-scroll,.task-board-columns')??main.current;
+    if(!scroll)return;
+    const saved=noteViewports.get(viewportKey);
+    let frame=0,attempts=0,restoring=!!saved;
+    const restore=()=>{
+      if(!saved||!restoring)return;
+      scroll.scrollTop=saved.scrollTop;scroll.scrollLeft=saved.scrollLeft;
+      if(Math.abs(scroll.scrollTop-saved.scrollTop)<1&&Math.abs(scroll.scrollLeft-saved.scrollLeft)<1||++attempts>=30){restoring=false;return;}
+      frame=requestAnimationFrame(restore);
+    };
+    restore();
+    const remember=()=>{if(!restoring)noteViewports.set(viewportKey,{zoom:noteViewports.get(viewportKey)?.zoom??1,scrollTop:scroll.scrollTop,scrollLeft:scroll.scrollLeft})};
+    scroll.addEventListener('scroll',remember,{passive:true});
+    return()=>{cancelAnimationFrame(frame);remember();scroll.removeEventListener('scroll',remember)};
+  },[viewportKey]);
   useEffect(()=>{
     const focus=(event:Event)=>{
       const detail=(event as CustomEvent<{path:string;column:string;taskId?:string}>).detail,root=main.current;
@@ -308,7 +381,7 @@ function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
     <button type="button" aria-label={`Масштаб редактора ${Math.round(zoom*100)}%. Сбросить`} onClick={()=>setZoom(1)}>{Math.round(zoom*100)}%</button>
     <button type="button" aria-label="Увеличить масштаб" disabled={zoom>=2} onClick={()=>setZoom(value=>Math.min(2,Math.round((value+.1)*10)/10))}><Plus size={15}/></button>
   </div>;
-  if(note.path.endsWith('.canvas'))return <CanvasEditor key={note.path} note={note} notes={props.data.notes} project={owner} root={props.data.root} background={props.data.settings.projectBackgrounds?.[owner]??null} pattern={props.data.settings.projectPatterns?.[owner]} gridOpacity={props.data.settings.projectGridOpacity?.[owner]??100} read={props.read} light={props.data.settings.theme==='light'} textStyle={style} save={content=>props.edit(note.path,content)} onLink={props.openLink} references={props.references} typography={getView=>props.typography(note.path,getView)} pickReference={props.pickReference} attach={(files,position,ref)=>props.attach(files,position,note.path,ref)} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard} openTasks={()=>props.openTaskManager(owner)} insertBoard={(view,id)=>props.insertBoard(view,owner,id)}/>;
+  if(note.path.endsWith('.canvas'))return <CanvasEditor key={note.path} note={note} notes={props.data.notes} project={owner} root={props.data.root} background={props.data.settings.projectBackgrounds?.[owner]??null} pattern={props.data.settings.projectPatterns?.[owner]} gridOpacity={props.data.settings.projectGridOpacity?.[owner]??100} read={props.read} light={props.data.settings.theme==='light'} textStyle={style} save={content=>props.edit(note.path,content)} onLink={props.openLink} references={props.references} typography={getView=>props.typography(note.path,getView)} pickReference={props.pickReference} attach={(files,position,ref)=>props.attach(files,position,note.path,ref)} uploadImages={files=>props.uploadImages(files,note.path)} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard} openTasks={()=>props.openTaskManager(owner)} insertBoard={(view,id)=>props.insertBoard(view,owner,id)}/>;
   const boardId=kanbanNoteId(note.content);
   if(boardId){
     if(props.data.notes.filter(item=>kanbanNoteId(item.content)===boardId).length>1)return <main className="kanban-note editor-pane"><p>Несколько заметок используют один идентификатор Kanban. Данные сохранены в файлах; уберите лишние копии из хранилища, чтобы открыть доску.</p></main>;
@@ -325,7 +398,7 @@ function NoteWindow(props:Props&{path:string;onView:(view:EditorView)=>void}){
       <div className="editor-scroll" onPointerDown={event=>{if(props.read||event.button!==0)return;const target=event.target as HTMLElement;if(!target.matches('.editor-scroll,.text-surface,.note-zoom-frame,.note-zoom-content,.cm-editor,.cm-scroller,.cm-content'))return;const view=editor.current?.view;if(!view)return;const rect=view.contentDOM.getBoundingClientRect(),pos=view.posAtCoords({x:Math.max(rect.left+1,Math.min(event.clientX,rect.right-1)),y:Math.max(rect.top+1,Math.min(event.clientY,rect.bottom-1))},false);if(pos!==null){event.preventDefault();view.dispatch({selection:{anchor:pos}});view.focus();}}} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();}}
         onDrop={event=>{const files=Array.from(event.dataTransfer.files);if(!files.length||props.read)return;event.preventDefault();props.attach(files,editor.current?.view?.posAtCoords({x:event.clientX,y:event.clientY},false)??undefined,note.path,editor);}}
         onPaste={event=>{const files=Array.from(event.clipboardData.files);if(files.length&&!props.read){event.preventDefault();props.attach(files,undefined,note.path,editor);}}}>
-        <div className="text-surface" style={style} onFocusCapture={event=>{const target=event.target as HTMLElement;if(target.classList.contains('cm-content')&&!target.closest('.visual-table-cell'))clearActiveTableEditor(main.current);}}><Editor note={note} notes={props.data.notes} read={props.read} onChange={text=>props.edit(note.path,text)} onLink={props.openLink} editorRef={editor} onReady={props.onView} light={props.data.settings.theme==='light'} references={props.references} attachWidget={(files,position)=>props.attach(files,position,note.path,editor)} zoom={zoom} setZoom={setZoom} showZoomControls={false} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard}/></div>
+        <div className="text-surface" style={style} onFocusCapture={event=>{const target=event.target as HTMLElement;if(target.classList.contains('cm-content')&&!target.closest('.visual-table-cell'))clearActiveTableEditor(main.current);}}><Editor note={note} notes={props.data.notes} read={props.read} onChange={text=>props.edit(note.path,text)} onLink={props.openLink} editorRef={editor} onReady={props.onView} light={props.data.settings.theme==='light'} autoFocus={false} references={props.references} attachWidget={(files,position)=>props.attach(files,position,note.path,editor)} zoom={zoom} setZoom={setZoom} showZoomControls={false} taskBoards={props.data.settings.taskBoards??[]} changeTaskBoard={props.changeTaskBoard}/></div>
       </div>
     </div>
     <footer className="statusbar"><span>Markdown</span><span>{note.content.trim().split(/\s+/).filter(Boolean).length} слов</span></footer>

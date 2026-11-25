@@ -1,5 +1,6 @@
 import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent} from 'react';
-import {ArrowRight, ArrowsClockwise, ArrowsIn, ArrowsOutCardinal, CaretDown, ChatText, Check, FileText, Folder, Link, Minus, NotePencil, PencilSimple, Plus, Stack, Trash, X} from '@phosphor-icons/react';
+import {createPortal} from 'react-dom';
+import {ArrowRight, ArrowsClockwise, ArrowsIn, CaretDown, Check, DotsSixVertical, DotsThree, FileText, Folder, Minus, NotePencil, PencilSimple, Plus, Stack, Trash, X} from '@phosphor-icons/react';
 import type {ReactCodeMirrorRef} from '@uiw/react-codemirror';
 import Editor from './Editor';
 import MarkdownToolbar from './MarkdownToolbar';
@@ -11,7 +12,7 @@ import {mapBlockKey,mapBlocks,mapNotesPath} from './mapBlocks';
 import {createGraphRouter,graphRoutePath,hierarchyBranchRoutes} from './graphRoutes';
 import {gridStep} from './gridPatterns';
 import {snapGrid} from './gridGeometry';
-import {CardFace,paletteDragType,readPaletteDrop} from './appearance';
+import {CardFace,paletteDragType,readPaletteDrop,paletteId} from './appearance';
 import {textureById} from './textures';
 import {FeatureCard,featureDefaults,featureFromMarkdown,featureBaseWidth,markdownBlock,type NoteFeature} from './noteFeatureBlocks';
 import {kanbanWidgetSize} from './kanbanWidgetSize';
@@ -99,11 +100,38 @@ type Branch = {item: ExplorerItem; children: Branch[]; span: number; width: numb
 type Node = typeof sizes.note & {
   x: number; y: number; bodyHeight:number; depth:number; item: ExplorerItem; parent?: ExplorerItem; children: ExplorerItem[];
 };
+function radialLayout(tree:ReturnType<typeof layoutProjectGraph>,root:ExplorerItem,positions:Record<string,MapPoint>,drag:Drag|null,cards:ProjectMap['cards'],sizing:Sizing|null) {
+  const counts=new Map<number,number>();
+  for(const node of tree.nodes.values())counts.set(node.depth,(counts.get(node.depth)??0)+1);
+  const radii=new Map<number,number>();let previous=0;
+  for(const [depth,count] of [...counts].sort((a,b)=>a[0]-b[0])){const radius=depth===0?0:Math.max(previous+340,count*300/(2*Math.PI));radii.set(depth,radius);previous=radius;}
+  const weights=new Map<string,number>();
+  const weight=(node:Node):number=>{const n=node.children.reduce((sum,child)=>sum+weight(tree.nodes.get(keyOf(child))!),0)||1;weights.set(keyOf(node.item),n);return n};
+  const start=tree.nodes.get(keyOf(root));if(!start)return tree;weight(start);
+  const nodes=new Map<string,Node>();let left=0,top=0,right=0,bottom=0;
+  const occupied=new Map<string,{x:number;y:number;r:number}[]>(),cellSize=360;let maxRadius=0;
+  const addCircle=(x:number,y:number,r:number)=>{maxRadius=Math.max(maxRadius,r);const key=`${Math.floor(x/cellSize)}:${Math.floor(y/cellSize)}`,items=occupied.get(key);if(items)items.push({x,y,r});else occupied.set(key,[{x,y,r}])};
+  const overlaps=(x:number,y:number,r:number)=>{const reach=Math.ceil((r+maxRadius+30)/cellSize);for(let i=-reach;i<=reach;i++)for(let j=-reach;j<=reach;j++)for(const other of occupied.get(`${Math.floor(x/cellSize)+i}:${Math.floor(y/cellSize)+j}`)??[])if(Math.hypot(x-other.x,y-other.y)<r+other.r+30)return true;return false};
+  const place=(node:Node,from:number,to:number)=>{
+    const id=keyOf(node.item),angle=(from+to)/2,radius=radii.get(node.depth)??0;
+    const scale=cards?.[id]?.size||sizing?.id===id?1:Math.max(.7,1.05-node.depth*.1);
+    const diameter=Math.max(node.width,node.bodyHeight)*scale;
+    const position=drag?.moved?drag.positions[id]??positions[id]:positions[id];
+    let distance=radius,cx=Math.cos(angle)*distance,cy=Math.sin(angle)*distance;
+    if(!position&&node.depth>0)while(overlaps(cx,cy,diameter/2)){distance+=Math.max(48,diameter/2);cx=Math.cos(angle)*distance;cy=Math.sin(angle)*distance}
+    const x=position?.x??cx-diameter/2,y=position?.y??cy-diameter/2;
+    addCircle(x+diameter/2,y+diameter/2,diameter/2);
+    const next={...node,x,y,width:diameter,bodyHeight:diameter,height:diameter};nodes.set(id,next);left=Math.min(left,x-inset);top=Math.min(top,y-inset);right=Math.max(right,x+next.width+inset);bottom=Math.max(bottom,y+next.height+inset);
+    let at=from;for(const child of node.children){const childNode=tree.nodes.get(keyOf(child))!;const end=at+(to-from)*(weights.get(keyOf(child))??1)/(weights.get(id)??1);place(childNode,at,end);at=end;}
+  };
+  place(start,-Math.PI/2,3*Math.PI/2);
+  return {nodes,bounds:{x:left,y:top,width:right-left,height:bottom-top}};
+}
 type Dimensions = {width:number;height:number};
 type Sizing={id:string;size:Dimensions;position:MapPoint};
 type Box = MapPoint & Dimensions;
 type Endpoint = Box & {name:string; item?:ExplorerItem; reference?:string};
-type Drag = {id:string; pointer:number; start:MapPoint; zoom:number; origin:MapPoint; position:MapPoint; origins:Record<string,MapPoint>; positions:Record<string,MapPoint>; moved:boolean};
+type Drag = {id:string; pointer:number; start:MapPoint; zoom:number; origin:MapPoint; position:MapPoint; origins:Record<string,MapPoint>; positions:Record<string,MapPoint>; initial:Record<string,MapPoint>; moved:boolean};
 type Camera = MapPoint & {zoom:number};
 type Marquee={pointer:number;start:MapPoint;current:MapPoint;initial:string[];additive:boolean};
 const initialCamera: Camera = {x:0, y:0, zoom:1};
@@ -132,9 +160,9 @@ function ResizeHandle({label,size,position,step,zoom,draft,save,moveEdges}:{labe
     </button>)}</>;
 }
 
-export default function ProjectGraph({project, notes, childrenOf, settings, root, cover, connections, map, open, changeConnection, updateCard,
+export default function ProjectGraph({mode,project, notes, childrenOf, settings, root, cover, connections, map, open, changeConnection, updateCard,
   changeBlocks, changeAppearance, attach, openLink, references, pickReference, showMenu, changeTaskBoard, createTaskBoard, openTasks}: {
-  project: ExplorerItem;
+  mode:'tree'|'graph';project: ExplorerItem;
   notes: Note[];
   childrenOf: (item: ExplorerItem) => ExplorerItem[];
   settings: Settings;
@@ -160,6 +188,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const [label, setLabel] = useState('');
   const [editing, setEditing] = useState<{previous:ProjectConnection;next:ProjectConnection}|null>(null);
   const [comment, setComment] = useState<{id:string;text:string;index?:number}|null>(null);
+  const [nodeMenu,setNodeMenu]=useState<{id:string;x:number;y:number;item?:ExplorerItem}|null>(null);
   const [viewport, setViewport] = useState(0);
   const [measurements,setMeasurements]=useState<Record<string,Dimensions>>({});
   const [boardHeights,setBoardHeights]=useState<Record<string,number>>({});
@@ -168,6 +197,10 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const [marquee,setMarquee]=useState<Marquee|null>(null);
   const [sizing,setSizing]=useState<Sizing|null>(null);
   const [camera, setCamera] = useState(initialCamera);
+  const positionKey=JSON.stringify(['noteapp-radial-positions',root,project.project]);
+  const [radialPositions,setRadialPositions]=useState<Record<string,MapPoint>>(()=>{try{const saved=JSON.parse(localStorage.getItem(positionKey)??'{}');return Object.fromEntries(Object.entries(saved).filter((entry):entry is [string,MapPoint]=>{const p=entry[1] as MapPoint;return !!p&&typeof p==='object'&&Number.isFinite(p.x)&&Number.isFinite(p.y)}))}catch{return {}}});
+  useEffect(()=>{try{localStorage.setItem(positionKey,JSON.stringify(radialPositions))}catch{}},[positionKey,radialPositions]);
+  const [exporting,setExporting]=useState(false);
   const [rebuilding,setRebuilding]=useState(false);
   const [panning, setPanning] = useState(false);
   const [editCanvas, setEditCanvas] = useState(false);
@@ -177,6 +210,9 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const [placingText, setPlacingText] = useState(false);
   const [activeBlock, setActiveBlock] = useState('');
   const [rawMapTable,setRawMapTable]=useState('');
+  const [settingsBlock,setSettingsBlock]=useState('');
+  const [settingsTarget,setSettingsTarget]=useState<HTMLElement|null>(null);
+  const [tableSettingsTarget,setTableSettingsTarget]=useState<HTMLDivElement|null>(null);
   const marker = useId();
   const editToolsId = useId();
   const blockEditor = useRef<ReactCodeMirrorRef>(null);
@@ -184,6 +220,30 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const attachmentPosition = useRef<MapPoint>({x:0,y:0});
   const scroll = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    const view=scroll.current;
+    if(!view||!editCanvas){setSettingsBlock('');return;}
+    const select=(event:globalThis.PointerEvent)=>{
+      const target=event.target as Element|null;
+      if(!target||!view.closest('.central-window[data-active]'))return;
+      const element=target.closest<HTMLElement>('[data-node-id^="annotation:"]');
+      const next=element&&view.contains(element)?element.dataset.nodeId!.slice('annotation:'.length):'';
+      if(settingsBlock!==next){setTableSettingsTarget(null);setSettingsBlock(next)}
+    };
+    const switchWindow=(event:globalThis.PointerEvent)=>{const target=(event.target as Element|null)?.closest('.central-window');if(target&&target!==view.closest('.central-window'))setSettingsBlock('')};
+    view.addEventListener('pointerdown',select,true);
+    document.addEventListener('pointerdown',switchWindow,true);
+    return()=>{view.removeEventListener('pointerdown',select,true);document.removeEventListener('pointerdown',switchWindow,true)};
+  },[editCanvas,project.project,settingsBlock]);
+  useEffect(()=>{
+    if(!settingsBlock||!editCanvas){setSettingsTarget(null);return;}
+    const inspector=scroll.current?.closest('.app')?.querySelector<HTMLElement>('.dock-panel[data-panel="inspector"] .inspector');
+    if(!inspector){setSettingsTarget(null);return;}
+    const host=document.createElement('section');host.className='note-widget-settings-panel';inspector.append(host);
+    inspector.setAttribute('data-note-widget-settings','');setSettingsTarget(host);
+    return()=>{inspector.removeAttribute('data-note-widget-settings');host.remove();};
+  },[settingsBlock,editCanvas]);
+  useEffect(()=>{const app=scroll.current?.closest('.app');if(!app)return;const sync=()=>setExporting(app.hasAttribute('data-png-export'));const observer=new MutationObserver(sync);observer.observe(app,{attributes:true,attributeFilter:['data-png-export']});sync();return()=>observer.disconnect()},[]);
   useLayoutEffect(()=>{
     if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     const elements=canvas.current?.querySelectorAll('.graph-card, .graph-annotation, .graph-edges');
@@ -198,41 +258,58 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   const linksMenu = useRef<HTMLDetailsElement>(null);
   const centered = useRef(false);
   const pointer = useRef<Drag|null>(null);
+  const moveHistory=useRef<{mode:'graph'|'tree';positions:Record<string,MapPoint>}[]>([]);
+  useEffect(()=>{moveHistory.current=[]},[root,project.project]);
   const pan = useRef<{pointer:number; start:MapPoint; origin:MapPoint}|null>(null);
   const selection = useRef<Marquee|null>(null);
   const suppressClick = useRef('');
   const step=gridStep(settings.projectPatterns?.[project.project]);
-  const {nodes, bounds} = layoutProjectGraph(project, childrenOf, measurements, map.cards, viewport, drag,step,sizing);
-  const blocks=mapBlocks(map);
-  const endpoints=new Map<string,Endpoint>();
-  for(const [id,node] of nodes)endpoints.set(id,{...node,name:node.item.name});
-  let right=bounds.x+bounds.width, bottom=bounds.y+bounds.height;
-  for(const block of blocks){
-    const id=mapBlockKey(block.id);
-    const original=drag?.moved&&drag.positions[id]?drag.positions[id]:sizing?.id===id?sizing.position:block.position;
-    const position={x:snapGrid(original.x,step),y:snapGrid(original.y,step)};
-    const firstLine=block.text.trimStart().split('\n',1)[0];
-    const image=/^!\[([^\]]*)\]\(/.exec(firstLine);
-    const link=/^\[(.*)\]\((noteapp-(?:note|map):[\w-]+)\)$/.exec(block.text.trim());
-    const name=link?(references.targets.get(link[2])?.name??link[1])
-      : image ? 'Фото'+(image[1]?' · '+image[1]:'') : firstLine.trim()||'Текстовый блок';
-    const boardAutoSize=block.autoSize??(block.size?.width===704&&block.size?.height===462);
-    const boardBlock=boardAutoSize?/^`{3,}noteapp-board\n([\s\S]*?)\n`{3,}\s*$/.exec(block.text):null;
-    const boardValue=boardBlock&&featureFromMarkdown('board',boardBlock[1]);
-    const boardSize=boardValue&&kanbanWidgetSize(settings.taskBoards?.find(board=>board.id===boardValue.id),boardValue.column,boardValue.taskId);
-    const size=dimensions(sizing?.id===id?sizing.size:boardSize?{width:boardSize[0],height:boardHeights[block.id]??boardSize[1]}:block.size??{width:link?340:blockWidth,height:measurements[id]?.height??74},step);
-    const endpoint={...position,name:link?name:name.slice(0,80),reference:link?.[2],
-      width:size.width,height:block.size||sizing?.id===id?size.height:Math.ceil(Math.max(size.height,measurements[id]?.height??0)/step)*step};
-    endpoints.set(id,endpoint);
-    bounds.x=Math.min(bounds.x,position.x-inset);
-    bounds.y=Math.min(bounds.y,position.y-inset);
-    right=Math.max(right,position.x+endpoint.width+inset);
-    bottom=Math.max(bottom,position.y+endpoint.height+inset);
-  }
-  bounds.width=right-bounds.x;
-  bounds.height=bottom-bounds.y;
+  const treeDrag=mode==='tree'?drag:null;
+  const tree=useMemo(()=>layoutProjectGraph(project, childrenOf, measurements, map.cards, viewport, treeDrag,step,sizing),[project,childrenOf,measurements,map.cards,viewport,treeDrag,step,sizing]);
+  const layout=useMemo(()=>mode==='graph'?radialLayout(tree,project,radialPositions,drag,map.cards,sizing):tree,[mode,tree,project,radialPositions,drag,map.cards,sizing]);
+  const nodes=layout.nodes;
+  const blocks=useMemo(()=>mapBlocks(map),[map]);
+  const settingsItem=blocks.find(block=>block.id===settingsBlock);
+  const settingsPlot=settingsItem&&/^`{3,}noteapp-plot\n([\s\S]*?)\n`{3,}\s*$/.exec(settingsItem.text);
+  const settingsPlotValue=settingsPlot&&featureFromMarkdown('plot',settingsPlot[1]);
+  useEffect(()=>{if(settingsBlock&&!settingsItem)setSettingsBlock('')},[settingsBlock,settingsItem]);
+  const {endpoints,baseBounds}=useMemo(()=>{
+    const bounds={...layout.bounds};
+    const endpoints=new Map<string,Endpoint>();
+    for(const [id,node] of nodes)endpoints.set(id,{...node,height:mode==='graph'?node.bodyHeight:node.height,name:node.item.name});
+    let right=bounds.x+bounds.width, bottom=bounds.y+bounds.height;
+    for(const block of blocks){
+      const id=mapBlockKey(block.id);
+      const original=drag?.moved&&drag.positions[id]?drag.positions[id]:sizing?.id===id?sizing.position:block.position;
+      const position=mode==='graph'?original:{x:snapGrid(original.x,step),y:snapGrid(original.y,step)};
+      const firstLine=block.text.trimStart().split('\n',1)[0];
+      const image=/^!\[([^\]]*)\]\(/.exec(firstLine);
+      const link=/^\[(.*)\]\((noteapp-(?:note|map):[\w-]+)\)$/.exec(block.text.trim());
+      const name=link?(references.targets.get(link[2])?.name??link[1])
+        : image ? 'Фото'+(image[1]?' · '+image[1]:'') : firstLine.trim()||'Текстовый блок';
+      const boardAutoSize=block.autoSize??(block.size?.width===704&&block.size?.height===462);
+      const boardBlock=boardAutoSize?/^`{3,}noteapp-board\n([\s\S]*?)\n`{3,}\s*$/.exec(block.text):null;
+      const boardValue=boardBlock&&featureFromMarkdown('board',boardBlock[1]);
+      const boardSize=boardValue&&kanbanWidgetSize(settings.taskBoards?.find(board=>board.id===boardValue.id),boardValue.column,boardValue.taskId);
+      const size=dimensions(sizing?.id===id?sizing.size:boardSize?{width:boardSize[0],height:boardHeights[block.id]??boardSize[1]}:block.size??{width:link?340:blockWidth,height:measurements[id]?.height??74},step);
+      const height=block.size||sizing?.id===id?size.height:Math.ceil(Math.max(size.height,measurements[id]?.height??0)/step)*step;
+      const diameter=Math.max(size.width,height);
+      const endpoint={...position,name:link?name:name.slice(0,80),reference:link?.[2],
+        width:mode==='graph'?diameter:size.width,height:mode==='graph'?diameter:height};
+      endpoints.set(id,endpoint);
+      bounds.x=Math.min(bounds.x,position.x-inset);
+      bounds.y=Math.min(bounds.y,position.y-inset);
+      right=Math.max(right,position.x+endpoint.width+inset);
+      bottom=Math.max(bottom,position.y+endpoint.height+inset);
+    }
+    bounds.width=right-bounds.x;
+    bounds.height=bottom-bounds.y;
+    return {endpoints,baseBounds:bounds};
+  },[layout,nodes,blocks,mode,drag,sizing,step,references.targets,settings.taskBoards,boardHeights,measurements]);
+  const bounds={...baseBounds};
+  let right=bounds.x+bounds.width,bottom=bounds.y+bounds.height;
   const nodeIds = JSON.stringify([...endpoints.keys()]);
-  const notesByPath = new Map(notes.map(note => [note.path, note]));
+  const notesByPath = useMemo(()=>new Map(notes.map(note => [note.path, note])),[notes]);
   const source = endpoints.get(from);
   const structural = new Map<string,ProjectConnection>();
   for(const [to,node] of nodes){
@@ -246,11 +323,20 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     if(endpoints.has(link.from)&&endpoints.has(link.to))effective.set(linkKey(link),link);
   }
   const visible=[...effective.values()];
-  const geometry=JSON.stringify([...endpoints].map(([id,{x,y,width,height}])=>[id,x,y,width,height,nodes.get(id)?.depth]));
-  useLayoutEffect(()=>{const focus=(event:Event)=>{const detail=(event as CustomEvent<{project:string;id:string}>).detail;if(detail.project!==project.project||!scroll.current?.closest('.central-window[data-active]'))return;const endpoint=endpoints.get(detail.id),view=scroll.current;if(!endpoint||!view)return;setCamera(current=>({...current,x:view.clientWidth/2-(endpoint.x+endpoint.width/2)*current.zoom,y:view.clientHeight/2-(endpoint.y+endpoint.height/2)*current.zoom}));canvas.current?.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(detail.id)}"]`)?.focus({preventScroll:true})};window.addEventListener('noteapp-focus-map-item',focus);return()=>window.removeEventListener('noteapp-focus-map-item',focus)},[geometry,project.project]);
+  const geometry=useMemo(()=>JSON.stringify([...endpoints].map(([id,{x,y,width,height}])=>[id,x,y,width,height,nodes.get(id)?.depth])),[endpoints,nodes]);
+  useLayoutEffect(()=>{const focus=(event:Event)=>{const detail=(event as CustomEvent<{project:string;id:string}>).detail;if(detail.project!==project.project||!scroll.current?.closest('.central-window[data-active]'))return;const endpoint=endpoints.get(detail.id),view=scroll.current;if(!endpoint||!view)return;setCamera(current=>({...current,x:view.clientWidth/2-(endpoint.x+endpoint.width/2)*current.zoom,y:view.clientHeight/2-(endpoint.y+endpoint.height/2)*current.zoom}));canvas.current?.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(detail.id)}"]`)?.focus({preventScroll:true})};window.addEventListener('noteapp-focus-map-item',focus);return()=>window.removeEventListener('noteapp-focus-map-item',focus)},[endpoints,project.project]);
   useLayoutEffect(()=>{if(canvas.current)queueNoteWidgetJoinSync(canvas.current,step);},[geometry,step,map]);
   const routeLinks=JSON.stringify(visible.map(link=>[link.from,link.to,structural.has(linkKey(link))]));
   const routes=useMemo(()=>{
+    if(mode==='graph'){
+      const center=(box:Endpoint)=>({x:box.x+box.width/2,y:box.y+box.height/2});
+      const edge=(box:Endpoint,toward:MapPoint)=>{const c=center(box),dx=toward.x-c.x,dy=toward.y-c.y,factor=(box.width/2)/(Math.hypot(dx,dy)||1);return {x:c.x+dx*factor,y:c.y+dy*factor}};
+      return new Map(visible.map(link=>{const a=endpoints.get(link.from)!,b=endpoints.get(link.to)!,ac=center(a),bc=center(b),start=edge(a,bc),end=edge(b,ac);
+        const dx=end.x-start.x,dy=end.y-start.y,length=Math.hypot(dx,dy)||1;
+        const bend=Math.min(60,length*.09),control1={x:start.x+dx*.32-dy/length*bend,y:start.y+dy*.32+dx/length*bend},control2={x:start.x+dx*.68-dy/length*bend,y:start.y+dy*.68+dx/length*bend};
+        const path=`M ${start.x} ${start.y} C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${end.x} ${end.y}`;
+        return [linkKey(link),{points:[start,control1,control2,end],path}] as const;}));
+    }
     const boxes=[...endpoints.values()],route=createGraphRouter(boxes,step);
     const families=new Map<string,ProjectConnection[]>();
     for(const link of visible){
@@ -275,12 +361,44 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
         ||(a.from===b.from?(aTarget?.x??0)-(bTarget?.x??0):a.from.localeCompare(b.from));
     });
     return new Map(ordered.map(link=>{const key=linkKey(link),source=nodes.get(link.from),target=nodes.get(link.to),points=hierarchyRoutes.get(key)??route(endpoints.get(link.from)!,endpoints.get(link.to)!,!!source&&!!target&&source.depth!==target.depth);return [key,{points,path:graphRoutePath(points,boxes,step)}] as const}));
-  },[geometry,routeLinks,step]);
+  },[geometry,routeLinks,step,mode,camera.zoom<.5,exporting]);
   for(const {points} of routes.values())for(const point of points){bounds.x=Math.min(bounds.x,point.x-12);bounds.y=Math.min(bounds.y,point.y-12);right=Math.max(right,point.x+12);bottom=Math.max(bottom,point.y+12);}
   bounds.width=right-bounds.x;bounds.height=bottom-bounds.y;
+  useEffect(()=>{
+    const view=scroll.current,root=canvas.current;if(mode!=='graph'||!view||!root||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const active=new Map<string,{offset:number;velocity:number}>();let frame=0;
+    const paths=new Map<string,SVGPathElement[]>();root.querySelectorAll<SVGGElement>('[data-graph-edge]').forEach(group=>{const key=group.dataset.graphEdge;if(key)paths.set(key,Array.from(group.querySelectorAll('path')))});
+    const tick=()=>{frame=0;for(const [key,state] of active){const route=routes.get(key),elements=paths.get(key);if(!route||route.points.length!==4||!elements){active.delete(key);continue}const [a,b,c,d]=route.points,dx=d.x-a.x,dy=d.y-a.y,length=Math.hypot(dx,dy)||1;state.velocity=(state.velocity-state.offset*.09)*.84;state.offset+=state.velocity;const ox=-dy/length*state.offset,oy=dx/length*state.offset,path=`M ${a.x} ${a.y} C ${b.x+ox} ${b.y+oy}, ${c.x+ox} ${c.y+oy}, ${d.x} ${d.y}`;for(const element of elements)element.setAttribute('d',path);if(Math.abs(state.offset)<.08&&Math.abs(state.velocity)<.08){for(const element of elements)element.setAttribute('d',route.path);active.delete(key)}}if(active.size)frame=requestAnimationFrame(tick)};
+    const move=(event:globalThis.PointerEvent)=>{
+      if(pointer.current||pan.current)return;
+      const rect=view.getBoundingClientRect(),x=(event.clientX-rect.left-camera.x)/camera.zoom,y=(event.clientY-rect.top-camera.y)/camera.zoom,reach=52/camera.zoom;
+      let count=0;
+      for(const [key,route] of routes){
+        if(route.points.length!==4||!paths.has(key))continue;
+        const [a,b,c,d]=route.points;
+        if(x<Math.min(a.x,b.x,c.x,d.x)-reach||x>Math.max(a.x,b.x,c.x,d.x)+reach||y<Math.min(a.y,b.y,c.y,d.y)-reach||y>Math.max(a.y,b.y,c.y,d.y)+reach)continue;
+        let nearest=Infinity,side=1;
+        for(let i=2;i<=14;i++){
+          const t=i/16,u=1-t,px=u*u*u*a.x+3*u*u*t*b.x+3*u*t*t*c.x+t*t*t*d.x,py=u*u*u*a.y+3*u*u*t*b.y+3*u*t*t*c.y+t*t*t*d.y;
+          const distance=Math.hypot(x-px,y-py);
+          if(distance<nearest){const dx=u*u*(b.x-a.x)+2*u*t*(c.x-b.x)+t*t*(d.x-c.x),dy=u*u*(b.y-a.y)+2*u*t*(c.y-b.y)+t*t*(d.y-c.y);nearest=distance;side=(x-px)*-dy+(y-py)*dx>=0?-1:1;}
+        }
+        if(nearest>reach)continue;
+        const state=active.get(key)??{offset:0,velocity:0};state.velocity+=side*(1-nearest/reach)*3;active.set(key,state);
+        if(++count>=24)break;
+      }
+      if(active.size&&!frame)frame=requestAnimationFrame(tick);
+    };
+    view.addEventListener('pointermove',move,{passive:true});return()=>{view.removeEventListener('pointermove',move);if(frame)cancelAnimationFrame(frame)};
+  },[mode,routes,camera.x,camera.y,camera.zoom]);
   const maxDepth=Math.max(0,...[...nodes.values()].map(node=>node.depth));
   const selectedBlock=blocks.find(block=>block.id===activeBlock);
   const selectedBlocks=blocks.filter(block=>selectedIds.has(mapBlockKey(block.id)));
+  const inView=(id:string,box:Box)=>{
+    const view=scroll.current;if(exporting||!view||selectedIds.has(id)||from===id||drag?.positions[id]||sizing?.id===id||comment?.id===id||id===mapBlockKey(activeBlock)||id===mapBlockKey(settingsBlock))return true;
+    const pad=400/camera.zoom,left=-camera.x/camera.zoom-pad,top=-camera.y/camera.zoom-pad;
+    return box.x+box.width>=left&&box.y+box.height>=top&&box.x<=left+view.clientWidth/camera.zoom+pad*2&&box.y<=top+view.clientHeight/camera.zoom+pad*2;
+  };
 
   function updateBlock(id:string, patch:Partial<Omit<MapBlock,'id'>>) {
     changeBlocks(current=>current.map(block=>block.id===id?{...block,...patch}:block));
@@ -335,7 +453,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     if(pointer.current||pan.current)return;
     const view = scroll.current, node=nodes.get(keyOf(project));
     if(view&&node)setCamera(current=>({
-      ...current, x:view.clientWidth/2-(node.x+node.width/2)*current.zoom, y:inset-node.y*current.zoom,
+      ...current, x:view.clientWidth/2-(node.x+node.width/2)*current.zoom, y:mode==='graph'?view.clientHeight/2-(node.y+node.height/2)*current.zoom:inset-node.y*current.zoom,
     }));
   };
   function zoomAt(factor:number, point:MapPoint, reset=false) {
@@ -350,6 +468,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     if(!pointer.current&&!pan.current)zoomAt(factor,{x:view.clientWidth/2,y:view.clientHeight/2},reset);
   }
   function rebuildMap() {
+    if(mode==='graph'){const reset=radialLayout(tree,project,{},null,map.cards,null),node=reset.nodes.get(keyOf(project)),view=scroll.current;setRadialPositions({});if(view&&node)setCamera(current=>({...current,x:view.clientWidth/2-(node.x+node.width/2)*current.zoom,y:view.clientHeight/2-(node.y+node.bodyHeight/2)*current.zoom}));setRebuilding(true);window.setTimeout(()=>setRebuilding(false),800);return;}
     const cards:Record<string,MapCard>=Object.fromEntries(Object.entries(map.cards??{}).map(([id,card])=>[id,{...card,position:undefined}]));
     const arranged=layoutProjectGraph(project,childrenOf,measurements,cards,viewport,null,step,null);
     const nextCards:Record<string,MapCard>={...cards};
@@ -392,6 +511,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   useLayoutEffect(()=>{
     if(viewport&&!centered.current){centered.current=true;center();}
   },[viewport]);
+  useLayoutEffect(()=>{if(viewport)center();},[mode]);
   useLayoutEffect(()=>{
     const observer=new ResizeObserver(entries=>setMeasurements(previous=>{
       const next={...previous};
@@ -406,15 +526,17 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
       }
       return changed?next:previous;
     }));
-    for(const card of canvas.current!.querySelectorAll('[data-node-id]'))observer.observe(card);
-    return ()=>observer.disconnect();
-  },[nodeIds]);
+    const root=canvas.current!;const observed=new Set<Element>();
+    const observe=()=>{const cards=new Set(root.querySelectorAll(':scope > [data-node-id]:not(.graph-dot)'));for(const item of observed)if(!cards.has(item)){observer.unobserve(item);observed.delete(item)}for(const item of cards)if(!observed.has(item)){observer.observe(item);observed.add(item)}};
+    const mutation=new MutationObserver(observe);mutation.observe(root,{childList:true});observe();
+    return ()=>{mutation.disconnect();observer.disconnect()};
+  },[nodeIds,mode]);
 
   function startMove(event:PointerEvent<HTMLElement>, id:string, position:MapPoint,fromEdge=false) {
     suppressClick.current='';
     const target=event.target as Element;
     if(source||editing||pointer.current||pan.current||event.button!==0||
-      target.closest(fromEdge?'.graph-card-title, .graph-card-actions, .graph-comment':'.graph-card-title, .graph-card-actions, .graph-comment, .graph-resize'))return;
+      target.closest(fromEdge?'.graph-card-actions, .graph-comment':'.graph-card-actions, .graph-comment, .graph-resize'))return;
     if(event.ctrlKey||event.metaKey||event.shiftKey){
       event.preventDefault();event.stopPropagation();
       suppressClick.current=id;
@@ -422,12 +544,13 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
       return;
     }
     if(!selectedIds.has(id))setSelectedIds(new Set([id]));
+    scroll.current?.focus({preventScroll:true});
     const ids=selectedIds.has(id)?selectedIds:new Set([id]);
     const positions=Object.fromEntries([...ids].flatMap(key=>{const endpoint=endpoints.get(key);return endpoint?[[key,{x:endpoint.x,y:endpoint.y}]]:[]}));
     if(!positions[id])positions[id]=position;
     pointer.current={id,pointer:event.pointerId,start:{x:event.clientX,y:event.clientY},zoom:camera.zoom,
-      origin:position,position,origins:positions,positions,moved:false};
-    event.currentTarget.setPointerCapture(event.pointerId);
+      origin:position,position,origins:positions,positions,initial:Object.fromEntries([...endpoints].map(([key,value])=>[key,{x:value.x,y:value.y}])),moved:false};
+    (event.target as Element).setPointerCapture(event.pointerId);
   }
   function move(event:PointerEvent<HTMLElement>) {
     const current=pointer.current;
@@ -435,18 +558,26 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     const dx=(event.clientX-current.start.x)/current.zoom,dy=(event.clientY-current.start.y)/current.zoom;
     if(!current.moved&&Math.hypot(event.clientX-current.start.x,event.clientY-current.start.y)<5)return;
     event.preventDefault();
-    const positions=Object.fromEntries(Object.entries(current.origins).map(([id,origin])=>[id,{x:snapGrid(origin.x+dx,step),y:snapGrid(origin.y+dy,step)}]));
+    const positions={...current.positions,...Object.fromEntries(Object.entries(current.origins).map(([id,origin])=>[id,mode==='graph'?{x:origin.x+dx,y:origin.y+dy}:{x:snapGrid(origin.x+dx,step),y:snapGrid(origin.y+dy,step)}]))};
+    if(mode==='graph'){
+      const fixed=new Set(Object.keys(current.origins)),queue=[...fixed];
+      for(let i=0;i<queue.length&&i<endpoints.size*3;i++){
+        const id=queue[i],a=endpoints.get(id),pa=positions[id];if(!a||!pa)continue;
+        for(const [otherId,b] of endpoints){if(otherId===id||fixed.has(otherId))continue;const pb=positions[otherId]??{x:b.x,y:b.y},vx=pb.x+b.width/2-pa.x-a.width/2,vy=pb.y+b.height/2-pa.y-a.height/2,distance=Math.hypot(vx,vy),minimum=(a.width+b.width)/2+step;if(distance>=minimum)continue;const ux=distance?vx/distance:1,uy=distance?vy/distance:0;positions[otherId]={x:pb.x+ux*(minimum-distance),y:pb.y+uy*(minimum-distance)};queue.push(otherId)}
+      }
+    }
     if(Object.keys(positions).length===1&&current.id.startsWith('annotation:')&&canvas.current){
       const element=canvas.current.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(current.id)}"]`),box=endpoints.get(current.id);
-      if(element&&box){const {x,y}=snapNoteWidgetPosition(element,{...positions[current.id],width:box.width,height:box.height,z:0},canvas.current,step);positions[current.id]={x,y};}
+      if(element&&box){const {x,y}=snapNoteWidgetPosition(element,{...positions[current.id],width:box.width,height:box.height,z:0},canvas.current,step,true);positions[current.id]={x,y};}
     }
     const position=positions[current.id]??{x:snapGrid(current.origin.x+dx,step),y:snapGrid(current.origin.y+dy,step)};
     pointer.current={...current,position,positions,moved:true};
     setDrag(pointer.current);
   }
   function savePositions(positions:Record<string,MapPoint>) {
-    const snapped=Object.fromEntries(Object.entries(positions).map(([id,position])=>[id,{x:snapGrid(position.x,step),y:snapGrid(position.y,step)}]));
-    const changedCards=Object.fromEntries(Object.entries(snapped).filter(([id])=>nodes.has(id)).map(([id,position])=>[id,{...map.cards?.[id],position}]));
+    const snapped=Object.fromEntries(Object.entries(positions).map(([id,position])=>[id,mode==='graph'?position:{x:snapGrid(position.x,step),y:snapGrid(position.y,step)}]));
+    if(mode==='graph'){setRadialPositions(current=>({...current,...Object.fromEntries(Object.entries(snapped).filter(([id])=>nodes.has(id)))}));}
+    const changedCards=Object.fromEntries(Object.entries(snapped).filter(([id])=>mode==='tree'&&nodes.has(id)).map(([id,position])=>[id,{...map.cards?.[id],position}]));
     if(Object.keys(changedCards).length)changeAppearance({cards:{...map.cards,...changedCards}});
     const changedBlocks=new Map(blocks.flatMap(block=>snapped[mapBlockKey(block.id)]?[[block.id,snapped[mapBlockKey(block.id)]]]:[]));
     if(changedBlocks.size)changeBlocks(current=>current.map(block=>changedBlocks.has(block.id)?{...block,position:changedBlocks.get(block.id)!}:block));
@@ -458,6 +589,8 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     setDrag(null);
     if(!current.moved)return;
     suppressClick.current=current.id;
+    moveHistory.current.push({mode,positions:Object.fromEntries(Object.keys(current.positions).flatMap(id=>current.initial[id]?[[id,current.initial[id]]]:[]))});
+    moveHistory.current=moveHistory.current.slice(-100);
     save?.(current.positions);
   }
 
@@ -477,6 +610,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
   }
 
   function cancelLink() { setFrom(''); setLabel(''); }
+  function openNodeMenu(event:React.MouseEvent,id:string,item?:ExplorerItem){event.preventDefault();event.stopPropagation();setNodeMenu({id,item,x:event.clientX,y:event.clientY})}
   function connect(to: string) {
     if (!source || to === from) { cancelLink(); return; }
     if (!effective.has(linkKey({from,to})))changeConnection({from,to,label:label.trim()});
@@ -486,6 +620,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
     (linkKey(editing.previous)===linkKey(editing.next)||!effective.has(linkKey(editing.next)));
 
   return <div className="project-graph-content" data-linking={!!source||undefined} onKeyDown={event => {
+    if((event.ctrlKey||event.metaKey)&&!event.shiftKey&&event.key.toLowerCase()==='z'&&!(event.target as Element).closest('input,textarea,.cm-editor,[contenteditable="true"]')){const previous=moveHistory.current.at(-1);if(previous&&previous.mode===mode){event.preventDefault();event.stopPropagation();moveHistory.current.pop();savePositions(previous.positions)}return}
     const menu=linksMenu.current;
     if(event.key==='Escape'&&menu?.open){
       event.stopPropagation();menu.open=false;menu.querySelector('summary')?.focus();return;
@@ -645,7 +780,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
         const dy=event.key==='ArrowUp'?40:event.key==='ArrowDown'?-40:0;
         setCamera(current=>({...current,x:current.x+dx,y:current.y+dy}));
       }}>
-      <div ref={canvas} className="graph-canvas" data-rebuilding={rebuilding||undefined} style={{transform:`translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,'--graph-text-factor':1+Math.max(0,1-camera.zoom)*.4} as React.CSSProperties}>
+      <div ref={canvas} className="graph-canvas" data-graph-layout={mode} data-dragging={drag?.moved||undefined} data-rebuilding={rebuilding||undefined} style={{transform:`translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,'--graph-text-factor':1+Math.max(0,1-camera.zoom)*.4} as React.CSSProperties}>
         <svg className="graph-edges" aria-hidden="true" width={bounds.width} height={bounds.height}
           viewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} style={{left:bounds.x,top:bounds.y}}>
           <defs><marker id={marker} markerWidth="12" markerHeight="12" viewBox="0 0 12 12" markerUnits="userSpaceOnUse" refX="10" refY="6" orient="auto">
@@ -657,7 +792,8 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
             const route = routes.get(key);
             if(!route?.path)return null;
             const level=Math.max(nodes.get(link.from)?.depth??maxDepth+1,nodes.get(link.to)?.depth??maxDepth+1);
-            return <g key={key} className="graph-arrow" onClick={() => {
+            const projectPalette=nodes.get(link.to)?.item.project??nodes.get(link.from)?.item.project;
+            return <g key={key} data-graph-edge={key} className={`graph-arrow${mode==='graph'&&project.project===':all-projects:'?` palette-${paletteId(settings.projectPalettes?.[projectPalette??'']??settings.palette)}`:''}`} onClick={() => {
               const menu=linksMenu.current;
               if(!menu)return;
               menu.open=true;
@@ -665,22 +801,26 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
             }}>
               <title>{a.name} → {b.name}{link.label ? ' · ' + link.label : ''}</title>
               <path d={route.path} fill="none" stroke="transparent" strokeWidth="14"/>
-            <path className="graph-route" d={route.path} pathLength={1} style={{'--route-delay':`${structural.has(key)&&nodes.get(link.to)!.depth>nodes.get(link.from)!.depth?Math.max(0,nodes.get(link.to)!.depth*1150-650):level*1150+500}ms`} as React.CSSProperties} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" markerEnd={`url(#${marker})`}/>
+            <path className="graph-route" d={route.path} pathLength={1} style={{'--route-delay':`${structural.has(key)&&nodes.get(link.to)!.depth>nodes.get(link.from)!.depth?Math.max(0,nodes.get(link.to)!.depth*1150-650):level*1150+500}ms`} as React.CSSProperties} fill="none" stroke={mode==='graph'&&project.project===':all-projects:'?'var(--swatch-color,var(--palette-hue))':'var(--accent)'} strokeWidth={mode==='graph'?2:1.8} strokeLinecap="round" strokeLinejoin="round" markerEnd={mode==='tree'?`url(#${marker})`:undefined}/>
             </g>;
           })}
         </svg>
         {[...nodes].map(([id, node]) => {
+          if(!inView(id,node))return null;
           const {item, parent, children, width, bodyHeight, x, y} = node;
+          if(mode==='graph'&&camera.zoom<.5&&!exporting&&comment?.id!==id){
+            return <button key={id} type="button" data-node-id={id} data-selected={selectedIds.has(id)||undefined} data-link-source={from===id||undefined} className={`graph-dot palette-${paletteId(settings.projectPalettes?.[item.project]??settings.palette)}`} title={item.name} aria-label={`Открыть «${item.name}»`} style={{left:x,top:y,width,height:bodyHeight}} onContextMenu={event=>openNodeMenu(event,id,item)} onPointerDown={event=>startMove(event,id,node)} onPointerMove={move} onPointerUp={event=>endMove(event,savePositions)} onPointerCancel={endMove} onClick={()=>{if(suppressClick.current===id){suppressClick.current='';return}if(source)connect(id);else open(item)}}/>;
+          }
           const isNote = item.kind === 'note';
           const duplicate = !!source && effective.has(linkKey({from,to:id}));
           const comments=map.cards?.[id]?.comments??[];
           const commentOpen=comment?.id===id;
           const summary = item.path.endsWith('.canvas') ? 'Полотно' : isNote ? noteExcerpt(notesByPath.get(item.path)) :
             children.length ? children.slice(0, 4).map(child => child.name).join(' · ') + (children.length > 4 ? ' · …' : '') : 'Пока пусто';
-          return <article key={id} className={`project-card graph-card graph-card-${item.kind}${textureById(map.cards?.[id]?.texture)?` palette-${map.cards![id].texture}`:''}`} data-node-id={id} data-depth={node.depth}
+          return <article key={id} className={`project-card graph-card graph-card-${item.kind}${mode==='graph'?` palette-${paletteId(settings.projectPalettes?.[item.project]??settings.palette)}`:textureById(map.cards?.[id]?.texture)?` palette-${map.cards![id].texture}`:''}`} data-node-id={id} data-depth={node.depth} data-palette-blend={mode==='graph'?(settings.projectPalettes?.[item.project]?settings.projectPaletteBlends?.[item.project]:settings.paletteBlend)??'':undefined}
             onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
             onDrop={event=>{const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(value&&textureById(value.palette)){event.preventDefault();event.stopPropagation();updateCard(id,{texture:value.palette});}}}
-            onContextMenu={event=>showMenu(event,item)}
+            onContextMenu={event=>openNodeMenu(event,id,item)}
             data-link-source={source && from === id ? true : undefined}
             data-moving={drag?.positions[id]!==undefined||undefined} data-selected={selectedIds.has(id)||undefined} data-comment-open={commentOpen||undefined}
             style={{left:x, top:y, width,'--rebuild-delay':`${node.depth*1150}ms`} as React.CSSProperties}
@@ -704,7 +844,8 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
                 event.preventDefault();event.stopPropagation();
                 const dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0;
                 const dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;
-                updateCard(id,{position:{x:x+dx,y:y+dy}});
+                moveHistory.current.push({mode,positions:{[id]:{x,y}}});moveHistory.current=moveHistory.current.slice(-100);
+                if(mode==='graph')setRadialPositions(current=>({...current,[id]:{x:x+dx,y:y+dy}}));else updateCard(id,{position:{x:x+dx,y:y+dy}});
               }}
               onClick={event=>{
                 if(suppressClick.current===id&&event.detail!==0){suppressClick.current='';return;}
@@ -715,16 +856,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
                 <span className="graph-card-summary">{summary}</span>
               </CardFace>
             </div>
-            <div className="graph-card-actions">
-              <button className="graph-port icon-button" type="button" aria-expanded={commentOpen}
-                title="Добавить комментарий" aria-label={`Добавить комментарий · ${item.name}`}
-                onClick={()=>setComment(commentOpen&&comment.index===undefined?null:{id,text:''})}><ChatText size={16} weight={comments.length?'fill':'regular'}/></button>
-              {endpoints.size > 1 && <button className="graph-port graph-link-port icon-button" type="button" disabled={duplicate||!!editing}
-                aria-label={source && from !== id ? `Связать с «${item.name}»` : `Начать связь от «${item.name}»`}
-                aria-pressed={!!source && from === id} title={source ? 'Выбрать карточку назначения' : 'Провести стрелку'}
-                onClick={() => source ? connect(id) : setFrom(id)}><Link size={19}/></button>}
-            </div>
-            {comments.map((text,index)=>!(commentOpen&&comment.index===index)&&<div className="graph-comment graph-comment-saved" key={index}>
+            {commentOpen&&comments.map((text,index)=>comment.index!==index&&<div className="graph-comment graph-comment-saved" key={index}>
               <p>{text}</p>
               <div>
                 <button className="icon-button" type="button" title="Изменить комментарий" aria-label={`Изменить комментарий ${index+1}`}
@@ -749,25 +881,30 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
                 <button type="button" onClick={()=>setComment(null)}>Отмена</button></div>
             </form>}
             <ResizeHandle label={`Размер карточки «${item.name}»`} size={{width,height:bodyHeight}} position={{x,y}} step={step} zoom={camera.zoom}
-              draft={value=>setSizing(value?{id,...value}:null)} save={(size,position)=>updateCard(id,{size,position})}/>
+              draft={value=>setSizing(value?{id,...value}:null)} save={(size,position)=>{if(mode==='graph'){setRadialPositions(current=>({...current,[id]:position}));updateCard(id,{size})}else updateCard(id,{size,position})}}/>
           </article>;
         })}
         {blocks.map(block=>{
           const dragId=mapBlockKey(block.id);
           const moving=drag?.positions[dragId]!==undefined&&drag.moved;
           const position=endpoints.get(dragId)!;
+          if(!inView(dragId,position))return null;
           const active=editCanvas&&activeBlock===block.id;
+          if(mode==='graph'&&camera.zoom<.5&&!exporting&&!active&&settingsBlock!==block.id){
+            return <button key={block.id} type="button" data-node-id={dragId} data-selected={selectedIds.has(dragId)||undefined} data-link-source={from===dragId||undefined} className={`graph-dot palette-${paletteId(settings.projectPalettes?.[project.project]??settings.palette)}`} onContextMenu={event=>openNodeMenu(event,dragId)} title={position.name} aria-label={`Объект «${position.name}»`} style={{left:position.x,top:position.y,width:position.width,height:position.height}} onPointerDown={event=>startMove(event,dragId,position)} onPointerMove={move} onPointerUp={event=>endMove(event,savePositions)} onPointerCancel={endMove} onClick={()=>{if(suppressClick.current===dragId){suppressClick.current='';return}if(source)connect(dragId);else if(position.reference)references.open(position.reference)}}/>;
+          }
           const font=validFont(block.fontFamily)||validFont(map.fontFamily);
           const duplicate=!!source&&effective.has(linkKey({from,to:dragId}));
           const feature=/^`{3,}noteapp-(compare|source|concept|math|plot|board)\n([\s\S]*?)\n`{3,}\s*$/.exec(block.text);
           const featureValue=feature&&featureFromMarkdown(feature[1],feature[2]);
           const table=standaloneMapTable(block.text);
-          return <article key={block.id} className={`graph-annotation${featureValue||table?' note-feature-widget':''}${table?' graph-table-annotation':''}${textureById(block.texture)?` palette-${block.texture}`:''}`} data-active={active||undefined} data-reference={!!position.reference||undefined}
+          const image=/^!\[[^\]]*\]\([^\n]+\)\s*$/.test(block.text);
+          return <article key={block.id} className={`graph-annotation${featureValue||table?' note-feature-widget':''}${table?' graph-table-annotation':''}${image?' graph-image-annotation':''}${textureById(block.texture)?` palette-${block.texture}`:''}`} data-active={active||undefined} data-reference={!!position.reference||undefined} data-note-widget-selected={settingsBlock===block.id&&!!settingsTarget||undefined}
             onDragOver={event=>{if(event.dataTransfer.types.includes(paletteDragType))event.preventDefault();}}
             onDrop={event=>{const value=readPaletteDrop(event.dataTransfer.getData(paletteDragType));if(value&&textureById(value.palette)){event.preventDefault();event.stopPropagation();updateBlock(block.id,{texture:value.palette});}}}
-            data-node-id={dragId} data-depth={maxDepth+1} tabIndex={-1} data-link-source={from===dragId||undefined}
+            onContextMenu={event=>openNodeMenu(event,dragId)} data-node-id={dragId} data-depth={maxDepth+1} tabIndex={-1} data-link-source={from===dragId||undefined}
             data-moving={moving||undefined} data-selected={selectedIds.has(dragId)||undefined} style={{left:position.x,top:position.y,width:position.width,minWidth:0,maxWidth:'none',minHeight:position.height,'--rebuild-delay':`${(maxDepth+1)*1150}ms`,
-              height:block.size||sizing?.id===dragId?position.height:undefined,fontFamily:font?fontStack(font):undefined} as React.CSSProperties}
+              height:mode==='graph'||block.size||sizing?.id===dragId?position.height:undefined,fontFamily:font?fontStack(font):undefined} as React.CSSProperties}
             onClickCapture={event=>{
               if(suppressClick.current===dragId&&event.detail!==0){
                 suppressClick.current='';event.preventDefault();event.stopPropagation();return;
@@ -778,7 +915,7 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
             }}
             onClick={event=>{
               if(suppressClick.current===dragId&&event.detail!==0){suppressClick.current='';event.preventDefault();event.stopPropagation();return;}
-              if(!source&&!active&&position.reference&&!(event.target as Element).closest('button, summary')){
+              if(!source&&!active&&position.reference&&!(event.target as Element).closest('button, summary, .graph-widget-menu')){
                 references.open(position.reference);
               }
             }}>
@@ -793,30 +930,35 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
                   event.preventDefault();event.stopPropagation();
                   const dx=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0;
                   const dy=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;
+                  moveHistory.current.push({mode,positions:{[dragId]:{x:position.x,y:position.y}}});moveHistory.current=moveHistory.current.slice(-100);
                   updateBlock(block.id,{position:{x:position.x+dx,y:position.y+dy}});
-                }}><ArrowsOutCardinal size={11}/></button>
-              {endpoints.size>1&&<button className="graph-port graph-link-port icon-button" type="button"
-                disabled={!!editing||duplicate}
-                aria-label={source&&from!==dragId?`Связать с «${position.name}»`:`Начать связь от «${position.name}»`}
-                aria-pressed={from===dragId} title={source?'Выбрать объект назначения':'Провести стрелку'}
-                onClick={()=>source?connect(dragId):setFrom(dragId)}><Link size={19}/></button>}
-              {editCanvas&&feature?.[1]==='plot'&&featureValue&&<details className="graph-plot-settings"><summary title="Настройки графика" aria-label="Настройки графика">⋯</summary><div><label>Цвет графика <input type="color" value={/^#[0-9a-f]{6}$/i.test(featureValue.plotColor??'')?featureValue.plotColor:'#96a6b6'} onChange={event=>updateBlock(block.id,{text:markdownBlock('plot',{...featureValue,plotColor:event.target.value})})}/></label></div></details>}
+                }}><DotsSixVertical size={16}/></button>
               {editCanvas&&
                 <button type="button" className="icon-button" title={active?'Готово':'Правка блока'} aria-label={active?'Готово':'Правка блока'}
                   onClick={()=>{setRawMapTable('');setActiveBlock(active?'':block.id)}}>{active?<Check size={16}/>:<PencilSimple size={16}/>}</button>}
-              <button type="button" className="icon-button" title="Удалить блок" aria-label={`Удалить блок «${position.name}»`}
-                onClick={()=>{
-                  if(active)setActiveBlock('');
-                  if(from===dragId)cancelLink();
-                  changeBlocks(current=>current.filter(item=>item.id!==block.id));
-                  scroll.current?.focus();
-                }}><Trash size={16}/></button>
+              <details className="graph-widget-menu" onKeyDown={event=>{
+                if(event.key!=='Escape'||!event.currentTarget.open)return;
+                event.stopPropagation();
+                event.currentTarget.open=false;
+                event.currentTarget.querySelector('summary')?.focus();
+              }}>
+                <summary title="Действия с блоком" aria-label="Действия с блоком"><DotsThree size={18}/></summary>
+                <div>
+                  {editCanvas&&feature?.[1]==='plot'&&featureValue&&<label>Цвет графика <input type="color" value={/^#[0-9a-f]{6}$/i.test(featureValue.plotColor??'')?featureValue.plotColor:'#96a6b6'} onChange={event=>updateBlock(block.id,{text:markdownBlock('plot',{...featureValue,plotColor:event.target.value})})}/></label>}
+                  <button type="button" aria-label={`Удалить блок «${position.name}»`} onClick={()=>{
+                    if(active)setActiveBlock('');
+                    if(from===dragId)cancelLink();
+                    changeBlocks(current=>current.filter(item=>item.id!==block.id));
+                    scroll.current?.focus();
+                  }}><Trash size={16}/>Удалить блок</button>
+                </div>
+              </details>
             </header>
-            <div className={`graph-annotation-content${featureValue||table?' note-widget-body':''}`} style={{
+            <div onPointerDown={image&&editCanvas?event=>startMove(event,dragId,position):undefined} onPointerMove={image?move:undefined} onPointerUp={image?event=>endMove(event,savePositions):undefined} onPointerCancel={image?endMove:undefined} className={`graph-annotation-content${featureValue||table?' note-widget-body':''}`} style={{
               ...textAppearanceStyle({lineHeight:block.lineHeight??map.lineHeight,textColor:block.textColor??map.textColor}),
               ...(font&&{'--body-font':fontStack(font)}),
             } as React.CSSProperties}>
-              {feature&&featureValue?<FittedWidget baseWidth={featureBaseWidth(feature[1] as NoteFeature,settings.taskBoards?.find(board=>board.id===featureValue.id),featureValue.column,featureValue.taskId)}><FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} onBoardHeight={(block.autoSize??(block.size?.width===704&&block.size?.height===462))?height=>setBoardHeights(current=>{const next=height+48;return current[block.id]===next?current:{...current,[block.id]:next}}):undefined} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/></FittedWidget>:table&&rawMapTable!==block.id?editCanvas?<MapTable source={block.text} save={text=>{const host=Array.from(scroll.current?.querySelectorAll<HTMLElement>('.graph-annotation')??[]).find(node=>node.dataset.nodeId===dragId)??null,[minWidth,minHeight]=tableMinimumSize(host);updateBlock(block.id,{text,size:{width:Math.max(position.width,Math.ceil(minWidth/step)*step),height:Math.max(position.height,Math.ceil(minHeight/step)*step)}})}} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}}/>:<ReadingTable source={block.text}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
+              {feature&&featureValue?<FittedWidget baseWidth={featureBaseWidth(feature[1] as NoteFeature,settings.taskBoards?.find(board=>board.id===featureValue.id),featureValue.column,featureValue.taskId)}><FeatureCard key={block.id} kind={feature[1] as NoteFeature} value={featureValue} editable={editCanvas} notes={notes} boards={settings.taskBoards??[]} changeBoard={changeTaskBoard} openNote={openLink} onBoardHeight={(block.autoSize??(block.size?.width===704&&block.size?.height===462))?height=>setBoardHeights(current=>{const next=height+48;return current[block.id]===next?current:{...current,[block.id]:next}}):undefined} save={value=>updateBlock(block.id,{text:markdownBlock(feature[1] as NoteFeature,value)})}/></FittedWidget>:table&&rawMapTable!==block.id?editCanvas?<MapTable source={block.text} save={text=>{const host=Array.from(scroll.current?.querySelectorAll<HTMLElement>('.graph-annotation')??[]).find(node=>node.dataset.nodeId===dragId)??null,[minWidth,minHeight]=tableMinimumSize(host);updateBlock(block.id,{text,size:{width:Math.max(position.width,Math.ceil(minWidth/step)*step),height:Math.max(position.height,Math.ceil(minHeight/step)*step)}})}} markdown={()=>{setRawMapTable(block.id);setActiveBlock(block.id)}} menuTarget={settingsBlock===block.id?tableSettingsTarget??undefined:undefined}/>:<ReadingTable source={block.text}/>:<Editor references={references} note={{path:mapNotesPath,content:block.text,revision:''}} notes={notes} read={!active} floatingText={false}
                 light={settings.theme==='light'} autoFocus={active} editorRef={blockEditor}
                 onChange={text=>updateBlock(block.id,{text})} onLink={openLink}/>}
               {!active&&!block.text&&<p className="subtle">Пустой блок</p>}
@@ -829,5 +971,15 @@ export default function ProjectGraph({project, notes, childrenOf, settings, root
       </div>
     </div>
     </div>
+    {settingsTarget&&settingsItem&&createPortal(<>
+      <strong>Настройки виджета</strong>
+      <div className="graph-widget-settings-controls">
+        <button type="button" onClick={()=>{setRawMapTable('');setActiveBlock(activeBlock===settingsItem.id?'':settingsItem.id)}}>{activeBlock===settingsItem.id?'Готово':'Правка блока'}</button>
+        <button type="button" onClick={()=>{if(activeBlock===settingsItem.id)setActiveBlock('');if(from===mapBlockKey(settingsItem.id))cancelLink();changeBlocks(current=>current.filter(item=>item.id!==settingsItem.id));setSettingsBlock('')}}>Удалить блок</button>
+      </div>
+      {settingsPlotValue&&<label>Цвет графика <input type="color" value={/^#[0-9a-f]{6}$/i.test(settingsPlotValue.plotColor??'')?settingsPlotValue.plotColor:'#96a6b6'} onChange={event=>updateBlock(settingsItem.id,{text:markdownBlock('plot',{...settingsPlotValue,plotColor:event.target.value})})}/></label>}
+      {standaloneMapTable(settingsItem.text)&&rawMapTable!==settingsItem.id&&<div key={settingsItem.id} ref={setTableSettingsTarget} className="note-insert-actions"/>}
+    </>,settingsTarget)}
+    {nodeMenu&&createPortal(<><div className="graph-context-dismiss" onPointerDown={()=>setNodeMenu(null)} onContextMenu={event=>{event.preventDefault();setNodeMenu(null)}}/><div className="graph-context-menu" role="menu" style={{left:Math.max(0,Math.min(nodeMenu.x,window.innerWidth-220)),top:Math.max(0,Math.min(nodeMenu.y,window.innerHeight-150))}}><button type="button" role="menuitem" disabled={!!editing||endpoints.size<2} onClick={()=>{source?connect(nodeMenu.id):setFrom(nodeMenu.id);setNodeMenu(null)}}>{source?(from===nodeMenu.id?'Отменить связывание':'Связать с этим объектом'):'Начать связь'}</button>{nodeMenu.item&&<button type="button" role="menuitem" onClick={()=>{setComment({id:nodeMenu.id,text:''});setNodeMenu(null)}}>Комментарии…</button>}{nodeMenu.item&&<button type="button" role="menuitem" onClick={event=>{showMenu(event,nodeMenu.item!);setNodeMenu(null)}}>Другие действия…</button>}</div></>,scroll.current?.closest('.app')??document.body)}
   </div>;
 }

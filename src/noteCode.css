@@ -1,5 +1,5 @@
 .note-code-host { position:relative; margin:14px 0 22px; min-width:0; }
-.note-code-card { display:flex; flex-direction:column; gap:10px; min-width:0; padding:14px; border:1px solid color-mix(in srgb,var(--editor) 72%,var(--base)); border-radius:16px; background:var(--editor); color:var(--text); font:13px/1.5 var(--body-font); }
+.note-code-card { display:flex; flex-direction:column; gap:10px; min-width:0; padding:14px; border:1px solid color-mix(in srgb,var(--editor) 72%,var(--base)); border-radius:16px; background:var(--widget-surface); color:var(--text); font:13px/1.5 var(--body-font); }
 .note-code-heading { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-height:30px; }
 .note-code-heading strong { overflow:hidden; text-overflow:ellipsis; max-width:190px; white-space:nowrap; font-size:14px; }
 .note-code-symbol,.note-code-runtime,.note-code-input small { color:var(--muted); }
